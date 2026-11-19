@@ -7,6 +7,14 @@ const Moves = preload("res://combat/move_data.gd")
 const State = preload("res://combat/combat_state.gd")
 const HitDetection = preload("res://combat/hit_detection.gd")
 
+const BAEK_SPRITE := "res://assets/characters/baekseol/side.png"
+const SANG_SPRITE := "res://assets/characters/sangmi/side.png"
+const SNOW_BACKGROUND := "res://assets/background_snow_rail.png"
+
+var baek_art: Texture2D
+var sang_art: Texture2D
+var snow_art: Texture2D
+
 var combat = Core.new()
 var requested_buttons: int = 0
 var touch_left: bool = false
@@ -18,6 +26,12 @@ var recent_hit_frames: int = 0
 var dummy_respawn_frames: int = 0
 
 func _ready() -> void:
+    if ResourceLoader.exists(BAEK_SPRITE):
+        baek_art = load(BAEK_SPRITE)
+    if ResourceLoader.exists(SANG_SPRITE):
+        sang_art = load(SANG_SPRITE)
+    if ResourceLoader.exists(SNOW_BACKGROUND):
+        snow_art = load(SNOW_BACKGROUND)
     _restart()
     _build_touch_controls()
     get_viewport().size_changed.connect(_layout_touch_controls)
@@ -74,20 +88,23 @@ func _physics_process(_delta: float) -> void:
 
 func _draw() -> void:
     var size: Vector2 = get_viewport_rect().size
-    var ground: float = size.y * 0.78
+    var ground: float = size.y * 0.85
     var cx: float = size.x * 0.50
-    draw_rect(Rect2(Vector2.ZERO, size), Color("#111d32"))
-    draw_circle(Vector2(size.x * .77, size.y * .19), 50.0, Color("#9db6d1", .21))
-    draw_colored_polygon(PackedVector2Array([
-        Vector2(-100, ground), Vector2(135, ground - 226), Vector2(310, ground - 74),
-        Vector2(550, ground - 310), Vector2(770, ground - 76),
-        Vector2(size.x + 100, ground)]), Color("#273b55"))
-    draw_colored_polygon(PackedVector2Array([
-        Vector2(-100, ground), Vector2(145, ground - 133), Vector2(330, ground - 12),
-        Vector2(600, ground - 176), Vector2(840, ground - 33),
-        Vector2(size.x + 100, ground)]), Color("#344b64"))
-    draw_rect(Rect2(0, ground, size.x, size.y - ground), Color("#34475b"))
-    draw_line(Vector2(0, ground), Vector2(size.x, ground), Color("#d5e7f4"), 7.0)
+    if snow_art != null:
+        draw_texture_rect(snow_art, Rect2(Vector2.ZERO, size), false)
+    else:
+        draw_rect(Rect2(Vector2.ZERO, size), Color("#111d32"))
+        draw_circle(Vector2(size.x * .77, size.y * .19), 50.0, Color("#9db6d1", .21))
+        draw_colored_polygon(PackedVector2Array([
+            Vector2(-100, ground), Vector2(135, ground - 226), Vector2(310, ground - 74),
+            Vector2(550, ground - 310), Vector2(770, ground - 76),
+            Vector2(size.x + 100, ground)]), Color("#273b55"))
+        draw_colored_polygon(PackedVector2Array([
+            Vector2(-100, ground), Vector2(145, ground - 133), Vector2(330, ground - 12),
+            Vector2(600, ground - 176), Vector2(840, ground - 33),
+            Vector2(size.x + 100, ground)]), Color("#344b64"))
+        draw_rect(Rect2(0, ground, size.x, size.y - ground), Color("#34475b"))
+        draw_line(Vector2(0, ground), Vector2(size.x, ground), Color("#d5e7f4"), 7.0)
 
     # Every frame reads the same simulation state used for authoritative hits.
     _draw_fighter(combat.actors[2], cx, ground, false)
@@ -97,6 +114,31 @@ func _draw() -> void:
 func _draw_fighter(actor: Object, cx: float, ground: float, is_baekseol: bool) -> void:
     var feet := Vector2(cx + float(actor.x) / 1000.0, ground - float(actor.y) / 1000.0)
     var direction: float = float(actor.facing)
+    var art: Texture2D = baek_art if is_baekseol else sang_art
+    if art != null:
+        # The original side-view sheet faces left; mirror to face right.
+        # This is an illustration cutout with subtle motion, not a rigged animation.
+        var motion_bob: float = 0.0
+        if actor.action == State.IDLE and absi(actor.vx) > 800:
+            motion_bob = sin(float(combat.tick) * .44) * 2.6
+        var lean: float = 0.0
+        if actor.action == State.DASH or actor.action == State.DODGE:
+            lean = -0.12 * direction
+        elif actor.action == State.ATTACK:
+            lean = -0.06 * direction
+        var height: float = 205.0 if is_baekseol else 194.0
+        var width: float = height * float(art.get_width()) / float(art.get_height())
+        # Negative X scale means the side pose (originally facing left)
+        # visually faces right when state.facing == +1.
+        draw_set_transform(feet + Vector2(0.0, motion_bob), lean, Vector2(-direction, 1.0))
+        draw_texture_rect(art, Rect2(-width * .50, -height, width, height), false)
+        if is_baekseol:
+            _draw_saber(actor)
+            if actor.action == State.ATTACK:
+                _draw_swing(actor, feet, cx, ground)
+        draw_set_transform(Vector2.ZERO)
+        return
+
     draw_set_transform(feet, 0.0, Vector2(direction, 1.0))
     var coat := Color("#3d6790") if is_baekseol else Color("#643c58")
     var inner := Color("#1c2c43") if is_baekseol else Color("#292731")
@@ -163,6 +205,22 @@ func _draw_swing(actor: Object, _feet: Vector2, cx: float, ground: float) -> voi
         var slash_center := visual_rect.get_center()
         draw_arc(slash_center, minf(region.size.x, region.size.y) * .38, -1.4, 1.2, 28, Color("#ecfbff", .75), 6.0, true)
         draw_set_transform(Vector2(cx + float(actor.x) / 1000.0, ground - float(actor.y) / 1000.0), 0.0, Vector2(float(actor.facing), 1.0))
+
+func _draw_saber(actor: Object) -> void:
+    # Kept as a separate prop so future rigged sword animation can replace it.
+    var grip := Vector2(-22, -105)
+    var a: float = -1.1
+    if actor.action == State.ATTACK:
+        var move: Dictionary = Moves.get_move(actor.attack_index)
+        var t: float = clampf(float(actor.action_frame - int(move["startup"])) / float(move["active"]), 0.0, 1.0)
+        a = lerpf(-1.2, 1.2, t)
+    var direction := Vector2(-cos(a), -sin(a))
+    var tip := grip + direction * 105.0
+    draw_line(grip, tip, Color("#5fc3ff", .36), 11.0, true)
+    draw_line(grip, tip, Color("#f4fbff"), 4.0, true)
+    draw_line(grip - direction * 8.0, grip + direction * 8.0, Color("#c7a569"), 7.0, true)
+    draw_circle(grip, 4.0, Color("#eacb92"))
+
 
 func _draw_hud(size: Vector2) -> void:
     var font: Font = ThemeDB.fallback_font
