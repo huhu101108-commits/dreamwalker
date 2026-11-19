@@ -1,0 +1,23 @@
+{
+  "_note": "Development only. Production PvP tuning will be server-locked per match.",
+  "schema_version": 1,
+  "profile_id": "movement-feel-v02",
+  "run_speed": 6600,
+  "ground_acceleration": 2400,
+  "ground_friction": 3100,
+  "air_acceleration": 1300,
+  "jump_speed": 14700,
+  "gravity": 660,
+  "terminal_fall": 20000,
+  "dash_speed": 14200,
+  "dash_duration": 8,
+  "dash_cooldown": 24,
+  "dodge_speed": 10400,
+  "dodge_duration": 15,
+  "dodge_invulnerability": 9,
+  "coyote_ticks": 6,
+  "jump_buffer_ticks": 7,
+  "attack_move_speed": 2300,
+  "attack_acceleration": 2100,
+  "hit_friction": 1200
+}

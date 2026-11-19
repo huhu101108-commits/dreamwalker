@@ -22,6 +22,8 @@ var hit_mask: int = 0
 var invulnerable: int = 0
 var dash_cooldown: int = 0
 var last_buttons: int = 0
+var coyote_frames: int = 0
+var jump_buffer_frames: int = 0
 
 func _init(fighter_id: int = 0, spawn_x: int = 0) -> void:
     id = fighter_id
@@ -35,7 +37,8 @@ func snapshot() -> Dictionary:
         "action_frame": action_frame, "attack_index": attack_index,
         "queued_combo": queued_combo, "hit_mask": hit_mask,
         "invulnerable": invulnerable, "dash_cooldown": dash_cooldown,
-        "last_buttons": last_buttons
+        "last_buttons": last_buttons, "coyote_frames": coyote_frames,
+        "jump_buffer_frames": jump_buffer_frames
     }
 
 func restore(data: Dictionary) -> void:
@@ -54,3 +57,5 @@ func restore(data: Dictionary) -> void:
     invulnerable = int(data["invulnerable"])
     dash_cooldown = int(data["dash_cooldown"])
     last_buttons = int(data["last_buttons"])
+    coyote_frames = int(data.get("coyote_frames", 0))
+    jump_buffer_frames = int(data.get("jump_buffer_frames", 0))

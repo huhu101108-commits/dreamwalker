@@ -5,6 +5,7 @@ extends RefCounted
 const State = preload("res://combat/combat_state.gd")
 const Moves = preload("res://combat/move_data.gd")
 const HitDetection = preload("res://combat/hit_detection.gd")
+const Tuning = preload("res://combat/combat_tuning.gd")
 
 const BUTTON_JUMP := 1
 const BUTTON_ATTACK := 2
@@ -20,6 +21,7 @@ const TERMINAL_FALL := 19000
 const DASH_PER_TICK := 13000
 const DODGE_PER_TICK := 10200
 
+var tuning: Dictionary = Tuning.load_profile()
 var tick: int = 0
 var actors: Dictionary = {}
 var last_events: Array[Dictionary] = []
@@ -110,6 +112,13 @@ func _advance(actor: Object, axis: int, buttons: int) -> void:
 
     actor.invulnerable = maxi(0, actor.invulnerable - 1)
     actor.dash_cooldown = maxi(0, actor.dash_cooldown - 1)
+    if actor.y == 0:
+        actor.coyote_frames = int(tuning["coyote_ticks"])
+    else:
+        actor.coyote_frames = maxi(0, actor.coyote_frames - 1)
+    actor.jump_buffer_frames = maxi(0, actor.jump_buffer_frames - 1)
+    if (pressed & BUTTON_JUMP) != 0:
+        actor.jump_buffer_frames = int(tuning["jump_buffer_ticks"])
 
     if actor.action == State.HITSTUN:
         actor.action_frame += 1
@@ -129,12 +138,12 @@ func _advance(actor: Object, axis: int, buttons: int) -> void:
                 actor.queued_combo = false
     elif actor.action == State.DODGE:
         actor.action_frame += 1
-        if actor.action_frame >= 16:
+        if actor.action_frame >= int(tuning["dodge_duration"]):
             actor.action = State.IDLE
             actor.action_frame = 0
     elif actor.action == State.DASH:
         actor.action_frame += 1
-        if actor.action_frame >= 9:
+        if actor.action_frame >= int(tuning["dash_duration"]):
             actor.action = State.IDLE
             actor.action_frame = 0
 
@@ -142,34 +151,43 @@ func _advance(actor: Object, axis: int, buttons: int) -> void:
         if (pressed & BUTTON_DODGE) != 0:
             actor.action = State.DODGE
             actor.action_frame = 0
-            actor.invulnerable = 9
+            actor.invulnerable = int(tuning["dodge_invulnerability"])
         elif (pressed & BUTTON_ATTACK) != 0:
             _start_attack(actor, 0)
         elif (pressed & BUTTON_DASH) != 0 and actor.dash_cooldown == 0:
             actor.action = State.DASH
             actor.action_frame = 0
-            actor.dash_cooldown = 28
+            actor.dash_cooldown = int(tuning["dash_cooldown"])
 
     if axis != 0 and actor.action == State.IDLE:
         actor.facing = axis
 
     if actor.action == State.HITSTUN:
-        actor.vx = int(float(actor.vx) * 0.80)
+        actor.vx = _approach(actor.vx, 0, int(tuning["hit_friction"]))
     elif actor.action == State.DODGE:
-        actor.vx = actor.facing * DODGE_PER_TICK
+        actor.vx = actor.facing * int(tuning["dodge_speed"])
     elif actor.action == State.DASH:
-        actor.vx = actor.facing * DASH_PER_TICK
+        actor.vx = actor.facing * int(tuning["dash_speed"])
     elif actor.action == State.ATTACK:
-        actor.vx = axis * (RUN_PER_TICK / 3)
+        actor.vx = _approach(actor.vx, axis * int(tuning["attack_move_speed"]),
+            int(tuning["attack_acceleration"]))
     else:
-        actor.vx = axis * RUN_PER_TICK
+        var accel: int = int(tuning["ground_acceleration"])
+        if actor.y > 0:
+            accel = int(tuning["air_acceleration"])
+        elif axis == 0:
+            accel = int(tuning["ground_friction"])
+        actor.vx = _approach(actor.vx, axis * int(tuning["run_speed"]), accel)
 
-    if (pressed & BUTTON_JUMP) != 0 and actor.y == 0 and actor.action == State.IDLE:
-        actor.vy = JUMP_PER_TICK
+    if actor.jump_buffer_frames > 0 and actor.coyote_frames > 0 and actor.action == State.IDLE:
+        actor.vy = int(tuning["jump_speed"])
+        actor.y = maxi(actor.y, 1)
+        actor.coyote_frames = 0
+        actor.jump_buffer_frames = 0
 
     actor.x = clampi(actor.x + actor.vx, -ARENA_HALF_WIDTH, ARENA_HALF_WIDTH)
     if actor.y > 0 or actor.vy > 0:
-        actor.vy = maxi(actor.vy - GRAVITY_PER_TICK, -TERMINAL_FALL)
+        actor.vy = maxi(actor.vy - int(tuning["gravity"]), -int(tuning["terminal_fall"]))
         actor.y = maxi(0, actor.y + actor.vy)
         if actor.y == 0:
             actor.vy = 0
@@ -180,3 +198,10 @@ func _start_attack(actor: Object, index: int) -> void:
     actor.attack_index = index
     actor.hit_mask = 0
     actor.queued_combo = false
+
+func _approach(current: int, target: int, amount: int) -> int:
+    if current < target:
+        return mini(current + amount, target)
+    if current > target:
+        return maxi(current - amount, target)
+    return current
