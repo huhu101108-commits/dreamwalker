@@ -6,14 +6,20 @@ const Core = preload("res://combat/combat_simulation.gd")
 const Moves = preload("res://combat/move_data.gd")
 const State = preload("res://combat/combat_state.gd")
 const HitDetection = preload("res://combat/hit_detection.gd")
+const Atlas = preload("res://graphics/animation_atlas.gd")
 
 const BAEK_SPRITE := "res://assets/characters/baekseol/side.png"
 const SANG_SPRITE := "res://assets/characters/sangmi/side.png"
 const SNOW_BACKGROUND := "res://assets/background_snow_rail.png"
+const BAEK_ATLAS := "res://assets/characters/baekseol/animation_atlas.png"
+const SANG_ATLAS := "res://assets/characters/sangmi/animation_atlas.png"
 
 var baek_art: Texture2D
 var sang_art: Texture2D
 var snow_art: Texture2D
+var baek_atlas: Texture2D
+var sang_atlas: Texture2D
+var show_hitboxes: bool = true
 
 var combat = Core.new()
 var requested_buttons: int = 0
@@ -32,6 +38,10 @@ func _ready() -> void:
         sang_art = load(SANG_SPRITE)
     if ResourceLoader.exists(SNOW_BACKGROUND):
         snow_art = load(SNOW_BACKGROUND)
+    if ResourceLoader.exists(BAEK_ATLAS):
+        baek_atlas = load(BAEK_ATLAS)
+    if ResourceLoader.exists(SANG_ATLAS):
+        sang_atlas = load(SANG_ATLAS)
     _restart()
     _build_touch_controls()
     get_viewport().size_changed.connect(_layout_touch_controls)
@@ -59,6 +69,8 @@ func _unhandled_input(event: InputEvent) -> void:
                 requested_buttons |= Core.BUTTON_DASH
             KEY_R:
                 _restart()
+            KEY_H:
+                show_hitboxes = not show_hitboxes
         get_viewport().set_input_as_handled()
 
 func _physics_process(_delta: float) -> void:
@@ -114,6 +126,22 @@ func _draw() -> void:
 func _draw_fighter(actor: Object, cx: float, ground: float, is_baekseol: bool) -> void:
     var feet := Vector2(cx + float(actor.x) / 1000.0, ground - float(actor.y) / 1000.0)
     var direction: float = float(actor.facing)
+    var atlas_tex: Texture2D = baek_atlas if is_baekseol else sang_atlas
+    if atlas_tex != null:
+        var frame: Vector2i = Atlas.frame_for(actor, combat.tick, combat.tuning)
+        var tex_region: Rect2 = Atlas.region_for(frame)
+        var h: float = 250.0 if is_baekseol else 242.0
+        var w: float = h * float(Atlas.FRAME_WIDTH) / float(Atlas.FRAME_HEIGHT)
+        # In the atlas the visible shoes sit around pixel y=484.
+        var draw_rect := Rect2(-w * .5, -h * 484.0 / 512.0, w, h)
+        # Original model sheets face screen-left, so mirror for right-facing.
+        draw_set_transform(feet, 0.0, Vector2(-direction, 1.0))
+        draw_texture_rect_region(atlas_tex, draw_rect, tex_region, Color.WHITE)
+        if is_baekseol and show_hitboxes and actor.action == State.ATTACK:
+            _draw_swing(actor, feet, cx, ground)
+        draw_set_transform(Vector2.ZERO)
+        return
+
     var art: Texture2D = baek_art if is_baekseol else sang_art
     if art != null:
         # The original side-view sheet faces left; mirror to face right.
@@ -134,7 +162,7 @@ func _draw_fighter(actor: Object, cx: float, ground: float, is_baekseol: bool) -
         draw_texture_rect(art, Rect2(-width * .50, -height, width, height), false)
         if is_baekseol:
             _draw_saber(actor)
-            if actor.action == State.ATTACK:
+            if actor.action == State.ATTACK and show_hitboxes:
                 _draw_swing(actor, feet, cx, ground)
         draw_set_transform(Vector2.ZERO)
         return
@@ -227,7 +255,7 @@ func _draw_hud(size: Vector2) -> void:
     var hero = combat.actors[1]
     var dummy = combat.actors[2]
     draw_string(font, Vector2(26, 37), "DREAMWALKER / GODOT COMBAT LAB", HORIZONTAL_ALIGNMENT_LEFT, -1, 24, Color("#e8f3ff"))
-    draw_string(font, Vector2(27, 66), "Move A/D    Jump SPACE    Attack J/Z    Dodge K/X    Dash SHIFT    Restart R", HORIZONTAL_ALIGNMENT_LEFT, -1, 17, Color("#b6c8da"))
+    draw_string(font, Vector2(27, 66), "Move A/D    Jump SPACE    Attack J/Z    Dodge K/X    Dash SHIFT    Restart R    Hitbox H", HORIZONTAL_ALIGNMENT_LEFT, -1, 17, Color("#b6c8da"))
     draw_string(font, Vector2(27, 99), "BAEKSEOL  HP: %d    SANGMI dummy HP: %d    tick: %d" % [hero.health, dummy.health, combat.tick], HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color("#eff5ff"))
     draw_string(font, Vector2(26, size.y - 28), "Prototype art only  |  hitbox overlay = real damage area  |  No online PvP yet", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color("#b9c8d8"))
     if recent_hit_frames > 0:
