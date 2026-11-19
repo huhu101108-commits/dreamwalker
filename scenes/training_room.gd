@@ -133,10 +133,10 @@ func _draw_fighter(actor: Object, cx: float, ground: float, is_baekseol: bool) -
         var h: float = 250.0 if is_baekseol else 242.0
         var w: float = h * float(Atlas.FRAME_WIDTH) / float(Atlas.FRAME_HEIGHT)
         # In the atlas the visible shoes sit around pixel y=484.
-        var draw_rect := Rect2(-w * .5, -h * 484.0 / 512.0, w, h)
+        var dest_rect := Rect2(-w * .5, -h * 484.0 / 512.0, w, h)
         # Original model sheets face screen-left, so mirror for right-facing.
         draw_set_transform(feet, 0.0, Vector2(-direction, 1.0))
-        draw_texture_rect_region(atlas_tex, draw_rect, tex_region, Color.WHITE)
+        draw_texture_rect_region(atlas_tex, dest_rect, tex_region, Color.WHITE)
         if is_baekseol and show_hitboxes and actor.action == State.ATTACK:
             _draw_swing(actor, feet, cx, ground)
         draw_set_transform(Vector2.ZERO)
