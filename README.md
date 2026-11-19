@@ -1,5 +1,48 @@
-# Dreamwalker
+# Dreamwalker — 백설 기본 검격 프로토타입
 
-2D side-scrolling action RPG prototype. The first milestone is Baekseol's responsive sword combat.
+**상태:** 첫 번째 전투 테스트 버전. 캐릭터 원화가 아닌 **임시 도형 리소스**를 사용하며, 디자인 시트·공격 모션 시트는 이후 스프라이트로 교체하는 참고 자료입니다.
 
-Development work is being prepared in a separate feature branch and will be proposed as a pull request.
+## 목표
+- 백설 이동: A/D 또는 좌우 방향키
+- 점프: Space, 대시: Shift, 검격: J 또는 Z
+- 공격 준비→활성→후딜 구조
+- **검의 회전각, 화면에 표시된 베기 궤적, 실제 타격 판정이 하나의 각도 데이터를 사용**
+- 전방 훈련 더미에 한 번의 검격당 한 번만 피해 발생
+- 타격 이펙트, 더미 자동 회복, 에디터에서 데모 장면 자동 생성
+- 모바일용 이동/공격 버튼 진입점과 간이 터치 UI (본격적인 터치 UX는 후속 단계)
+
+## 시작 방법
+1. **Unity 6의 2D 프로젝트**로 이 저장소를 열어 주세요. Unity 버전이 다르면 에디터가 프로젝트를 업그레이드할 수 있습니다. 프로젝트 설정이 맞지 않으면, 새 Unity 6 2D 프로젝트를 만든 뒤 `Assets/Dreamwalker` 폴더만 복사해도 됩니다.
+2. 에디터 메뉴에서 **Tools → Dreamwalker → Create Combat Demo Scene**을 선택합니다.
+3. 자동 생성된 `Assets/Dreamwalker/Demo/BaekseolCombat.unity`를 열고 ▶ Play를 누릅니다.
+4. 훈련 더미로 다가가 J/Z를 눌러 검격을 테스트합니다. 훈련 더미의 HP가 화면에 표시됩니다.
+5. 다시 장면을 생성하면 기존 데모 장면이 덮어써지므로 확인 창이 표시됩니다.
+
+## 설계 구조
+
+```text
+Assets/Dreamwalker/
+├── Scripts/
+│   ├── Input/DreamwalkerInput.cs      PC 입력 추상화
+│   ├── Player/BaekseolMotor.cs        이동·점프·대시·방향 전환
+│   ├── Combat/
+│   │   ├── CombatGeometry.cs          실제 판정과 이펙트가 공유하는 기하
+│   │   ├── CombatTarget.cs            피격·HP·훈련 더미
+│   │   ├── BaekseolSlash.cs           공격 시간축·전방 휘두르기
+│   │   └── SwordSlashVfx.cs          푸른 궤적·파티클
+│   └── Demo/DemoHud.cs               디버그 HUD·간이 터치 버튼
+└── Editor/CreateCombatDemo.cs        Unity 메뉴에서 데모 장면 생성
+```
+
+### 디자인 및 후속 교체
+- 백설 기준 디자인: 짧은 은발, 푸른 머리 한 가닥, 두 갈래 긴 코트, 옅은 하늘색 목도리, 경량검.
+- Unity 장면의 **Visual Root** 하위 임시 SpriteRenderer들은 최종 원화로 교체할 수 있습니다.
+- **Sword Pivot**을 그대로 유지하면 검 회전과 공격 이펙트를 공통 수치로 제어할 수 있습니다.
+- 훈련 더미와 단색 산 배경은 기능 검증용 임시 리소스입니다.
+- 이 프로토타입은 **온라인 PvP를 구현하거나 활성화하지 않습니다.** 향후 태블릿에서는 서버에서 PvP 진입을 제한해야 합니다.
+
+### 주의
+- 코드를 연결한 작업이며 **실제 Unity 에디터 실행 검증은 아직 하지 않았습니다.** 열기/컴파일 오류가 있으면 콘솔 로그를 전달해 주세요.
+- 프로젝트에서 새 Input System만 활성화되어 있어도 컴파일 가능한 분기를 넣었고, 입력 패키지가 없다면 레거시 Input을 사용합니다.
+- 테스트 장면에서 유저 데이터, 계정, 거래, 백업, 온라인 서버는 다루지 않습니다.
+- 변경 사항은 기능 브랜치와 PR로 검토한 뒤 main에 반영하는 것을 권장합니다.
