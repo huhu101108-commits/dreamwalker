@@ -38,6 +38,13 @@ namespace Dreamwalker.Combat
             health = maximumHealth;
         }
 
+        public void ApplyStudioHealth(int value)
+        {
+            int previous = maximumHealth;
+            maximumHealth = Mathf.Max(1, value);
+            if (health > 0) health = Mathf.Clamp(health + maximumHealth - previous, 1, maximumHealth);
+        }
+
         public bool TakeDamage(int damage, CombatFaction attacker, Vector2 knockback)
         {
             if (attacker == faction || health <= 0 || damage <= 0) return false;

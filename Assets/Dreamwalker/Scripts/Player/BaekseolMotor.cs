@@ -40,6 +40,14 @@ namespace Dreamwalker.Player
             previousX = transform.position.x;
         }
 
+        public void ApplyStudioMovement(float run, float jump, float dash, float duration)
+        {
+            runSpeed = run;
+            jumpSpeed = jump;
+            dashSpeed = dash;
+            dashDuration = duration;
+        }
+
         public void SetVisualRoot(Transform value) => visualRoot = value;
         public void SetVirtualHorizontal(float x) => virtualHorizontal = Mathf.Clamp(x, -1f, 1f);
         public void RequestJump() => requestJump = true;

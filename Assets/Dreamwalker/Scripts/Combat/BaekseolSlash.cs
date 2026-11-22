@@ -49,6 +49,12 @@ namespace Dreamwalker.Combat
             vfx = effect;
         }
 
+        public void ApplyStudioAttack(int power, float distance)
+        {
+            damage = power;
+            reach = distance;
+        }
+
         public void RequestAttack() => requestAttack = true;
 
         private void Update()
