@@ -178,10 +178,13 @@ function launchGame(mapId, screenId = '', inspection = false) {
       };
     }
   }
+  let coveredByShot=false;
   function rebuild() {
     serial = run.serial;
     audioBus.track('music',run.presentation ? '' : run.map.music);
-    const speaking=run.dialogue && !run.customScreen ? run.dialogue.node : null;
+    const speaking=run.dialogue && !run.customScreen && !run.presentation ? run.dialogue.node : null;
+    const composed=speaking?.shot && typeof makeShotView==='function';
+    coveredByShot=composed && shotCoversField(speaking);
     audioBus.track('voice',speaking?.voice,speaking);
     for (const release of releaseSticks) release();
     releaseSticks = [];
@@ -196,6 +199,7 @@ function launchGame(mapId, screenId = '', inspection = false) {
         const n = run.dialogue.node;
         urls.add(imageUrl(n.backdrop));
         urls.add(imageUrl(n.portrait) || characterUrl(named(run.world.characters,n.speaker),true));
+        for(const p of n.shot?.layers||[]) if(p.visible && p.image) urls.add(imageUrl(p.image));
       }
       for (const o of run.map.objects) if (o.image) urls.add(imageUrl(o.image));
       for (const id of [run.map.hudId,run.map.menuId,run.map.dialogueId]) {
@@ -249,6 +253,9 @@ function launchGame(mapId, screenId = '', inspection = false) {
           action('편집기로', () => modal.close()),
         ),
       );
+    } else if(composed) {
+      layer.style.backgroundColor='transparent';layer.style.backgroundImage='none';
+      layer.append(makeShotView(run.world,speaking,run.map,i=>{run.advance(i);run.serial++;render();}).board);
     } else
       for (const w of elements.filter(
         (w) => w.visible && (!w.showFlag || run.flags.has(w.showFlag) === w.showValue),
@@ -308,6 +315,10 @@ function launchGame(mapId, screenId = '', inspection = false) {
       hudStamp = '';
     }
     if (!hitCanvas.hidden) paintCombatOverlay(hitCanvas, run);
+    if(!coveredByShot) paintField();
+    paintHUD();
+  }
+  function paintField() {
     const camera = run.camera;
     const bottom = run.viewport.y,
       settings = run.viewport.options;
@@ -401,6 +412,8 @@ function launchGame(mapId, screenId = '', inspection = false) {
         n.remove();
         markers.delete(o);
       }
+  }
+  function paintHUD() {
     const state = { character: run.character, hp: run.hero.hp, map: run.map, enemies: run.enemiesLeft, loading: run.loadingFraction };
     const stamp = state.hp + '|' + state.enemies + '|' + run.progressVersion + '|' + Math.round(100 * state.loading);
     if (hudStamp !== stamp) {
@@ -424,7 +437,7 @@ function launchGame(mapId, screenId = '', inspection = false) {
         e.n.remove();
         return false;
       }
-      placeWorld(e.n, { x: e.x, y: e.y + (0.5 - e.until + run.clock) * 8 }, camera, bottom);
+      placeWorld(e.n, { x: e.x, y: e.y + (0.5 - e.until + run.clock) * 8 }, run.camera, run.viewport.y);
       return true;
     });
   }

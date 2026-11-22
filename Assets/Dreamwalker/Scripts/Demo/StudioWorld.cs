@@ -1058,7 +1058,8 @@ public sealed partial class StudioWorld : MonoBehaviour
     {
         if (!Running) return;
         screenView.Draw(); DrawDiagnostics();
-        if (!Paused || CurrentLayout == null || (ShowingFront && front == Project.frontScreens?.loading)) return;
+        if (!Paused || CurrentLayout == null || (!HasOverlay && Line?.shot?.layers != null) ||
+            (ShowingFront && front == Project.frontScreens?.loading)) return;
         bool recovery = Array.Exists(CurrentLayout.elements, w => Visible(w) && Enabled(w) &&
             (w.type == "dialogue" && Story != null || w.type == "button" && (w.action == "back" || w.action == "resume" ||
              w.action == "restart" || w.action == "newRun" || w.action == "gotoMap" || w.action == "open" ||

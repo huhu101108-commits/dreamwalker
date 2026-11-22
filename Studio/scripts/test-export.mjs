@@ -55,6 +55,9 @@ vm.runInContext(
 );
 release = { rev: 17, project: vm.runInContext('seed()', ctx) };
 release.project.characters[0].portrait = 'asset:' + hash;
+const shot=vm.runInContext('newShot({})',ctx);
+shot.layers.find(p=>p.kind==='portrait').image='asset:'+hash;
+release.project.stories.push({id:'shotStory',name:'대사',nodes:[{id:'line',speaker:'',text:'설원',choices:[],shot}]});
 release.project.scenes[0].music='asset:'+soundHash;
 release.project.work=vm.runInContext('emptyWork()',ctx);
 release.project.work.brief='internal milestone';
@@ -67,7 +70,10 @@ try {
   execFileSync('unzip', ['-tq', path]);
   const root = 'Assets/Resources/DreamwalkerStudio/';
   const data = JSON.parse(execFileSync('unzip', ['-p', path, root + 'release.json']));
-  assert.equal(data.project.characters[0].portrait, 'asset:' + hash);
+  assert.equal(data.project.characters[0].portrait,'asset:'+hash);
+  const exported=data.project.stories.find(s=>s.id==='shotStory').nodes[0].shot;
+  assert.deepEqual(exported,JSON.parse(JSON.stringify(shot)));
+  assert.equal(exported.layers.find(p=>p.kind==='portrait').image,'asset:'+hash);
   assert.equal(data.rev, 17);
   assert.equal(data.project.work,undefined);
   assert.equal(data.project.scenes[0].music,'asset:'+soundHash);

@@ -470,6 +470,49 @@ function makeObject(type, id, x, y) {
   if (type === 'prop') Object.assign(o, { image: '', label: '소품', width: 10, height: 16 });
   return o;
 }
+const SHOT_KINDS={backdrop:'배경',portrait:'화자 초상',panel:'대화창',name:'화자 이름',text:'대사 본문',choices:'선택지 · 다음',art:'이미지',caption:'자유 문구'};
+const SHOT_RECTS={backdrop:[0,0,100,100],portrait:[3,8,43,85],panel:[3,61,94,37],name:[7,63,56,7],
+  text:[7,71,86,14],choices:[7,87,86,9],art:[35,15,30,38],caption:[12,9,70,12]};
+function newShotLayer(kind) {
+  const [x,y,w,h]=SHOT_RECTS[kind];
+  return {id:uid(),kind,x,y,w,h,title:'',image:'',caption:'',visible:true,locked:kind==='backdrop',flip:false,
+    opacity:100,fill:kind==='backdrop'?'#172636':kind==='choices'?'#284052':'#132033',
+    fillOpacity:kind==='backdrop'?100:kind==='panel'?92:kind==='choices'?95:0,
+    color:kind==='name'?'#96ddd6':'#f5f7fb',size:kind==='name'?22:kind==='choices'?18:24,
+    align:'left',columns:2,fit:kind==='backdrop'?'cover':'contain',radius:kind==='panel'||kind==='choices'?6:0};
+}
+function newShot(line,composition='lower') {
+  const layers=['backdrop','portrait','panel','name','text','choices'].map(newShotLayer);
+  const [,face,panel,name,body,choices]=layers;
+  if(line.side==='right') face.x=54;
+  if(line.side==='hidden') face.visible=false;
+  if(composition==='side'){
+    Object.assign(face,{x:2,y:4,w:43,h:94});
+    Object.assign(panel,{x:47,y:8,w:51,h:84});
+    Object.assign(name,{x:51,y:13,w:42,h:10});
+    Object.assign(body,{x:51,y:28,w:42,h:30});
+    Object.assign(choices,{x:51,y:65,w:42,h:22});
+  }
+  return {layers};
+}
+function validShot(shot) {
+  if(shot===undefined) return true;
+  if(!shot || !rows(shot.layers,1,24)) return false;
+  const choices=shot.layers.filter(p=>p.kind==='choices');
+  if(choices.length!==1 || !choices[0].visible || choices[0].opacity<10) return false;
+  return shot.layers.every(p=>has(SHOT_KINDS,p.kind) && textValue(p.title,60) && textValue(p.caption,400) && imageRef(p.image) &&
+    num(p.x,-100,100) && num(p.y,-100,100) && num(p.w,1,200) && num(p.h,1,200) &&
+    (p.kind!=='choices' || (p.x>=0 && p.y>=0 && p.w>=12 && p.h>=6 && p.x+p.w<=100.001 && p.y+p.h<=100.001)) &&
+    ['visible','locked','flip'].every(k=>typeof p[k]==='boolean') && color(p.color) && color(p.fill) &&
+    num(p.opacity,0,100) && num(p.fillOpacity,0,100) && integer(p.columns??1,1,4) && num(p.radius,0,50) && num(p.size,8,100) &&
+    ['contain','cover','stretch'].includes(p.fit) && ['left','center','right'].includes(p.align));
+}
+function shotGeometry(p,values) {
+  const choice=p.kind==='choices', round=v=>Math.round(v*10)/10;
+  const w=round(clamp(values.w??p.w,choice?12:1,choice?100:200)),h=round(clamp(values.h??p.h,choice?6:1,choice?100:200));
+  const x=round(clamp(values.x??p.x,choice?0:-100,choice?100-w:100)),y=round(clamp(values.y??p.y,choice?0:-100,choice?100-h:100));
+  return {x,y,w,h};
+}
 function newNode(id) {
   return { id, speaker: '', text: '', choices: [] };
 }
@@ -692,7 +735,7 @@ function problem(d) {
         (n.speaker !== '' && !character(n.speaker)) ||
         !textValue(n.text, 1200) ||
         !textValue(n.speakerName ?? '', 50) || !textValue(n.nextLabel ?? '', 80) ||
-        !soundRef(n.voice ?? '') || !imageRef(n.backdrop ?? '') || !imageRef(n.portrait ?? '') ||
+        !validShot(n.shot) || !soundRef(n.voice ?? '') || !imageRef(n.backdrop ?? '') || !imageRef(n.portrait ?? '') ||
         !['left','right','hidden'].includes(n.side ?? 'left') ||
         (!!n.layout && !screen(n.layout, 'dialogue')) ||
         !Array.isArray(n.choices) ||
@@ -864,7 +907,10 @@ function imageRefs(d) {
     add(s.backdrop);
     s.objects.forEach((o) => add(o.image));
   });
-  for (const story of d.stories) for (const n of story.nodes) { add(n.backdrop); add(n.portrait); }
+  for (const story of d.stories) for (const n of story.nodes) {
+    add(n.backdrop); add(n.portrait);
+    for(const layer of n.shot?.layers||[]) add(layer.image);
+  }
   d.layouts.forEach((l) => {
     add(l.skin);
     l.elements.forEach((w) => add(w.image));

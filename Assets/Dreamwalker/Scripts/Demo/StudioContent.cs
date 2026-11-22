@@ -136,6 +136,21 @@ public class StudioLine
 {
     public string id, speaker, text, speakerName, side, portrait, backdrop, layout, nextLabel, voice;
     public StudioChoice[] choices;
+    public StudioShot shot;
+}
+[Serializable]
+public class StudioShot
+{
+    public StudioShotLayer[] layers;
+}
+[Serializable]
+public class StudioShotLayer
+{
+    public string id, kind, title, image, caption, color, fill, align, fit;
+    public float x, y, w, h, opacity, fillOpacity, size, radius;
+    public int columns;
+    public bool visible, locked, flip;
+    public int ChoiceColumns(int count) => Math.Max(1, Math.Min(Math.Min(4, columns), count));
 }
 [Serializable]
 public class StudioChoice

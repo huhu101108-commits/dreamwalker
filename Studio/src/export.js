@@ -109,7 +109,10 @@ async function exportUnityPack(fullProject = false) {
     await convert(s, 'backdrop');
     for (const o of s.objects) await convert(o, 'image');
   }
-  for (const story of d.stories) for (const n of story.nodes) { await convert(n, 'backdrop'); await convert(n, 'portrait'); }
+  for (const story of d.stories) for (const n of story.nodes) {
+    await convert(n,'backdrop'); await convert(n,'portrait');
+    for(const layer of n.shot?.layers||[]) await convert(layer,'image');
+  }
   for (const l of d.layouts) {
     await convert(l, 'skin');
     for (const w of l.elements) await convert(w, 'image');

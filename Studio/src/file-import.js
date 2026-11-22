@@ -5,11 +5,14 @@ async function openDeviceLink(label,multiple,consume,anchor) {
   status.setAttribute('role','status'); dialog.dataset.fileLink='';
   body.append(heading('브라우저에서 내 파일 열기'), el('p',label),links,status,action('닫기',()=>dialog.close()));
   dialog.append(body); document.body.append(dialog); dialog.showModal();
-  const key=fileKey();
+  const secret=newFileCode();
+  let key='';
+  dialog.fileAnchor=anchor;
   let path='',timer=0,reading=false,closing=false;
   async function cleanup() {
     clearTimeout(timer);
     document.removeEventListener('visibilitychange',wake);
+    window.removeEventListener('focus',wake);
     if (path) await api(path+'close',{}).catch(()=>{});
   }
   dialog.addEventListener('close',()=>{ closing=true; cleanup(); dialog.remove(); },{once:true});
@@ -43,18 +46,30 @@ async function openDeviceLink(label,multiple,consume,anchor) {
   }
   let ticket,until;
   try {
-    ticket=await api('file-relay/new',{});
+    const keys=await codeKeys(secret);
+    key=keys.key;
+    if(closing) return;
+    const grant=fileHex(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(keys.ticket))));
+    const opened=await fetch('/api/file-relay/new',{method:'POST',headers:{'x-dw-file-grant':grant,'x-dw-file-multiple':multiple?'1':'0'}});
+    ticket=await opened.json();
+    if(!opened.ok) throw Error(ticket.error||'파일 연결을 열 수 없어요.');
     until=ticket.until;
     path='file-relay/'+ticket.slot+'/'+ticket.id+'/';
     if (closing) { await cleanup(); return; }
     const url=new URL('/device-files',location.origin);
-    url.hash=[ticket.slot,ticket.id,ticket.ticket,key,Number(multiple)].join('.');
+    const plain=url.href, code=String(ticket.slot).padStart(2,'0')+'-'+secret.match(/.{4}/g).join('-');
+    url.hash='c='+code;
+    const codeField=el('input');codeField.readOnly=true;codeField.value=code;codeField.className='file-pair-code';
+    const address=el('input');address.readOnly=true;address.value=plain;
+    const copy=async(field)=>{try{await navigator.clipboard.writeText(field.value);status.textContent='복사했어요.';}catch{field.focus();field.select();}};
+    body.insertBefore(box('pair-instructions',el('p','새 창이 열리지 않으면 Chrome에서 아래 주소를 열고 연결 코드를 입력하세요.'),
+      titled('파일 선택 페이지 주소',address),action('페이지 주소 복사',()=>copy(address)),titled('기기 연결 코드',codeField),action('코드 복사',()=>copy(codeField))),status);
     const link=(name,href)=>{
       const a=el('a',name);
       a.href=href; a.target='_blank'; a.rel='noopener noreferrer'; a.className='file-link'; return a;
     };
     if (/Android/i.test(navigator.userAgent) && url.protocol==='https:') {
-      const intent='intent://'+url.host+url.pathname+url.hash+'#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url='+encodeURIComponent(url.href)+';end';
+      const intent='intent://'+url.host+url.pathname+'#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url='+encodeURIComponent(url.href)+';end';
       links.append(link('Chrome에서 내 파일 열기',intent));
     }
     links.append(link('파일 선택 창 열기',url.href),action('연결 주소 복사',async()=>{
@@ -63,6 +78,7 @@ async function openDeviceLink(label,multiple,consume,anchor) {
     }));
     status.textContent='열린 창에서 파일을 고르고 ‘편집기로 보내기’를 누르세요. 연결은 10분 동안 유효해요.';
     document.addEventListener('visibilitychange',wake);
+    window.addEventListener('focus',wake);
     await check();
   } catch(error) { status.textContent=error.message; }
 }

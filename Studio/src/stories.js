@@ -43,6 +43,12 @@ function previewStory(story, map = activeMap(), first = 0) {
     paintStage(area, backdrop);
     area.classList.add('reader-stage');
     if (cursor.node.backdrop) cssImage(area, imageUrl(cursor.node.backdrop));
+    if(cursor.node.shot) {
+      area.append(makeShotView(project,cursor.node,backdrop,i=>{
+        if(cursor.advance(i)) dialog.close();else render();
+      }).board);
+      return;
+    }
     const screen = named(project.layouts, cursor.node.layout || backdrop.dialogueId);
     const skin = box('ui-backdrop');
     styleScreen(skin, screen);
@@ -161,6 +167,7 @@ function drawStories() {
       });
     }),
   );
+  drawShotEditor(a,b,s,n);
   const connections = project.scenes.filter(
     (m) => m.entryStory === s.id || m.exitStory === s.id || m.objects.some((o) => o.storyId === s.id),
   );

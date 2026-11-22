@@ -478,28 +478,49 @@ function filePicker(label, multiple, consume, imageFiles = false) {
       input.value = '';
     }
   }
-  input.onchange = () => receive(input.files);
+  input.onchange = () => {
+    const dialog=document.querySelector('dialog[data-file-link][open]');
+    if(input.files?.length && dialog?.fileAnchor===area) dialog.close();
+    receive(input.files);
+  };
   area.ondragover = e => e.preventDefault();
   area.ondrop = e => { e.preventDefault(); receive(e.dataTransfer.files); };
-  const native = el('label','파일 선택');
-  native.className = 'disk-button';
+  const native = el('label');
+  native.className = 'native-file';
   input.setAttribute('aria-label',label);
   native.append(input);
   const openLink=()=>openDeviceLink(label,multiple,receive,area);
   const handoff = action('브라우저에서 내 파일 열기',openLink,'file-external');
-  if (/Android/i.test(navigator.userAgent) && (window.self!==window.top || /\bwv\b/i.test(navigator.userAgent))) {
+  if (/Android/i.test(navigator.userAgent)) {
+    const embedded=window.self!==window.top || /\bwv\b/i.test(navigator.userAgent);
+    let disarm=()=>{};
     input.addEventListener('click',()=>{
-      let left=false;
-      const stop=()=>{left=true;};
-      window.addEventListener('blur',stop,{once:true});
-      document.addEventListener('visibilitychange',stop,{once:true});
-      input.addEventListener('change',stop,{once:true});
-      input.addEventListener('cancel',stop,{once:true});
-      setTimeout(()=>{
-        window.removeEventListener('blur',stop);document.removeEventListener('visibilitychange',stop);
-        input.removeEventListener('change',stop);input.removeEventListener('cancel',stop);
-        if (!left && area.isConnected && !document.hidden && document.hasFocus()) openLink().catch(error=>note(error.message));
-      },1800);
+      disarm();
+      const opened=performance.now();
+      let settled=false;
+      let timer;
+      const clear=()=>{
+        clearTimeout(timer);
+        input.removeEventListener('change',changed);input.removeEventListener('cancel',cancelled);
+        document.removeEventListener('visibilitychange',resume);window.removeEventListener('focus',resume);
+      };
+      const changed=()=>{
+        settled=true;clear();
+        const dialog=document.querySelector('dialog[data-file-link][open]');
+        if(dialog?.fileAnchor===area) dialog.close();
+      };
+      const fallback=()=>{
+        if(settled || document.hidden) return;
+        settled=true;clear();
+        if(area.isConnected && !busy && !input.files?.length) openLink().catch(error=>note(error.message));
+      };
+      const cancelled=()=>{if(embedded || performance.now()-opened<450)fallback();else clear();};
+      const resume=()=>{if(embedded && !document.hidden){clearTimeout(timer);timer=setTimeout(fallback,900);}};
+      disarm=clear;
+      input.addEventListener('change',changed,{once:true});
+      input.addEventListener('cancel',cancelled,{once:true});
+      document.addEventListener('visibilitychange',resume);window.addEventListener('focus',resume);
+      if(embedded)timer=setTimeout(fallback,1600);
     });
   }
   area.append(el('span',label),row(native,handoff));
@@ -562,23 +583,27 @@ function assetField(label, value, onReady, background = false) {
     onReady(ref);
     note('이미지를 연결했어요. 저장하면 팀 버전에 반영돼요.');
   }, true));
-  const refs = imageRefs(project);
-  if (refs.length) {
-    const gallery = el('details');
-    gallery.append(el('summary', '프로젝트 이미지에서 선택'));
-    gallery.ontoggle = () => {
-      if (!gallery.open || gallery.children.length > 1) return;
-      const grid = box('asset-gallery');
-      for (const [i, hash] of refs.entries()) {
-        const ref = 'asset:' + hash, img = el('img'), b = action('', () => onReady(ref));
-        const name = project.work?.assets?.find(a=>a.ref===ref)?.name || '이미지 ' + (i + 1);
-        img.loading = 'lazy'; img.alt = label + '에 ' + name + ' 사용'; img.src = imageUrl(ref);
-        b.append(img); grid.append(b);
+  const gallery=el('details');
+  gallery.append(el('summary','프로젝트 이미지에서 선택'));
+  gallery.ontoggle=()=>{
+    if(!gallery.open || gallery.children.length>1) return;
+    const refs=imageRefs(project), names=new Map((project.work?.assets||[]).map(a=>[a.ref,a.name]));
+    if(!refs.length){gallery.append(el('p','이 프로젝트에 등록된 이미지가 없어요.'));return;}
+    const grid=box('asset-gallery');
+    let index=0;
+    const more=action('이미지 더 보기',appendPage);
+    function appendPage(){
+      const end=Math.min(refs.length,index+24), batch=document.createDocumentFragment();
+      while(index<end){
+        const ref='asset:'+refs[index++], img=el('img'), button=action('',()=>onReady(ref));
+        img.loading='lazy';img.decoding='async';img.alt=label+'에 '+(names.get(ref)||'이미지 '+index)+' 사용';img.src=imageUrl(ref);
+        button.append(img);batch.append(button);
       }
-      gallery.append(grid);
-    };
-    result.append(gallery);
-  }
+      grid.append(batch);more.hidden=index>=refs.length;
+    }
+    gallery.append(grid,more);appendPage();
+  };
+  result.append(gallery);
   if (value) result.append(action('이미지 연결 해제', () => onReady(''), 'quiet'));
   return result;
 }
@@ -610,6 +635,7 @@ async function upgradeInlineArt(d) {
   for (const story of d.stories) for (const n of story.nodes) {
     await convert(n, 'backdrop', true);
     await convert(n, 'portrait');
+    for(const layer of n.shot?.layers||[]) await convert(layer,'image',layer.kind==='backdrop');
   }
   for (const l of d.layouts) {
     await convert(l, 'skin', true);

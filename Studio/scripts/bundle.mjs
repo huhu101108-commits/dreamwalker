@@ -21,7 +21,7 @@ for (const name of [
   'view',
   'maps',
   'characters',
-  'stories',
+  'stories','shot-view','shot-editor',
   'interface',
   'flows',
   'export',
@@ -48,7 +48,7 @@ const web = {
   'Web/simulation.js': read('src/simulation.js'),
   'Web/game.js': read('src/game.js'),
   'Web/game.css': read('src/style.css'),
-  'Web/dialogue.js': read('src/stories.js').split('function previewStory(')[0],
+  'Web/dialogue.js': read('src/shot-view.js')+'\n'+read('src/stories.js').split('function previewStory(')[0],
   'Web/view.js': read('src/view.js').split('function pointerDrag(')[0],
 };
 const sourceBase = { ...web, ...native };

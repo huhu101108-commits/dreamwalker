@@ -1,6 +1,22 @@
 const FILE_BATCH_MAX = 24 * 1024 * 1024;
 const fileHex = bytes => Array.from(bytes,b=>b.toString(16).padStart(2,'0')).join('');
 const fileKey = () => fileHex(crypto.getRandomValues(new Uint8Array(32)));
+const PAIR_ALPHABET='0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+function newFileCode() {
+  return Array.from(crypto.getRandomValues(new Uint8Array(12)),b=>PAIR_ALPHABET[b&31]).join('');
+}
+function parseFileCode(value) {
+  const code=value.toUpperCase().replace(/[\s-]/g,'').replaceAll('O','0').replace(/[IL]/g,'1');
+  if(!/^\d{2}[0-9A-HJKMNP-TV-Z]{12}$/.test(code) || Number(code.slice(0,2))>=64)
+    throw Error('편집기에 표시된 연결 코드 14자리를 확인하세요.');
+  return {slot:Number(code.slice(0,2)),secret:code.slice(2)};
+}
+async function codeKeys(secret) {
+  const digest=async label=>fileHex(new Uint8Array(await crypto.subtle.digest('SHA-256',
+    new TextEncoder().encode('Dreamwalker files v2/'+label+'/'+secret))));
+  const [send,key]=await Promise.all([digest('send'),digest('decrypt')]);
+  return {ticket:send.slice(0,48),key};
+}
 async function importFileKey(secret) {
   if (!/^[a-f0-9]{64}$/.test(secret)) throw Error('파일 연결 키가 올바르지 않아요.');
   const bytes = Uint8Array.from(secret.match(/../g),p=>parseInt(p,16));

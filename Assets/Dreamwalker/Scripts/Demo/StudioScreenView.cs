@@ -24,6 +24,8 @@ internal sealed class StudioScreenView
     private float mouseHeldAt = -1;
     private Vector2 dialogueScroll;
     private StudioLine drawnLine;
+    private readonly Dictionary<string, Vector2> shotScroll = new Dictionary<string, Vector2>();
+    private StudioShot ActiveShot => world.HasOverlay ? null : world.Line?.shot;
     private string pressedId;
     private float pressUntil;
 #if ENABLE_INPUT_SYSTEM
@@ -66,6 +68,7 @@ internal sealed class StudioScreenView
         r.Contains(pos) && StudioOutline.Contains(w,(pos.x-r.x)/r.width,(pos.y-r.y)/r.height,r.width/r.height);
     private void Touch(int finger, Vector2 position, bool began, ref float horizontal)
     {
+        if (ActiveShot != null) return;
         position.y = Screen.height - position.y;
         if (finger == stickOwner && heldStick != null)
         {
@@ -392,6 +395,94 @@ internal sealed class StudioScreenView
             world.Answer(clicked);
     }
 
+    private Texture2D ShotImage(StudioShotLayer layer, StudioLine line, StudioCharacter speaker)
+    {
+        string path = layer.image;
+        if (string.IsNullOrEmpty(path) && layer.kind == "portrait")
+        {
+            path = !string.IsNullOrEmpty(line.portrait) ? line.portrait :
+                !string.IsNullOrEmpty(speaker?.portrait) ? speaker.portrait : speaker?.sprite;
+            if (string.IsNullOrEmpty(path) && speaker?.id == "baekseol") path = "builtin-player";
+        }
+        if (string.IsNullOrEmpty(path) && layer.kind == "backdrop")
+        {
+            path = !string.IsNullOrEmpty(line.backdrop) ? line.backdrop : world.Map.backdrop;
+            if (string.IsNullOrEmpty(path) && world.Map.floorMode != "drawn") path = "builtin-stage";
+        }
+        return world.Connection.Texture(path);
+    }
+    private int DrawShotChoices(StudioShotLayer layer, StudioLine line, Rect rect, GUIStyle style, Color fill, float radius)
+    {
+        int count = Mathf.Max(1, line.choices.Length), columns = layer.ChoiceColumns(count);
+        float gap = style.fontSize * .35f, rowHeight = Mathf.Max(20, style.fontSize * 1.9f);
+        int rows = (count + columns - 1) / columns;
+        float height = rows * (rowHeight + gap) - gap;
+        float width = Mathf.Max(2, rect.width - (height > rect.height ? 18 : 0));
+        float cellWidth = (width - gap * (columns - 1)) / columns;
+        shotScroll.TryGetValue(layer.id, out var scroll);
+        shotScroll[layer.id] = GUI.BeginScrollView(rect, scroll, new Rect(0, 0, width, height));
+        int chosen = -2;
+        for (int i = 0; i < count; i++)
+        {
+            var area = new Rect((i % columns) * (cellWidth + gap), (i / columns) * (rowHeight + gap), cellWidth, rowHeight);
+            GUI.DrawTexture(area, Texture2D.whiteTexture, ScaleMode.StretchToFill, true, 0, fill, 0, radius);
+            string label = line.choices.Length > 0 ? line.choices[i].label : string.IsNullOrEmpty(line.nextLabel) ? "다음" : line.nextLabel;
+            if (GUI.Button(area, label, style)) chosen = line.choices.Length > 0 ? i : -1;
+        }
+        GUI.EndScrollView();
+        return chosen;
+    }
+    private void DrawShot(StudioShot shot)
+    {
+        var line = world.Line;
+        if (drawnLine != line) { drawnLine = line; shotScroll.Clear(); dialogueScroll = Vector2.zero; }
+        var speaker = world.Project.Character(line.speaker);
+        int chosen = -2;
+        foreach (var p in shot.layers)
+        {
+            if (!p.visible || p.opacity <= 0) continue;
+            var r = new Rect(Screen.width*p.x/100, Screen.height*p.y/100, Screen.width*p.w/100, Screen.height*p.h/100);
+            float opacity = p.opacity / 100, radius = Screen.width * p.radius / 800;
+            var fill = StudioWorld.Tint(p.fill, Color.black);
+            fill.a = p.fillOpacity / 100 * opacity;
+            var ink = StudioWorld.Tint(p.color, Color.white);
+            ink.a = opacity;
+            if (p.kind != "choices" && fill.a > 0)
+                GUI.DrawTexture(r, Texture2D.whiteTexture, ScaleMode.StretchToFill, true, 0, fill, 0, radius);
+            if (p.kind == "backdrop" || p.kind == "portrait" || p.kind == "art" || p.kind == "panel")
+            {
+                var tex = ShotImage(p,line,speaker);
+                if (tex == null) continue;
+                var matrix = GUI.matrix;
+                if (p.flip) GUIUtility.ScaleAroundPivot(new Vector2(-1,1),r.center);
+                var mode = p.fit == "cover" ? ScaleMode.ScaleAndCrop : p.fit == "stretch" ? ScaleMode.StretchToFill : ScaleMode.ScaleToFit;
+                GUI.DrawTexture(r,tex,mode,true,0,new Color(1,1,1,opacity),0,radius);
+                GUI.matrix = matrix;
+                continue;
+            }
+            var style = Style(Mathf.Clamp(Mathf.RoundToInt(p.size*Screen.width/800),8,180), p.align, ink);
+            if (p.kind == "choices")
+            {
+                chosen = DrawShotChoices(p,line,r,style,fill,radius);
+                continue;
+            }
+            string text = p.kind == "text" ? line.text : p.kind == "caption" ? p.caption :
+                !string.IsNullOrEmpty(line.speakerName) ? line.speakerName : speaker?.name ?? "내레이션";
+            var content = new GUIContent(text);
+            float height = style.CalcHeight(content, r.width);
+            if (height <= r.height) GUI.Label(new Rect(r.x,r.y,r.width,height),content,style);
+            else {
+                float width = Mathf.Max(8,r.width-18);
+                var area = new Rect(0,0,width,style.CalcHeight(content,width));
+                shotScroll.TryGetValue(p.id,out var scroll);
+                shotScroll[p.id]=GUI.BeginScrollView(r,scroll,area);
+                GUI.Label(area,content,style);
+                GUI.EndScrollView();
+            }
+        }
+        if (chosen != -2) world.Answer(chosen);
+    }
+
     internal void Draw()
     {
         GUI.depth = 0;
@@ -405,6 +496,7 @@ internal sealed class StudioScreenView
                 world.Press("restart");
             return;
         }
+        if (ActiveShot?.layers != null) { DrawShot(ActiveShot); return; }
         var full = new Rect(0, 0, Screen.width, Screen.height);
         var sceneArt = world.HasOverlay ? null : world.Connection.Texture(world.Line?.backdrop);
         if (sceneArt != null) GUI.DrawTexture(full, sceneArt, ScaleMode.ScaleAndCrop);

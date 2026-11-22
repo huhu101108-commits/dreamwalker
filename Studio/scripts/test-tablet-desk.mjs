@@ -40,6 +40,29 @@ assert.equal((await call('file-relay/'+stale.slot+'/'+stale.id+'/status',undefin
 assert(!store.has('project'));
 console.log('PASS native-file handoff: anonymous one-time delivery, isolated editor ownership, original bytes and names, expiry and cleanup');
 
+const {newFileCode,parseFileCode,codeKeys}=vm.runInContext('({newFileCode,parseFileCode,codeKeys})',ctx);
+const typedSecret=newFileCode(), keys=await codeKeys(typedSecret);
+assert.equal(typedSecret.length,12);assert.notEqual(keys.key.slice(0,48),keys.ticket);
+const manual=await (await call('file-relay/new',{},{
+  ...auth,'x-dw-file-grant':createHash('sha256').update(keys.ticket).digest('hex'),'x-dw-file-multiple':'1'
+})).json();
+assert.equal(manual.ticket,undefined);
+const code=String(manual.slot).padStart(2,'0')+'-'+typedSecret.match(/.{4}/g).join('-').toLowerCase();
+assert.equal(parseFileCode(code).secret,typedSecret);
+assert.equal(parseFileCode('O1-OOOO-llll-6789').secret,'000011116789');
+assert.throws(()=>parseFileCode('64-0000-0000-0000'));
+const join=(ticket)=>call('file-relay/pair/'+manual.slot,{}, {'x-dw-file-ticket':ticket});
+assert.equal((await join(fileKey().slice(0,48))).status,403);
+const paired=await join(keys.ticket);assert.equal(paired.status,200);
+assert.deepEqual(await paired.json(),{id:manual.id,multiple:true});
+const base2='file-relay/'+manual.slot+'/'+manual.id+'/';
+const result=await send(base2+'send',{method:'POST',headers:{'x-dw-file-ticket':keys.ticket},body:await sealFiles([original],keys.key,manual.id)});
+assert.equal(result.status,200);assert.equal((await join(keys.ticket)).status,403);
+assert.equal((await call(base2+'file',undefined,{'x-dw-file-ticket':keys.ticket})).status,403);
+assert.equal(await (await openFiles(await (await call(base2+'file',undefined,auth)).arrayBuffer(),keys.key,manual.id))[0].text(),await original.text());
+assert.equal((await call(base2+'close',{},auth)).status,200);assert(!store.has('project'));
+console.log('PASS typed file code, no-fragment pairing, wrong/consumed codes, isolated owner receives original file');
+
 const world=seed(), map=world.scenes[0], orig=await contentDigest(world);
 const mine=structuredClone(world),live=structuredClone(world);
 mine.work=emptyWork();mine.work.brief='review instructions';

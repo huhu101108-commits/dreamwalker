@@ -33,6 +33,18 @@ public static class Verify
             button.shape=shape;
             if (!StudioOutline.Contains(button,.5f,.5f,2) || StudioOutline.Contains(button,.01f,.01f,2)) throw new Exception(shape);
         }
+        var options = new StudioShotLayer { id="choices", kind="choices", columns=3 };
+        if (options.ChoiceColumns(2)!=2 || options.ChoiceColumns(0)!=1) throw new Exception("choice grid");
+        var shot = new StudioShot { layers=new[] { options } };
+        var actor = new StudioCharacter { id="snow", name="백설" };
+        var source = new StudioStory { id="story", nodes=new[] {
+            new StudioLine { id="s", shot=shot, voice="sample", choices=Array.Empty<StudioChoice>() } } };
+        var project = new StudioProject { stories=new[] { source }, scenes=Array.Empty<StudioMap>() };
+        var route = new StudioRoadmap { entry="e",episodes=new[]{
+            new StudioEpisode { id="e",title="설원",storyId="story",links=Array.Empty<StudioChoice>() } } }.Build(project,actor);
+        if (route.nodes[1].shot != shot || route.nodes[1].voice!="sample" || route.nodes[1].choices[0].to!="e:$links")
+            throw new Exception("authored dialogue route");
+        Console.WriteLine("PASS native dialogue data, choice columns and chapter routing");
         var flow = new StudioScreenFlow();
         flow.Flag("story", true);
         flow.Open("pause");

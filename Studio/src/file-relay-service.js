@@ -25,6 +25,9 @@ async function fileRelay(req, path, b, ownerKey, generation) {
   const now = Date.now();
   if (path === 'new') {
     if (!ownerKey || req.method !== 'POST') err(403,'편집기에서 파일 연결을 여세요.');
+    const supplied=req.headers.get('x-dw-file-grant');
+    if (supplied && !/^[a-f0-9]{64}$/.test(supplied)) err(400,'연결 정보를 확인하세요.');
+    const multiple=req.headers.get('x-dw-file-multiple')==='1'?'1':'0';
     const first = parseInt(ownerKey.slice(-4),16) % RELAY_SLOTS;
     for (let n=0; n<RELAY_SLOTS; n++) {
       const slot = (first+n) % RELAY_SLOTS, name = 'studio-file-slot/' + slot;
@@ -34,11 +37,20 @@ async function fileRelay(req, path, b, ownerKey, generation) {
       // R2 derives an ETag from object bytes. Unique waiting bodies fence successive leases.
       const saved = await b.put(name,id,{
         onlyIf:old ? {etagMatches:old.etag} : {etagDoesNotMatch:'*'},
-        customMetadata:{id,grant:await hash(ticket),owner:ownerKey,gen:generation,until:String(until),state:'waiting'}
+        customMetadata:{id,grant:supplied||await hash(ticket),pairable:supplied?'1':'0',multiple,owner:ownerKey,gen:generation,until:String(until),state:'waiting'}
       });
-      if (saved) return json({slot,id,ticket,until});
+      if (saved) return json(supplied ? {slot,id,until} : {slot,id,ticket,until});
     }
     err(429,'파일 선택 연결이 모두 사용 중이에요. 잠시 후 다시 열어 주세요.');
+  }
+  const join=/^pair\/(\d{1,2})$/.exec(path);
+  if (join && req.method==='POST' && Number(join[1])<RELAY_SLOTS) {
+    const meta=(await b.head('studio-file-slot/'+Number(join[1])))?.customMetadata;
+    const ticket=req.headers.get('x-dw-file-ticket') || '';
+    if (meta?.pairable!=='1' || meta.gen!==generation || meta.state!=='waiting' || Number(meta.until)<=now ||
+        !/^[a-f0-9]{48}$/.test(ticket) || !equal(await hash(ticket),meta.grant))
+      err(403,'코드가 틀렸거나 연결이 끝났어요. 원래 편집기의 코드를 확인하세요.');
+    return json({id:meta.id,multiple:meta.multiple==='1'});
   }
   const match = /^(\d{1,2})\/([a-f0-9]{48})\/(send|status|file|close)$/.exec(path);
   if (!match || Number(match[1])>=RELAY_SLOTS) err(404,'파일 연결을 찾을 수 없어요.');
