@@ -72,6 +72,26 @@ export async function testDialogueBrowser(page){
   const text=stage.locator('.shot-text');
   const bounds=n=>n.evaluate(el=>[el.style.left,el.style.top,el.style.width,el.style.height]);
   const exact=await bounds(text);assert.deepEqual(exact.slice(0,3),['13.7%','57.4%','67.5%']);
+  await page.setViewportSize({width:820,height:1180});
+  const sizeHandle=button('선택 레이어 크기 조절');
+  const lock=field('위치·크기 잠금');
+  await lock.check();assert(await sizeHandle.isHidden());assert(await field('레이어 너비 (%)').isDisabled());
+  await lock.uncheck();await sizeHandle.scrollIntoViewIfNeeded();
+  const cdp=await page.context().newCDPSession(page);
+  async function resizeTouch(cancel){
+    const h=await sizeHandle.boundingBox();
+    const x=h.x+h.width/2,y=h.y+h.height/2;
+    const touch=(type,points)=>cdp.send('Input.dispatchTouchEvent',{type,touchPoints:points});
+    await touch('touchStart',[{x,y,id:1}]);await touch('touchMove',[{x:x+24,y:y+13,id:1}]);
+    await touch(cancel?'touchCancel':'touchEnd',[]);
+  }
+  try{
+    await resizeTouch(true);assert.deepEqual(await bounds(text),exact);
+    await resizeTouch(false);assert.notEqual((await bounds(text))[2],exact[2]);
+  }finally{await cdp.detach();}
+  await number('레이어 너비 (%)',67.5);await number('레이어 높이 (%)',parseFloat(exact[3]));
+  assert.deepEqual(await bounds(text),exact);
+  await page.setViewportSize({width:1280,height:800});
   const mover=page.getByRole('button',{name:'선택 레이어 이동',exact:true});await mover.scrollIntoViewIfNeeded();
   const held=await mover.boundingBox();
   await page.mouse.move(held.x+held.width/2,held.y+held.height/2);await page.mouse.down();
@@ -134,5 +154,5 @@ export async function testDialogueBrowser(page){
     assert.equal((await bounds(screen.locator('.shot-text')))[0],'22.4%');
     await screen.getByRole('button',{name:'발자국 따라가기'}).click();await screen.locator('.stick-ring').waitFor();
   }finally{await offline.close();await rm(dir,{recursive:true,force:true});}
-  console.log('PASS per-line authoring, numeric geometry, drag/undo, direct text, nudges, independent copied shots, branching preview, saved gameplay, zero field queries during opaque shot, offline HTML');
+  console.log('PASS per-line authoring, numeric geometry, portrait touch resize and cancel, locked layer, drag/undo, direct text, nudges, independent copied shots, branching preview, saved gameplay, zero field queries during opaque shot, offline HTML');
 }
