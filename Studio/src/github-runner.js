@@ -29,8 +29,9 @@ async function githubRunnerIdentity(token) {
       !/^[a-f0-9]{40}$/.test(c.sha) || !/^\d{1,18}$/.test(c.run_id) ||
       ![c.iat, c.nbf, c.exp].every(Number.isFinite) || c.exp <= now || c.iat > now + 30 || c.nbf > now + 30) deny();
   if (!actionsKeys || Date.now() >= actionsKeysUntil) {
-    const resp = await fetch(actionsIssuer + '/.well-known/jwks', { redirect: 'error' });
-    if (!resp.ok) err(503, 'GitHub 실행기 서명을 확인할 수 없어요.');
+    // Workers returns redirects to the caller in manual mode. Only a direct success supplies keys.
+    const resp = await fetch(actionsIssuer + '/.well-known/jwks', { redirect: 'manual' }).catch(() => null);
+    if (!resp?.ok) err(503, 'GitHub 실행기 서명을 확인할 수 없어요.');
     actionsKeys = (await resp.json()).keys;
     actionsKeysUntil = Date.now() + 300000;
   }

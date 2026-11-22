@@ -158,8 +158,11 @@ async function testRunnerConnection() {
   }, true, ['sign', 'verify']);
   const publicKey = await crypto.subtle.exportKey('jwk', signing.publicKey);
   const originalFetch = globalThis.fetch;
-  globalThis.fetch = async url => {
+  let redirectKeys = true;
+  globalThis.fetch = async (url, options) => {
     assert.equal(url, 'https://token.actions.githubusercontent.com/.well-known/jwks');
+    assert.equal(options.redirect, 'manual');
+    if (redirectKeys) return Response.redirect('https://example.invalid/keys', 302);
     return Response.json({ keys: [{ ...publicKey, kid: 'fixture', use: 'sig' }] });
   };
   try {
@@ -183,6 +186,9 @@ async function testRunnerConnection() {
     for (const override of [{ event_name: 'pull_request' }, { repository_id: '0' }, { exp: now - 1 }, { aud: 'other' }, { workflow_ref: 'other' }])
       assert.equal((await connect(override)).status, 403);
     const before = (await BUCKET.get('project')).body;
+    assert.equal((await connect()).status, 503);
+    assert.equal(await BUCKET.get('android/ci-status'), null);
+    redirectKeys = false;
     assert.deepEqual(await (await connect()).json(), { ready: false, job: null });
     assert.equal((await (await call('android/status', undefined, headers)).json()).ci.run, '123');
     const self = { runner_environment: 'self-hosted' };
