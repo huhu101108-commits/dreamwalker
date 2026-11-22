@@ -56,9 +56,12 @@ public sealed class StudioConnection : MonoBehaviour
             status = "Invalid content pack";
             return;
         }
-        if (bundled?.project?.schema == 3)
+        if (Supported(bundled))
             PlayContent(bundled);
     }
+
+    private static bool Supported(StudioRelease release) =>
+        release?.project?.schema == 3 || release?.project?.schema == 4;
 
     private void PlayContent(StudioRelease release)
     {
@@ -79,7 +82,7 @@ public sealed class StudioConnection : MonoBehaviour
         {
             if (world != null && GUILayout.Button("Return to combat demo"))
                 CloseWorld();
-            if (world == null && bundled?.project?.schema == 3 && GUILayout.Button("Play bundled content"))
+            if (world == null && Supported(bundled) && GUILayout.Button("Play bundled content"))
                 PlayContent(bundled);
             if (string.IsNullOrEmpty(token))
             {
@@ -91,7 +94,7 @@ public sealed class StudioConnection : MonoBehaviour
             }
             else
             {
-                if (latest?.project?.schema == 3 &&
+                if (Supported(latest) &&
                     GUILayout.Button(world == null ? "Play studio maps" : "Restart with latest version"))
                 {
                     PlayContent(latest);
@@ -187,7 +190,7 @@ public sealed class StudioConnection : MonoBehaviour
         while (!string.IsNullOrEmpty(token))
         {
             int since = latest != null ? latest.rev : -1;
-            using (var request = UnityWebRequest.Get(Origin + "/api/runtime?since=" + since))
+            using (var request = UnityWebRequest.Get(Origin + "/api/runtime?schema=4&since=" + since))
             {
                 request.SetRequestHeader("Authorization", "Bearer " + token);
                 request.timeout = 12;
@@ -203,7 +206,7 @@ public sealed class StudioConnection : MonoBehaviour
                 else if (request.result == UnityWebRequest.Result.Success)
                 {
                     var release = JsonUtility.FromJson<StudioRelease>(request.downloadHandler.text);
-                    if (release?.project?.tuning != null)
+                    if (Supported(release) && release.project.tuning != null)
                     {
                         latest = release;
                         if (world == null)

@@ -87,14 +87,22 @@ function heading(title, detail) {
 }
 function imageUrl(ref) {
   if (!ref) return '';
-  if (/^asset:[0-9a-f]{64}$/.test(ref)) return '/api/assets/' + ref.slice(6);
+  if (/^asset:[0-9a-f]{64}$/.test(ref))
+    return typeof GAME_DATA === 'undefined' ? '/api/assets/' + ref.slice(6) : GAME_DATA.images[ref] || '';
   return imageRef(ref) ? ref : '';
 }
 function cssImage(n, url) {
   if (url) n.style.backgroundImage = 'url("' + url + '")';
 }
 function characterUrl(c, portrait = false) {
-  return imageUrl((portrait && c?.portrait) || c?.sprite) || (c?.id === 'baekseol' ? '/player.webp' : '');
+  return (
+    imageUrl((portrait && c?.portrait) || c?.sprite) ||
+    (c?.id === 'baekseol'
+      ? typeof GAME_DATA === 'undefined'
+        ? '/player.webp'
+        : GAME_DATA.images['/player.webp']
+      : '')
+  );
 }
 function paintStage(stage, map) {
   stage.className = 'stage ' + map.theme;
@@ -125,6 +133,13 @@ function actorNode(o, character) {
       n.textContent = character?.name.slice(0, 2) || '인물';
       n.style.setProperty('--accent', character?.color || '#9bbddd');
     }
+  } else if (o.type === 'enemy') {
+    n.title = o.label || '훈련 적';
+    if (o.image) {
+      n.textContent = '';
+      n.classList.add('enemy-art');
+      cssImage(n, imageUrl(o.image));
+    }
   } else if (o.type === 'platform') n.style.width = o.width + '%';
   else if (o.type === 'prop') {
     n.style.width = o.width + '%';
@@ -139,8 +154,8 @@ function actorNode(o, character) {
   return n;
 }
 function getActionLabel(key, character) {
-  const i = ['skill1', 'skill2', 'skill3', 'skill4'].indexOf(key);
-  if (i >= 0) return character?.skills[i].name || INPUTS[key];
+  const i = skillSlot(key);
+  if (i >= 0) return character?.skills[i]?.name || INPUTS[key];
   return (
     {
       left: '◀',
@@ -155,6 +170,24 @@ function getActionLabel(key, character) {
     INPUTS[key] ||
     '버튼'
   );
+}
+function styleScreen(n, s) {
+  n.style.backgroundColor =
+    s.tint +
+    Math.round(s.shade * 2.55)
+      .toString(16)
+      .padStart(2, '0');
+  n.style.backgroundImage = '';
+  cssImage(n, imageUrl(s.skin));
+}
+function styleButton(n, w) {
+  n.style.borderRadius = w.radius + '%';
+  n.style.border = w.borderWidth + 'px solid ' + w.borderColor;
+  n.style.setProperty('--press-color', w.pressedColor);
+  n.style.backgroundRepeat = 'no-repeat';
+  n.style.backgroundPosition = 'center';
+  n.style.backgroundSize = w.imageFit === 'stretch' ? '100% 100%' : w.imageFit;
+  cssImage(n, imageUrl(w.image));
 }
 function newWidgetView(w) {
   const node = el(w.type === 'button' ? 'button' : 'div');
@@ -175,6 +208,7 @@ function newWidgetView(w) {
     justifyContent: { left: 'flex-start', center: 'center', right: 'flex-end' }[w.align],
     fontSize: 'clamp(8px,' + w.fontSize / 8 + 'cqw,' + w.fontSize * 1.4 + 'px)',
   });
+  if (w.type === 'button') styleButton(node, w);
   if (w.type === 'image') {
     cssImage(node, imageUrl(w.image));
     if (!w.image) node.textContent = '이미지';
@@ -306,5 +340,8 @@ async function upgradeInlineArt(d) {
     await convert(s, 'backdrop', true);
     for (const o of s.objects) await convert(o, 'image');
   }
-  for (const l of d.layouts) for (const w of l.elements) await convert(w, 'image');
+  for (const l of d.layouts) {
+    await convert(l, 'skin', true);
+    for (const w of l.elements) await convert(w, 'image');
+  }
 }

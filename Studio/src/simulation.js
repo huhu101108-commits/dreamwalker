@@ -27,7 +27,16 @@ class FieldRun {
     this.events = [];
     this.serial = 0;
     this.keys = new Set();
+    this.rulesByEvent = new Map();
+    for (const layout of world.layouts)
+      for (const rule of layout.rules) {
+        if (!this.rulesByEvent.has(rule.event)) this.rulesByEvent.set(rule.event, []);
+        this.rulesByEvent.get(rule.event).push({ layout, rule });
+      }
+    this.flags = new Set();
+    this.runRules = new Set();
     this.enter(mapId || world.startMap);
+    this.fire('start');
   }
   get character() {
     return named(this.world.characters, this.characterId);
@@ -38,14 +47,25 @@ class FieldRun {
   get camera() {
     return clamp(this.hero.x - 46, 0, this.map.width - 100);
   }
+  get customScreen() {
+    return named(this.world.layouts, this.layers.at(-1));
+  }
+  get screen() {
+    return (
+      this.customScreen ||
+      named(this.world.layouts, this.dialogue ? this.map.dialogueId : this.menu || this.map.hudId)
+    );
+  }
   get paused() {
-    return !!(this.dialogue || this.menu || this.result);
+    return !!(this.dialogue || this.result || this.screen?.pauseGame);
   }
   enter(id) {
     this.map = named(this.world.scenes, id);
     this.serial++;
     this.characterId = this.map.characterId;
     this.seen = new Set();
+    this.layers = [];
+    this.mapRules = new Set();
     this.keys.clear();
     this.events = [];
     this.clock = 0;
@@ -53,17 +73,34 @@ class FieldRun {
     this.menu = '';
     this.dialogue = null;
     this.afterStory = null;
+    this.pendingTravel = null;
     this.sequence = null;
     this.cool = {};
     const spawn = this.map.objects.find((o) => o.type === 'spawn');
-    this.hero = { ...spawn, vy: 0, face: 1, hp: this.character.health, lastHit: -2, ground: false };
+    this.hero = {
+      ...spawn,
+      vy: 0,
+      face: 1,
+      hp: this.character.health,
+      lastHit: Number.NEGATIVE_INFINITY,
+      ground: false,
+    };
     this.foes = this.map.objects
       .filter((o) => o.type === 'enemy')
-      .map((o) => ({ ...o, hp: this.t.hp, stacks: 0, ice: 0, after: 0 }));
+      .map((o) => ({
+        ...o,
+        maxHp: o.enemy.health || this.t.hp,
+        hp: o.enemy.health || this.t.hp,
+        stacks: 0,
+        ice: 0,
+        after: 0,
+      }));
+    this.lastLiving = this.foes.length;
     this.platforms = this.map.objects.filter((o) => o.type === 'platform');
-    this.triggers = this.map.objects.filter((o) => o.type === 'trigger' && o.storyId);
+    this.triggers = this.map.objects.filter((o) => o.type === 'trigger' && (o.storyId || o.eventKey));
     this.exits = this.map.objects.filter((o) => o.type === 'exit');
     this.openStory(this.map.entryStory);
+    this.fire('enter');
   }
   openStory(id, after = null) {
     const story = named(this.world.stories, id);
@@ -74,28 +111,145 @@ class FieldRun {
     this.keys.clear();
     this.dialogue = new DialogueCursor(story);
     this.afterStory = after;
+    this.fire('storyStart', id);
     this.serial++;
   }
   advance(choice, skip = false) {
     if (!this.dialogue || (!skip && !this.dialogue.advance(choice))) return;
-    const after = this.afterStory;
+    const after = this.afterStory,
+      id = this.dialogue.story.id;
     this.dialogue = null;
     this.afterStory = null;
     this.serial++;
-    after?.();
+    this.layers = [];
+    if (this.fire('storyEnd', id) && after) this.pendingTravel = after;
+    else after?.();
   }
   go(exit) {
     const next = this.world.scenes[this.world.scenes.indexOf(this.map) + 1];
     const dest = exit.to === 'next' ? next?.id : exit.to;
     if (!dest || dest === 'end-of-game') {
       this.result = 'clear';
+      this.fire('clear');
       this.keys.clear();
       this.serial++;
       return;
     }
     this.enter(dest);
   }
+  openScreen(id) {
+    if (!named(this.world.layouts, id)) return;
+    if (this.layers.at(-1) !== id) {
+      if (this.layers.length >= 32) this.layers.shift();
+      this.layers.push(id);
+    }
+    this.keys.clear();
+    this.serial++;
+  }
+  fire(event, key = '', before = 101) {
+    let best = null;
+    for (const { layout, rule } of this.rulesByEvent.get(event) || []) {
+      if (
+        rule.event !== event ||
+        (rule.mapId && rule.mapId !== this.map.id) ||
+        (rule.actorId && rule.actorId !== this.characterId) ||
+        (rule.key && rule.key !== key) ||
+        (rule.flag && this.flags.has(rule.flag) !== rule.flagState)
+      )
+        continue;
+      if (event === 'elapsed' && (before >= rule.seconds || this.clock < rule.seconds)) continue;
+      if (
+        event === 'lowHp' &&
+        (before <= rule.threshold || (this.hero.hp / this.character.health) * 100 > rule.threshold)
+      )
+        continue;
+      const id = layout.id + ':' + rule.id,
+        seen = rule.once === 'run' ? this.runRules : rule.once === 'map' ? this.mapRules : null;
+      if (seen?.has(id) || (best && best.rule.priority >= rule.priority)) continue;
+      best = { layout, rule, seen, id };
+    }
+    if (!best) return false;
+    best.seen?.add(best.id);
+    this.openScreen(best.layout.id);
+    return true;
+  }
+  activate(w) {
+    if (
+      !w.visible ||
+      (w.showFlag && this.flags.has(w.showFlag) !== w.showValue) ||
+      (w.enableFlag && this.flags.has(w.enableFlag) !== w.enableValue)
+    )
+      return;
+    this.press(w.action, w.target);
+    for (const s of w.steps)
+      if (!s.flag || this.flags.has(s.flag) === s.flagState) this.press(s.action, s.target);
+  }
+  chooseActor(id) {
+    const c = named(this.world.characters, id);
+    if (!c) return;
+    const ratio = this.hero.hp / this.character.health;
+    this.characterId = c.id;
+    this.hero.hp = Math.ceil(ratio * c.health);
+    this.sequence = null;
+    this.cool = {};
+    this.events = [];
+    this.keys.clear();
+    this.serial++;
+    this.fire('switch');
+  }
+  finishOverlay() {
+    if (this.layers.length || !this.pendingTravel) return;
+    const go = this.pendingTravel;
+    this.pendingTravel = null;
+    go();
+  }
   press(action, target = '') {
+    if (action === 'newRun') {
+      this.flags.clear();
+      this.runRules.clear();
+      this.enter(this.world.startMap);
+      this.fire('start');
+      return;
+    }
+    if (action === 'open') {
+      this.openScreen(target);
+      return;
+    }
+    if (action === 'back') {
+      if (this.layers.length) this.layers.pop();
+      else this.menu = '';
+      this.keys.clear();
+      this.serial++;
+      this.finishOverlay();
+      return;
+    }
+    if (action === 'flagOn' || action === 'flagOff') {
+      if (action === 'flagOn') this.flags.add(target);
+      else this.flags.delete(target);
+      this.serial++;
+      return;
+    }
+    if (action === 'signal') {
+      this.fire('signal', target);
+      return;
+    }
+    if (action === 'gotoMap') {
+      if (named(this.world.scenes, target)) this.enter(target);
+      return;
+    }
+    if (action === 'startStory') {
+      if (named(this.world.stories, target)) {
+        this.layers = [];
+        this.menu = '';
+        this.pendingTravel = null;
+        this.openStory(target);
+      }
+      return;
+    }
+    if (action === 'selectActor') {
+      this.chooseActor(target);
+      return;
+    }
     if (action === 'skip' && this.dialogue) {
       this.advance(null, true);
       return;
@@ -112,13 +266,28 @@ class FieldRun {
       return;
     }
     if (action === 'resume') {
+      this.layers = [];
       this.menu = '';
       this.keys.clear();
       this.serial++;
+      this.finishOverlay();
       return;
     }
     if (this.dialogue || this.result) return;
-    if (action === 'menu' || action === 'open') {
+    if (action === 'roadmap') {
+      const story = roadmapStory(this.world, this.character);
+      if (story) {
+        this.menu = '';
+        this.layers = [];
+        this.keys.clear();
+        this.dialogue = new DialogueCursor(story);
+        this.afterStory = null;
+        this.serial++;
+      }
+      return;
+    }
+    if (action === 'menu') {
+      if (this.fire('menu')) return;
       const layout =
         action === 'open' ? named(this.world.layouts, target) : named(this.world.layouts, this.map.menuId);
       if (layout?.kind === 'menu') {
@@ -129,16 +298,8 @@ class FieldRun {
       return;
     }
     if (action === 'switch') {
-      const roster = this.world.characters,
-        i = roster.indexOf(this.character),
-        fraction = this.hero.hp / this.character.health;
-      this.characterId = roster[(i + 1) % roster.length].id;
-      this.hero.hp = Math.ceil(fraction * this.character.health);
-      this.sequence = null;
-      this.cool = {};
-      this.events = [];
-      this.keys.clear();
-      this.serial++;
+      const roster = this.world.characters;
+      this.chooseActor(roster[(roster.indexOf(this.character) + 1) % roster.length].id);
       return;
     }
     if (this.paused) return;
@@ -163,7 +324,7 @@ class FieldRun {
       this.cool.attack = this.clock + 0.25;
       return;
     }
-    const index = ['skill1', 'skill2', 'skill3', 'skill4'].indexOf(action),
+    const index = skillSlot(action),
       s = this.character.skills[index];
     if (!s || s.mechanic === 'none') return;
     const type = s.mechanic,
@@ -190,6 +351,7 @@ class FieldRun {
       face: h.face,
     };
     this.cool[action] = this.clock + skillCooldown(s, t);
+    this.fire('skill', action);
     this.events.push({ type: 'skill', text: s.name, x: h.x, y: h.y });
   }
   near(range) {
@@ -211,6 +373,30 @@ class FieldRun {
     const h = this.hero,
       t = this.t,
       amount = t.damage * a.s.power;
+    if (a.type === 'sequence') {
+      if (this.clock < a.next) return;
+      const step = a.s.steps[a.index++];
+      if (!step) {
+        this.sequence = null;
+        return;
+      }
+      if (step.kind === 'wait') a.next = this.clock + step.value;
+      else if (step.kind === 'advance') h.x = clamp(h.x + a.face * step.value, 1, this.map.width - 1);
+      else if (step.kind === 'origin') {
+        h.x = a.x;
+        h.y = a.y;
+      } else if (step.kind === 'heal') h.hp = Math.min(this.character.health, h.hp + Math.round(step.value));
+      else {
+        const foes = this.near(step.range).filter((e) => step.kind !== 'front' || (e.x - h.x) * a.face >= 0);
+        if (step.kind === 'seek' && foes[0]) {
+          h.x = clamp(foes[0].x - a.face * step.value, 1, this.map.width - 1);
+          h.y = foes[0].y;
+        } else if (step.kind === 'strike') this.hit(foes[0], amount * step.value);
+        else if (step.kind === 'area' || step.kind === 'front')
+          for (const e of foes) this.hit(e, amount * step.value);
+      }
+      return;
+    }
     if (a.type === 'dash') {
       const prev = h.x;
       h.x = clamp(
@@ -283,7 +469,9 @@ class FieldRun {
   }
   tick(dt) {
     if (this.paused) return;
+    const priorClock = this.clock;
     this.clock += dt;
+    if (this.rulesByEvent.has('elapsed') && this.fire('elapsed', '', priorClock) && this.paused) return;
     const h = this.hero,
       t = this.t;
     const move = Number(this.keys.has('right')) - Number(this.keys.has('left'));
@@ -305,28 +493,42 @@ class FieldRun {
         h.ground = true;
       }
     }
+    const previousHp = (h.hp / this.character.health) * 100;
     this.skill();
     for (const e of this.foes) {
       if (e.hp <= 0 || e.ice > this.clock) continue;
       const delta = h.x - e.x,
         slow = Math.min(0.9, (Math.max(e.stacks, e.after > this.clock ? 1 : 0) * t.slow) / 100);
-      if (Math.abs(delta) > 2 && Math.abs(delta) < 28) e.x += Math.sign(delta) * 3.3 * (1 - slow) * dt;
-      if (Math.abs(delta) < 3 && Math.abs(h.y - e.y) < 8 && this.clock - h.lastHit > 0.8) {
-        h.hp = Math.max(0, h.hp - 8);
+      if (Math.abs(delta) > 2 && Math.abs(delta) < e.enemy.sight)
+        e.x += Math.sign(delta) * e.enemy.speed * (1 - slow) * dt;
+      if (
+        e.enemy.damage &&
+        Math.abs(delta) < e.enemy.reach &&
+        Math.abs(h.y - e.y) < 8 &&
+        this.clock - h.lastHit > e.enemy.interval
+      ) {
+        h.hp = Math.max(0, h.hp - e.enemy.damage);
         h.lastHit = this.clock;
       }
     }
     if (h.hp <= 0) {
       this.result = 'defeat';
+      this.fire('defeat');
       this.keys.clear();
       this.serial++;
       return;
     }
+    const living = this.enemiesLeft;
+    const cleared = this.lastLiving > 0 && !living;
+    this.lastLiving = living;
+    if (previousHp > (h.hp / this.character.health) * 100 && this.fire('lowHp', '', previousHp)) return;
+    if (cleared && this.fire('enemies')) return;
     const near = (o) => Math.abs(h.x - o.x) < 4 && Math.abs(h.y - o.y) < 10;
     const event = this.triggers.find((o) => !this.seen.has(o.id) && near(o));
     if (event) {
       this.seen.add(event.id);
       this.openStory(event.storyId);
+      if (event.eventKey) this.fire('signal', event.eventKey);
       return;
     }
     const exit = this.exits.find(near);

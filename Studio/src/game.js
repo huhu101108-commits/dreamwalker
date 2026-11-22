@@ -1,9 +1,10 @@
-function launchGame(mapId) {
+function launchGame(mapId, screenId = '') {
   const run = new FieldRun(structuredClone(project), mapId),
     modal = $('#game'),
     stage = $('#arena'),
     layer = $('#overlay'),
     actors = $('#actors');
+  if (screenId) run.openScreen(screenId);
   let frame,
     last = performance.now(),
     acc = 0,
@@ -12,8 +13,31 @@ function launchGame(mapId) {
     markers = new Map(),
     effects = [],
     lastNotice = '';
-  const controls = ['left', 'right', 'jump', 'attack', 'skill1', 'skill2', 'skill3', 'skill4', 'menu'];
+  const controls = () => [
+    'left',
+    'right',
+    'jump',
+    'attack',
+    ...run.character.skills.map((_, i) => 'skill' + (i + 1)),
+    'menu',
+  ];
   const codes = {
+    ...Object.fromEntries(
+      [
+        'Digit1',
+        'Digit2',
+        'Digit3',
+        'Digit4',
+        'Digit5',
+        'Digit6',
+        'Digit7',
+        'Digit8',
+        'Digit9',
+        'Digit0',
+        'Minus',
+        'Equal',
+      ].map((code, i) => [code, 'skill' + (i + 1)]),
+    ),
     ArrowLeft: 'left',
     KeyA: 'left',
     ArrowRight: 'right',
@@ -26,17 +50,18 @@ function launchGame(mapId) {
     KeyB: 'skill4',
     KeyM: 'menu',
   };
-  function bindAction(b, key, target) {
+  function bindAction(b, key, target, widget = null) {
+    const go = () => (widget ? run.activate(widget) : run.press(key, target));
     if (key === 'left' || key === 'right') {
       b.onpointerdown = (e) => {
         e.preventDefault();
         b.setPointerCapture(e.pointerId);
-        run.press(key);
+        go();
       };
       b.onpointerup = b.onpointercancel = b.onlostpointercapture = () => run.keys.delete(key);
     } else
       b.onclick = () => {
-        run.press(key, target);
+        go();
         render();
       };
   }
@@ -56,13 +81,14 @@ function launchGame(mapId) {
     ];
     for (const o of objects) {
       const n = actorNode(o, run.character);
-      if (o.type === 'trigger' && !o.storyId) continue;
+      if (o.type === 'trigger' && !o.storyId && !o.eventKey) continue;
       markers.set(o.id, { n, o });
       actors.append(n);
     }
-    const screen = named(run.world.layouts, run.dialogue ? run.map.dialogueId : run.menu || run.map.hudId);
-    layer.className = (run.menu || run.result ? 'dim ' : '') + (run.dialogue ? 'reading' : '');
-    if (run.result) {
+    const screen = run.screen;
+    styleScreen(layer, screen);
+    layer.className = run.dialogue ? 'reading' : '';
+    if (run.result && !run.customScreen) {
       const title = run.result === 'clear' ? '맵 탐험 완료' : run.character.name + ' 전투 종료';
       layer.append(
         box(
@@ -77,12 +103,17 @@ function launchGame(mapId) {
         ),
       );
     } else
-      for (const w of screen.elements.filter((w) => w.visible)) {
+      for (const w of screen.elements.filter(
+        (w) => w.visible && (!w.showFlag || run.flags.has(w.showFlag) === w.showValue),
+      )) {
         const n = newWidgetView(w);
         if (w.type === 'button') {
-          bindAction(n, w.action, w.target);
-          const i = ['skill1', 'skill2', 'skill3', 'skill4'].indexOf(w.action);
-          if (i >= 0 && run.character.skills[i].mechanic === 'none') n.disabled = true;
+          bindAction(n, w.action, w.target, w);
+          const i = skillSlot(w.action);
+          if (w.enableFlag && run.flags.has(w.enableFlag) !== w.enableValue) n.disabled = true;
+          if (w.action === 'roadmap' && !run.character.roadmap.episodes.length) n.disabled = true;
+          if (i >= 0 && (!run.character.skills[i] || run.character.skills[i].mechanic === 'none'))
+            n.disabled = true;
         }
         if (w.type === 'dialogue' && run.dialogue)
           n.append(
@@ -96,21 +127,23 @@ function launchGame(mapId) {
         widgets.push({ w, n });
       }
     $('#controls').replaceChildren();
-    for (const key of controls) {
+    for (const key of controls()) {
       const b = el('button', getActionLabel(key, run.character));
       bindAction(b, key);
       $('#controls').append(b);
     }
-    if (run.dialogue || run.menu || run.result) $('#controls').hidden = true;
-    const notice = run.dialogue
-      ? run.dialogue.story.name
-      : run.menu
-        ? '일시정지'
-        : run.result
-          ? '플레이 종료'
-          : run.map.requireClear
-            ? '적을 모두 처치한 뒤 출구로 이동하세요.'
-            : '출구로 이동하면 다음 맵으로 이어져요.';
+    if (run.paused) $('#controls').hidden = true;
+    const notice = run.customScreen
+      ? run.customScreen.name
+      : run.dialogue
+        ? run.dialogue.story.name
+        : run.menu
+          ? '일시정지'
+          : run.result
+            ? '플레이 종료'
+            : run.map.requireClear
+              ? '적을 모두 처치한 뒤 출구로 이동하세요.'
+              : '출구로 이동하면 다음 맵으로 이어져요.';
     say(notice);
   }
   function say(text) {
@@ -136,8 +169,8 @@ function launchGame(mapId) {
       if (n.hidden) continue;
       placeWorld(n, o, camera);
       if (o.type === 'enemy') {
-        n.textContent = o.ice > run.clock ? '❄' : o.stacks || '◆';
-        n.style.opacity = 0.5 + (0.5 * o.hp) / run.t.hp;
+        n.textContent = o.ice > run.clock ? '❄' : o.stacks || (o.image ? '' : '◆');
+        n.style.opacity = 0.5 + (0.5 * o.hp) / o.maxHp;
       } else if (o.type === 'spawn') {
         n.style.transform = 'translate(-50%,-100%) scaleX(' + run.hero.face + ')';
         n.classList.toggle('hurt', run.clock - run.hero.lastHit < 0.12);
@@ -181,6 +214,12 @@ function launchGame(mapId) {
   }
   const down = (e) => {
     if (e.repeat) return;
+    if (e.code === 'Escape' && (run.customScreen || run.menu)) {
+      e.preventDefault();
+      run.press('back');
+      render();
+      return;
+    }
     if (run.dialogue && (e.code === 'Enter' || e.code === 'Space') && !run.dialogue.node.choices.length) {
       e.preventDefault();
       run.advance();
@@ -218,5 +257,6 @@ function launchGame(mapId) {
     window.removeEventListener('blur', blur);
     actors.replaceChildren();
     layer.replaceChildren();
+    if (location.pathname === '/play') document.body.classList.remove('game-only');
   };
 }

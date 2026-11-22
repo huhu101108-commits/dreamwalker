@@ -105,12 +105,14 @@ function draw() {
     scene: drawMaps,
     characters: drawCharacters,
     stories: drawStories,
+    roadmap: drawRoadmap,
+    source: drawSource,
     interface: drawInterface,
     balance: drawBalance,
     versions: drawVersions,
   })[tab]();
   for (const section of document.querySelectorAll('#content details')) {
-    const key = tab + '|' + section.querySelector('summary').textContent;
+    const key = tab + '|' + (section.dataset.persist || section.querySelector('summary').textContent);
     section.dataset.key = key;
     if (expandedSections.has(key)) section.open = expandedSections.get(key);
   }
@@ -258,6 +260,7 @@ function drawVersions() {
     bindText('프로젝트 이름', project, 'title'),
     action('이미지 포함 백업 내보내기', exportProject),
     action('저장본 → Unity 콘텐츠 팩', exportUnityPack),
+    action('저장본 → 전체 Unity 프로젝트', () => exportUnityPack(true)),
     titled('백업 JSON 가져오기', file),
     action('최신 버전 다시 열기', async () => {
       if (!dirty || confirm('현재 초안을 닫고 최신 저장본을 열까요?')) loadRecord(await api('project'));
@@ -315,10 +318,15 @@ async function openEditor() {
   access = await api('status');
   if (access.ok) {
     const r = await api('project');
+    const section = new URLSearchParams(location.search).get('tool');
+    if ([...$('#tabs').children].some((n) => n.dataset.tab === section)) tab = section;
     loadRecord(r);
     $('#gate').hidden = true;
     $('#editor').hidden = false;
-    if (location.pathname === '/play') launchGame(r.project.startMap);
+    if (location.pathname === '/play') {
+      document.body.classList.add('game-only');
+      await playProject(r.project.startMap);
+    }
   } else {
     $('#enter').disabled = !access.configured && !access.owner;
     $('#enter').textContent = access.configured ? '스튜디오 입장 →' : '팀 암호 설정 · 입장';
@@ -351,6 +359,7 @@ $('#login').onsubmit = async (e) => {
 $('#tabs').onclick = (e) => {
   if (e.target.dataset.tab) {
     tab = e.target.dataset.tab;
+    if (location.pathname === '/') history.replaceState(null, '', '?tool=' + tab);
     note('');
     draw();
   }
@@ -387,7 +396,7 @@ $('#play').onclick = async () => {
     }
     const issue = problem(project);
     if (issue) throw Error(issue);
-    launchGame(activeMap().id);
+    await playProject(activeMap().id);
   } catch (e) {
     note(e.message);
   }

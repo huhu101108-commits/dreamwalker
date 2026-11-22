@@ -19,6 +19,18 @@ internal sealed class StudioScreenView
     private float mouseHeldAt = -1;
     private Vector2 dialogueScroll;
     private StudioLine drawnLine;
+    private string pressedId;
+    private float pressUntil;
+#if ENABLE_INPUT_SYSTEM
+    private static readonly Key[] SlotKeys = { Key.Digit1, Key.Digit2, Key.Digit3, Key.Digit4,
+                                               Key.Digit5, Key.Digit6, Key.Digit7, Key.Digit8,
+                                               Key.Digit9, Key.Digit0, Key.Minus,  Key.Equals };
+#else
+    private static readonly KeyCode[] SlotKeys = { KeyCode.Alpha1, KeyCode.Alpha2, KeyCode.Alpha3,
+                                                   KeyCode.Alpha4, KeyCode.Alpha5, KeyCode.Alpha6,
+                                                   KeyCode.Alpha7, KeyCode.Alpha8, KeyCode.Alpha9,
+                                                   KeyCode.Alpha0, KeyCode.Minus,  KeyCode.Equals };
+#endif
     internal StudioScreenView(StudioWorld world)
     {
         this.world = world;
@@ -28,9 +40,7 @@ internal sealed class StudioScreenView
         if (font != null)
             UnityEngine.Object.Destroy(font);
     }
-    private StudioLayout Layout => world.Project.Layout(world.Story != null ? world.Map.dialogueId
-                                                        : string.IsNullOrEmpty(world.Menu) ? world.Map.hudId
-                                                                                           : world.Menu);
+    private StudioLayout Layout => world.CurrentLayout;
     private static Rect Bounds(StudioWidget w) => new Rect(w.x * Screen.width / 100, w.y *Screen.height / 100,
                                                            w.w *Screen.width / 100, w.h *Screen.height / 100);
 
@@ -41,14 +51,18 @@ internal sealed class StudioScreenView
         for (int i = widgets.Length - 1; i >= 0; i--)
         {
             var w = widgets[i];
-            if (!w.visible || w.type != "button" || !Bounds(w).Contains(position))
+            if (!world.Visible(w) || !world.Enabled(w) || w.type != "button" || !Bounds(w).Contains(position))
                 continue;
             if (w.action == "left")
                 horizontal--;
             else if (w.action == "right")
                 horizontal++;
-            else if (began)
-                world.Press(w.action, w.target);
+            if (began)
+            {
+                pressedId = w.id;
+                pressUntil = Time.unscaledTime + .18f;
+                world.Activate(w, w.action != "left" && w.action != "right");
+            }
             return;
         }
     }
@@ -65,6 +79,9 @@ internal sealed class StudioScreenView
         var k = Keyboard.current;
         if (k != null)
         {
+            for (int i = 0; i < world.Actor.skills.Length && i < SlotKeys.Length; i++)
+                if (k[SlotKeys[i]].wasPressedThisFrame)
+                    world.Press("skill" + (i + 1));
             if (k.xKey.wasPressedThisFrame)
                 world.Press("skill1");
             if (k.cKey.wasPressedThisFrame)
@@ -85,6 +102,9 @@ internal sealed class StudioScreenView
             if (touch.phase != TouchPhase.Ended && touch.phase != TouchPhase.Canceled)
                 Touch(touch.position, touch.phase == TouchPhase.Began, ref horizontal);
         }
+        for (int i = 0; i < world.Actor.skills.Length && i < SlotKeys.Length; i++)
+            if (UnityEngine.Input.GetKeyDown(SlotKeys[i]))
+                world.Press("skill" + (i + 1));
         if (UnityEngine.Input.GetKeyDown(KeyCode.X))
             world.Press("skill1");
         if (UnityEngine.Input.GetKeyDown(KeyCode.C))
@@ -152,7 +172,7 @@ internal sealed class StudioScreenView
         if (w.type != "button")
             return "";
         if (w.action.StartsWith("skill", StringComparison.Ordinal) &&
-            int.TryParse(w.action.Substring(5), out int slot) && slot >= 1 && slot <= 4)
+            int.TryParse(w.action.Substring(5), out int slot) && slot >= 1 && slot <= world.Actor.skills.Length)
             return world.Actor.skills[slot - 1].name;
         switch (w.action)
         {
@@ -172,6 +192,24 @@ internal sealed class StudioScreenView
             return "계속하기";
         case "switch":
             return "캐릭터 교대";
+        case "roadmap":
+            return "캐릭터 스토리";
+        case "newRun":
+            return "게임 처음부터";
+        case "back":
+            return "뒤로";
+        case "gotoMap":
+            return "맵 이동";
+        case "startStory":
+            return "대화";
+        case "selectActor":
+            return "캐릭터 선택";
+        case "flagOn":
+            return "상태 켜기";
+        case "flagOff":
+            return "상태 끄기";
+        case "signal":
+            return "이벤트";
         case "open":
             return "화면 열기";
         case "skip":
@@ -237,7 +275,7 @@ internal sealed class StudioScreenView
     internal void Draw()
     {
         GUI.depth = 0;
-        if (!string.IsNullOrEmpty(world.Result))
+        if (!string.IsNullOrEmpty(world.Result) && !world.HasOverlay)
         {
             var panel =
                 new Rect(Screen.width * .25f, Screen.height * .32f, Screen.width * .5f, Screen.height * .35f);
@@ -247,16 +285,40 @@ internal sealed class StudioScreenView
                 world.Press("restart");
             return;
         }
-        if (!string.IsNullOrEmpty(world.Menu))
-            Fill(new Rect(0, 0, Screen.width, Screen.height), new Color(.04f, .08f, .14f, .7f));
+        var full = new Rect(0, 0, Screen.width, Screen.height);
+        Color tint = StudioWorld.Tint(Layout.tint, new Color(.04f, .08f, .14f));
+        tint.a = world.Project.schema < 4 && !string.IsNullOrEmpty(world.Menu) ? .7f : Layout.shade / 100;
+        if (tint.a > 0)
+            Fill(full, tint);
+        var skin = world.Connection.Texture(Layout.skin);
+        if (skin != null)
+            GUI.DrawTexture(full, skin, ScaleMode.ScaleAndCrop);
         foreach (var w in Layout.elements)
         {
-            if (!w.visible)
+            if (!world.Visible(w))
                 continue;
             var r = Bounds(w);
             var background = StudioWorld.Tint(w.background, Color.black);
             background.a = w.opacity / 100;
-            Fill(r, background);
+            if (w.type == "button" && world.Project.schema >= 4)
+            {
+                float radius = Mathf.Min(r.width, r.height) * w.radius / 100;
+                if (w.id == pressedId && Time.unscaledTime < pressUntil)
+                    background = StudioWorld.Tint(w.pressedColor, background);
+                GUI.DrawTexture(r, Texture2D.whiteTexture, ScaleMode.StretchToFill, true, 0, background, 0,
+                                radius);
+                var art = world.Connection.Texture(w.image);
+                if (art != null)
+                    GUI.DrawTexture(r, art,
+                                    w.imageFit == "cover"     ? ScaleMode.ScaleAndCrop
+                                    : w.imageFit == "stretch" ? ScaleMode.StretchToFill
+                                                              : ScaleMode.ScaleToFit);
+                if (w.borderWidth > 0)
+                    GUI.DrawTexture(r, Texture2D.whiteTexture, ScaleMode.StretchToFill, true, 0,
+                                    StudioWorld.Tint(w.borderColor, Color.white), w.borderWidth, radius);
+            }
+            else
+                Fill(r, background);
             var style =
                 Style(Mathf.Clamp(Mathf.RoundToInt(w.fontSize * Mathf.Min(Screen.width / 800f, 1.4f)), 8, 90),
                       w.align, StudioWorld.Tint(w.color, Color.white));
@@ -275,19 +337,29 @@ internal sealed class StudioScreenView
             if (w.type == "hp")
                 Fill(new Rect(r.x, r.y, r.width * world.Health / world.Actor.health, r.height),
                      new Color(.12f, .5f, .56f));
+            if (w.type == "button" && !world.Enabled(w))
+            {
+                Fill(r, new Color(.1f, .12f, .15f, .5f));
+                GUI.Label(r, Label(w), style);
+                continue;
+            }
             if (w.type == "button" && !Application.isMobilePlatform)
             {
                 if (w.action == "left" || w.action == "right")
                 {
                     if (GUI.RepeatButton(r, Label(w), style))
                     {
+                        if (mouseDirection == 0 || Time.unscaledTime - mouseHeldAt >= .06f)
+                            world.Activate(w, false);
                         mouseDirection = w.action == "left" ? -1 : 1;
                         mouseHeldAt = Time.unscaledTime;
                     }
                 }
                 else if (GUI.Button(r, Label(w), style))
                 {
-                    world.Press(w.action, w.target);
+                    pressedId = w.id;
+                    pressUntil = Time.unscaledTime + .18f;
+                    world.Activate(w);
                     return;
                 }
             }

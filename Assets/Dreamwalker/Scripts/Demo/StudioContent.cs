@@ -13,7 +13,7 @@ public class StudioRelease
 public class StudioProject
 {
     public int schema;
-    public string startMap;
+    public string startMap, customJson;
     public StudioTuning tuning;
     public StudioMap[] scenes;
     public StudioCharacter[] characters;
@@ -56,12 +56,26 @@ public class StudioCharacter
     public int health;
     public float speedScale, jumpScale, attackScale, reachScale;
     public StudioSkill[] skills;
+    public StudioRoadmap roadmap;
 }
 [Serializable]
 public class StudioSkill
 {
     public string name, mechanic;
     public float power, cooldown;
+    public StudioStep[] steps;
+}
+[Serializable]
+public class StudioStep
+{
+    public string kind;
+    public float value, range;
+}
+[Serializable]
+public class StudioEnemy
+{
+    public int health, damage = 8;
+    public float speed = 3.3f, sight = 28, reach = 3, interval = .8f;
 }
 [Serializable]
 public class StudioMap
@@ -74,8 +88,9 @@ public class StudioMap
 [Serializable]
 public class StudioObject
 {
-    public string id, type, to, storyId, label, image;
+    public string id, type, to, storyId, label, image, eventKey;
     public float x, y, width, height;
+    public StudioEnemy enemy;
 }
 [Serializable]
 public class StudioStory
@@ -97,7 +112,10 @@ public class StudioChoice
 [Serializable]
 public class StudioLayout
 {
-    public string id, name, kind;
+    public string id, name, kind, purpose, tint, skin;
+    public float shade;
+    public bool pauseGame;
+    public StudioRule[] rules;
     public StudioWidget[] elements;
 }
 [Serializable]
@@ -106,6 +124,10 @@ public class StudioWidget
     public string id, type, text, action, target, image, color, background, align;
     public float x, y, w, h, opacity;
     public int fontSize;
+    public float radius, borderWidth;
+    public string borderColor, pressedColor, imageFit, showFlag, enableFlag;
+    public bool showValue, enableValue;
+    public StudioAction[] steps;
     public bool visible;
 }
 }

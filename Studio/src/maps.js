@@ -3,8 +3,9 @@ function drawMaps() {
     s = activeMap(),
     c = named(project.characters, s.characterId);
   sceneId = s.id;
-  mapPage = clamp(mapPage, 0, s.width / 100 - 1);
-  const offset = mapPage * 100;
+  const pageCount = Math.ceil(s.width / 100);
+  mapPage = clamp(mapPage, 0, pageCount - 1);
+  const offset = Math.min(mapPage * 100, s.width - 100);
   const stories = { '': '연결 안 함', ...optionMap(project.stories) };
   const mapOptions = optionMap(project.scenes);
   function pick(id) {
@@ -112,7 +113,7 @@ function drawMaps() {
     );
   }
   const nav = box('row map-pages', el('span', '작업 구간'));
-  for (let i = 0; i < s.width / 100; i++)
+  for (let i = 0; i < pageCount; i++)
     nav.append(
       action(
         String(i + 1),
@@ -136,25 +137,26 @@ function drawMaps() {
   mapObject = o.id;
   const attrs = box('control-grid', bindText('맵 이름', s, 'name'), bindSelect('시간대', s, 'theme', THEMES));
   attrs.append(
-    selectField(
-      '가로 길이',
-      String(s.width),
-      { 100: '1화면', 200: '2화면', 300: '3화면', 400: '4화면' },
-      (v) => {
-        const width = +v;
-        if (
-          s.objects.some((o) => o.x >= width) &&
-          !confirm('범위 밖 개체를 새 맵의 오른쪽 끝으로 옮길까요?')
-        ) {
-          draw();
+    (() => {
+      const size = el('input');
+      Object.assign(size, { type: 'number', min: 100, max: 3200, step: 1, value: s.width });
+      size.onchange = () => {
+        const width = size.valueAsNumber;
+        if (!integer(width, 100, 3200)) {
+          size.value = s.width;
+          return note('맵 길이는 100~3200 사이 정수예요.');
+        }
+        if (s.objects.some((o) => o.x >= width) && !confirm('범위 밖 개체를 오른쪽 끝으로 옮길까요?')) {
+          size.value = s.width;
           return;
         }
         edit(() => {
           s.width = width;
           s.objects.forEach((o) => (o.x = Math.min(o.x, width - 1)));
         });
-      },
-    ),
+      };
+      return titled('가로 길이 (100 = 한 화면)', size);
+    })(),
     bindSelect('시작 캐릭터', s, 'characterId', optionMap(project.characters)),
   );
   const links = el('details'),
@@ -192,6 +194,8 @@ function drawMaps() {
         if (!confirm(s.name + ' 맵을 삭제할까요? 연결된 출구 ' + links.length + '개는 다음 맵으로 이어져요.'))
           return;
         edit(() => {
+          resetUIReferences(project, 'map', s.id);
+          detachEpisodeReference(project, 'mapId', s.id);
           project.scenes = project.scenes.filter((m) => m !== s);
           links.forEach((o) => (o.to = 'next'));
           if (project.startMap === s.id) project.startMap = project.scenes[0].id;
@@ -210,7 +214,7 @@ function drawMaps() {
       Object.fromEntries(s.objects.map((v, i) => [v.id, (v.label || OBJECTS[v.type]) + ' · ' + (i + 1)])),
       (v) => {
         mapObject = v;
-        mapPage = Math.min(s.width / 100 - 1, Math.floor(named(s.objects, v).x / 100));
+        mapPage = Math.min(pageCount - 1, Math.floor(named(s.objects, v).x / 100));
         mapTool = '';
         draw();
       },
@@ -231,8 +235,33 @@ function drawMaps() {
       bindNumber('높이', o, 'y', 0, 65, 1, refresh),
     ),
   );
+  if (o.type === 'enemy') {
+    b.append(
+      heading('이 적의 전투 설정'),
+      bindText('적 이름', o, 'label'),
+      assetField('적 이미지', o.image, (v) => edit(() => (o.image = v))),
+      box(
+        'control-grid',
+        bindNumber('체력 (0 = 공통값)', o.enemy, 'health', 0, 9999, 1),
+        bindNumber('접촉 피해', o.enemy, 'damage', 0, 999, 1),
+        bindNumber('추격 속도', o.enemy, 'speed', 0, 30, 0.1),
+        bindNumber('감지 거리', o.enemy, 'sight', 0, 150, 0.1),
+        bindNumber('공격 거리', o.enemy, 'reach', 0, 30, 0.1),
+        bindNumber('재공격 간격 (초)', o.enemy, 'interval', 0.05, 30, 0.05),
+      ),
+    );
+  }
   if (o.type === 'platform') b.append(bindNumber('발판 너비', o, 'width', 3, 60, 1, refresh));
-  if (o.type === 'trigger') b.append(bindSelect('재생할 스토리', o, 'storyId', stories));
+  if (o.type === 'trigger')
+    b.append(
+      bindSelect('재생할 스토리', o, 'storyId', stories),
+      textField(
+        '진입 시 보낼 UI 이벤트',
+        o.eventKey || '',
+        (v) => edit(() => (o.eventKey = v), false, o),
+        50,
+      ),
+    );
   if (o.type === 'exit')
     b.append(
       bindSelect('출구 목적지', o, 'to', {
@@ -256,7 +285,7 @@ function drawMaps() {
       row(
         action('개체 복제', () => {
           if (s.objects.length >= LIMIT.objects) return note('맵의 개체 한도에 도달했어요.');
-          const next = { ...o, id: uid(), x: clamp(o.x + 4, 1, s.width - 1) };
+          const next = { ...structuredClone(o), id: uid(), x: clamp(o.x + 4, 1, s.width - 1) };
           edit(() => {
             s.objects.push(next);
             mapObject = next.id;

@@ -54,7 +54,7 @@ function zipArchive(items) {
   tail.u32(16, offset);
   return new Blob([...local, ...central, tail.array], { type: 'application/zip' });
 }
-async function exportUnityPack() {
+async function exportUnityPack(fullProject = false) {
   const release = await api('runtime'),
     d = release.project,
     items = [],
@@ -104,15 +104,25 @@ async function exportUnityPack() {
     await convert(s, 'backdrop');
     for (const o of s.objects) await convert(o, 'image');
   }
-  for (const l of d.layouts) for (const w of l.elements) await convert(w, 'image');
+  for (const l of d.layouts) {
+    await convert(l, 'skin');
+    for (const w of l.elements) await convert(w, 'image');
+  }
   await add('builtin-player.png', await read('/player.png'));
   await add('builtin-stage.jpg', await read('/stage.jpg'));
+  if (fullProject) {
+    const files = effectiveFiles(await getSourceBase(), d.sourceFiles);
+    for (const [path, text] of Object.entries(files))
+      if (!path.startsWith('Web/')) items.push([path, new TextEncoder().encode(text)]);
+  }
+  d.sourceFiles = [];
   items.push([root + 'release.json', new TextEncoder().encode(JSON.stringify(release))]);
   const url = URL.createObjectURL(zipArchive(items)),
     a = el('a');
   a.href = url;
-  a.download = 'Dreamwalker-Unity-v' + release.rev + '.zip';
+  a.download = (fullProject ? 'Dreamwalker-Unity-Project-v' : 'Dreamwalker-Unity-v') + release.rev + '.zip';
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 5000);
-  note('Unity 팩을 내보냈어요. 연결 코드가 있는 Unity 프로젝트에 Assets 폴더를 합치면 돼요.');
+  if (fullProject) note('현재 저장본의 Unity 프로젝트와 소스, 이미지를 내보냈어요.');
+  else note('Unity 팩을 내보냈어요. 연결 코드가 있는 Unity 프로젝트에 Assets 폴더를 합치면 돼요.');
 }

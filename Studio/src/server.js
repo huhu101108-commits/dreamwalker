@@ -134,12 +134,39 @@ async function api(req, env, path) {
       'set-cookie': 'dw_session=; Max-Age=0; Path=/; Secure; HttpOnly; SameSite=Strict',
     });
   }
+  if (!post && path === '/api/source-base') {
+    if (session.data.scope !== 'edit') err(403, '편집 권한이 필요해요.');
+    return json(SOURCE_BASE);
+  }
   const old = await get(b, 'project');
   const cur = old?.data || { rev: 0, updated: null, project: seed(), history: [] };
   if (!post && path === '/api/runtime' && new URL(req.url).searchParams.get('since') === String(cur.rev))
     return new Response(null, { status: 204, headers });
   if (old) for (const version of [cur, ...cur.history]) version.project = migrateProject(version.project);
-  if (!post && path === '/api/runtime') return json({ rev: cur.rev, project: cur.project });
+  if (!post && path === '/api/runtime') {
+    if (session.data.scope === 'edit') return json({ rev: cur.rev, project: cur.project });
+    const world = { ...cur.project, sourceFiles: [] };
+    // Installed v3 clients predate additional slots and the graph action. Keep their four slots playable.
+    if (new URL(req.url).searchParams.get('schema') !== '4') {
+      world.schema = 3;
+      world.characters = world.characters.map((c) => ({
+        ...c,
+        skills: Array.from({ length: 4 }, (_, i) => {
+          const skill = c.skills[i];
+          return skill && skill.mechanic !== 'sequence'
+            ? skill
+            : { name: skill?.name || '미지정', mechanic: 'none', power: 1, cooldown: -1 };
+        }),
+      }));
+      world.layouts = world.layouts.map((l) => ({
+        ...l,
+        elements: l.elements.filter(
+          (w) => w.type !== 'button' || (w.action !== 'roadmap' && skillSlot(w.action) < 4),
+        ),
+      }));
+    }
+    return json({ rev: cur.rev, project: world });
+  }
   if (session.data.scope !== 'edit') err(403, '편집 권한이 필요해요.');
   if (!post && path === '/api/project') return json(cur);
   if (post && path === '/api/save') {

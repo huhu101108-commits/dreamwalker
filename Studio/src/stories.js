@@ -24,10 +24,9 @@ function dialogueContent(world, cursor, advance) {
   wrap.append(body);
   return wrap;
 }
-function previewStory(story) {
+function previewStory(story, map = activeMap()) {
   const dialog = $('#reader'),
     area = $('#readerArea'),
-    map = activeMap(),
     c = named(project.characters, map.characterId);
   const cursor = new DialogueCursor(story);
   $('#readerName').textContent = story.name;
@@ -35,7 +34,13 @@ function previewStory(story) {
   area.classList.add('reader-stage');
   function render() {
     area.replaceChildren();
-    const screen = named(project.layouts, map.dialogueId);
+    const backdrop = named(project.scenes, cursor.node.mapId) || map;
+    paintStage(area, backdrop);
+    area.classList.add('reader-stage');
+    const screen = named(project.layouts, backdrop.dialogueId);
+    const skin = box('ui-backdrop');
+    styleScreen(skin, screen);
+    area.append(skin);
     for (const w of screen.elements.filter((v) => v.visible)) {
       const n = newWidgetView(w);
       if (w.type === 'dialogue')
@@ -74,9 +79,25 @@ function drawStories() {
       heading('스토리', '대사와 선택지를 작성한 뒤 맵 입장, 대화 지점 또는 출구에 연결하세요.'),
       action('＋ 새 스토리', () => add(), 'accent'),
     );
+    a.append(
+      action('캐릭터 로드맵 열기', () => {
+        tab = 'roadmap';
+        draw();
+      }),
+    );
     b.append(heading('대사 속성'), el('p', '스토리를 추가하면 화자와 대사를 편집할 수 있어요.'));
     return;
   }
+  a.append(
+    action(
+      '캐릭터 로드맵 열기',
+      () => {
+        tab = 'roadmap';
+        draw();
+      },
+      'quiet',
+    ),
+  );
   storyId = s.id;
   const n = named(s.nodes, lineId) || s.nodes[0];
   lineId = n.id;
@@ -207,6 +228,8 @@ function drawStories() {
         () => {
           if (!confirm('스토리를 삭제하고 맵 ' + connections.length + '곳의 연결을 해제할까요?')) return;
           edit(() => {
+            resetUIReferences(project, 'story', s.id);
+            detachEpisodeReference(project, 'storyId', s.id);
             project.stories = list.filter((v) => v !== s);
             for (const m of connections) {
               if (m.entryStory === s.id) m.entryStory = '';

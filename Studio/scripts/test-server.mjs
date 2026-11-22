@@ -57,7 +57,13 @@ const cookie = login.headers.get('set-cookie').split(';')[0],
 const runtime = (await (await call('login', { password: pwd, runtime: true })).json()).token;
 const token = { Authorization: 'Bearer ' + runtime };
 assert.equal((await call('project', undefined, token)).status, 403);
+assert.equal((await call('source-base')).status, 401);
+assert.equal((await call('source-base', undefined, token)).status, 403);
+const base = await (await call('source-base', undefined, headers)).json();
+assert(base['Web/index.html']);
+assert(base['Assets/Dreamwalker/Scripts/Demo/StudioScreenFlow.cs']);
 const doc = (await (await call('project', undefined, headers)).json()).project;
+doc.sourceFiles.push({ path: 'Web/test.js', text: '// QA only' });
 const save = () => call('save', { rev: 0, project: doc }, headers);
 const bad = structuredClone(doc);
 bad.scenes[0].characterId = 'unknown';
@@ -92,7 +98,11 @@ assert.equal(
 );
 assert.deepEqual((await Promise.all([save(), save()])).map((r) => r.status).sort(), [200, 409]);
 assert.equal((await call('runtime?since=1', undefined, token)).status, 204);
+const modern = await (await call('runtime?schema=4', undefined, token)).json();
+assert.equal(modern.project.schema, 4);
+assert.equal(modern.project.sourceFiles.length, 0);
 const release = await (await call('runtime', undefined, token)).json();
+assert.equal(release.project.schema, 3);
 assert.equal(release.project.characters[0].portrait, doc.characters[0].portrait);
 assert.equal((await call('password', { password: pwd + 'x' }, { ...headers, ...ownerHeaders })).status, 200);
 assert.equal((await call('project', undefined, headers)).status, 401);

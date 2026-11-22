@@ -42,10 +42,11 @@ function drawCharacters() {
   );
   a.append(box('character-card', image, info), heading('스킬 구성'));
   const bar = box('slot-tabs');
+  selectedSlot = clamp(selectedSlot, 0, c.skills.length - 1);
   c.skills.forEach((s, i) =>
     bar.append(
       action(
-        (i === 3 ? '궁극기' : '스킬 ' + (i + 1)) + ' · ' + s.name,
+        '슬롯 ' + (i + 1) + ' · ' + s.name,
         () => {
           selectedSlot = i;
           draw();
@@ -60,10 +61,95 @@ function drawCharacters() {
     box(
       'control-grid',
       bindText('스킬 이름', skill, 'name'),
-      bindSelect('동작 방식', skill, 'mechanic', MECHANICS),
+      selectField('동작 방식', skill.mechanic, MECHANICS, (v) =>
+        edit(() => {
+          skill.mechanic = v;
+          if (v === 'sequence' && !skill.steps?.length) skill.steps = [skillStep()];
+        }),
+      ),
       bindNumber('스킬 피해 배율', skill, 'power', 0.05, 10, 0.05),
     ),
   );
+  a.append(
+    row(
+      action('＋ 스킬 슬롯', () => {
+        if (c.skills.length >= 12) return note('캐릭터당 12칸까지 만들 수 있어요.');
+        edit(() => {
+          c.skills.push({
+            name: '새 스킬',
+            mechanic: 'sequence',
+            power: 1,
+            cooldown: 1,
+            steps: [skillStep()],
+          });
+          selectedSlot = c.skills.length - 1;
+        });
+      }),
+      action('슬롯 앞으로', () =>
+        edit(() => {
+          moveIn(c.skills, skill, -1);
+          selectedSlot = c.skills.indexOf(skill);
+        }),
+      ),
+      action('슬롯 뒤로', () =>
+        edit(() => {
+          moveIn(c.skills, skill, 1);
+          selectedSlot = c.skills.indexOf(skill);
+        }),
+      ),
+      action(
+        '슬롯 삭제',
+        () => {
+          if (c.skills.length === 1) return note('스킬 슬롯 하나가 필요해요.');
+          if (confirm('이 스킬 슬롯을 삭제할까요? 뒤쪽 스킬이 한 칸씩 앞으로 이동해요.'))
+            edit(() => c.skills.splice(selectedSlot, 1));
+        },
+        'danger',
+      ),
+    ),
+  );
+  if (skill.mechanic === 'sequence') {
+    a.append(
+      heading(
+        '동작 순서',
+        '위에서 아래로 실행해요. 타격을 여러 번 넣거나 대기 동작으로 타이밍을 조정하세요.',
+      ),
+    );
+    const kinds = Object.fromEntries(Object.entries(STEP_TYPES).map(([k, v]) => [k, v[0]]));
+    skill.steps.forEach((step, i) => {
+      const cfg = STEP_TYPES[step.kind];
+      const card = box(
+        'choice-card',
+        selectField(i + 1 + '번째 동작', step.kind, kinds, (v) =>
+          edit(() => Object.assign(step, skillStep(v))),
+        ),
+      );
+      if (cfg[1])
+        card.append(bindNumber(cfg[1], step, 'value', cfg[2], cfg[3], step.kind === 'heal' ? 1 : 'any'));
+      if (usesRange(step.kind)) card.append(bindNumber('탐색 / 타격 거리', step, 'range', 0.1, 150, 0.1));
+      card.append(
+        row(
+          action('위로', () => edit(() => moveIn(skill.steps, step, -1))),
+          action('아래로', () => edit(() => moveIn(skill.steps, step, 1))),
+          action(
+            '삭제',
+            () => {
+              if (skill.steps.length > 1) edit(() => skill.steps.splice(i, 1));
+              else note('동작 하나가 필요해요.');
+            },
+            'quiet',
+          ),
+        ),
+      );
+      a.append(card);
+    });
+    a.append(
+      action('＋ 동작 추가', () => {
+        if (skill.steps.length >= 32) return note('스킬당 최대 32동작이에요.');
+        edit(() => skill.steps.push(skillStep()));
+      }),
+    );
+  }
   const auto = skill.cooldown === -1;
   a.append(
     checkField('공통 재사용 시간 적용', auto, (v) =>
@@ -72,6 +158,12 @@ function drawCharacters() {
   );
   if (!auto) a.append(bindNumber('개별 재사용 시간 (초)', skill, 'cooldown', 0.05, 120, 0.05));
   b.append(
+    action(c.name + '의 스토리 로드맵', () => {
+      actorId = c.id;
+      episodeId = '';
+      tab = 'roadmap';
+      draw();
+    }),
     heading('캐릭터 속성'),
     bindText('이름', c, 'name'),
     bindText('소속 지역', c, 'region'),
@@ -122,6 +214,7 @@ function drawCharacters() {
         )
           return;
         edit(() => {
+          resetUIReferences(project, 'character', c.id);
           project.characters = project.characters.filter((v) => v !== c);
           for (const s of project.scenes) if (s.characterId === c.id) s.characterId = other.id;
           for (const story of project.stories)

@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Dreamwalker</title><link rel="stylesheet" href="game.css"></head>
+<body class="game-only"><button id="replay" hidden>다시 플레이</button>
+    <dialog id="game">
+      <div class="bar">
+        <strong id="level"></strong>
+        <div class="actions">
+          <button id="assist">보조 조작</button><button id="restart">다시 시작</button
+          ><button id="stop">편집기로</button>
+        </div>
+      </div>
+      <div id="arena" class="stage">
+        <div id="actors"></div>
+        <div id="overlay"></div>
+      </div>
+      <div id="controls" hidden></div>
+      <p id="gameNote" aria-live="polite"></p>
+    </dialog>
+  <script src="model.js"></script>
+  <script src="simulation.js"></script>
+  <script src="view.js"></script>
+  <script src="dialogue.js"></script>
+  <script src="game.js"></script>
+  <script src="boot.js"></script>
+</body></html>

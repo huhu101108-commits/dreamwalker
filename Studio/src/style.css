@@ -63,7 +63,7 @@ main {
   margin: 5vh auto;
 }
 .cover {
-  background: #233850 url('/cover.webp') center/cover no-repeat;
+  background: #233850 url("/cover.webp") center/cover no-repeat;
   min-height: 490px;
   border-radius: 16px 0 0 16px;
 }
@@ -178,10 +178,10 @@ nav button {
   border: 1px solid #526579;
   border-radius: 9px;
   overflow: hidden;
-  background: #66879a var(--backdrop-art, url('/stage.webp')) center/cover;
+  background: #66879a var(--backdrop-art, url("/stage.webp")) center/cover;
 }
 .stage:before {
-  content: '';
+  content: "";
   position: absolute;
   inset: 82% 0 0;
   background: linear-gradient(#dae9ec 2%, #8199a7 9%, #344d62 15%, #29374b 55%);
@@ -211,7 +211,8 @@ nav button {
 .hero {
   width: 7%;
   height: 23%;
-  background: transparent var(--hero-art, url('/player.webp')) center bottom/contain no-repeat;
+  background: transparent var(--hero-art, url("/player.webp")) center
+    bottom/contain no-repeat;
 }
 .obj.enemy {
   width: 4.8%;
@@ -263,7 +264,7 @@ nav button {
 .fields input {
   width: 100%;
 }
-input[type='range'] {
+input[type="range"] {
   padding: 0;
   min-height: 24px;
   accent-color: #91e1e8;
@@ -318,7 +319,7 @@ dialog::backdrop {
 .muted {
   color: #aac0cd;
 }
-input[type='file'] {
+input[type="file"] {
   width: 100%;
 }
 [hidden] {
@@ -424,7 +425,7 @@ textarea {
   color: inherit;
   font: inherit;
 }
-input[type='color'] {
+input[type="color"] {
   padding: 4px;
 }
 .check {
@@ -813,4 +814,176 @@ button.on {
   .answers button {
     min-height: 26px;
   }
+}
+.road-scroll {
+  position: relative;
+  overflow: auto;
+  max-height: min(65vh, 700px);
+  min-height: 12rem;
+  margin: 16px 0;
+  padding: 8px;
+  border: 1px solid #c4d6dd;
+  border-radius: 10px;
+  background-color: #edf4f6;
+  background-image: radial-gradient(#bdced5 0.85px, transparent 0.85px);
+  background-size: 16px 16px;
+  overscroll-behavior: contain;
+}
+.road-space,
+.road-board {
+  position: relative;
+}
+.road-board {
+  transform-origin: top left;
+}
+.road-board svg,
+.episode-card {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+.road-board svg {
+  pointer-events: none;
+  overflow: visible;
+}
+button.episode-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 3px;
+  width: 170px;
+  height: 90px;
+  padding: 9px 12px;
+  border: 1px solid #a8bcc6;
+  background: #fff;
+  color: #193643;
+  text-align: left;
+  border-radius: 9px;
+  box-shadow: 0 2px 5px #1b405514;
+}
+button.episode-card.current {
+  border: 2px solid #28768b;
+  background: #f1fcff;
+}
+button.episode-card.detached {
+  border-style: dashed;
+}
+.episode-card small {
+  color: #316a7a;
+  font-size: 10px;
+}
+.episode-card strong,
+.episode-card span {
+  overflow: hidden;
+  max-width: 100%;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.episode-card span {
+  font-size: 12px;
+  color: #526774;
+}
+.road-empty {
+  margin: 16px 0;
+  padding: 35px 20px;
+  border: 1px dashed #8faab8;
+  border-radius: 10px;
+  text-align: center;
+}
+.dialogue-copy p {
+  white-space: pre-line;
+}
+.obj.enemy.enemy-art {
+  background-color: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background-repeat: no-repeat;
+  background-size: contain;
+  background-position: center bottom;
+  color: white;
+  text-shadow: 0 1px 3px black;
+}
+.code-editor {
+  width: 100%;
+  min-height: 410px;
+  height: 55vh;
+  margin-top: 8px;
+  background: #111e2c;
+  color: #d4e9f2;
+  font:
+    14px/1.65 ui-monospace,
+    monospace;
+  tab-size: 2;
+  white-space: pre;
+  resize: vertical;
+}
+.source-player {
+  width: min(98vw, 1280px);
+  max-width: 98vw;
+  padding: 10px;
+}
+.source-player iframe {
+  width: 100%;
+  height: 76dvh;
+  display: block;
+  border: 0;
+  background: #162535;
+}
+.road-board .episode-card small {
+  color: #356774;
+}
+.road-board .episode-card span {
+  color: #516b77;
+}
+.ui-backdrop {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-position: center;
+  background-size: cover;
+}
+#overlay {
+  background-position: center;
+  background-size: cover;
+}
+.widget-button:active {
+  background-color: var(--press-color) !important;
+}
+.flow-rules {
+  margin: 18px 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.flow-rules > * + * {
+  margin-top: 10px;
+}
+.flow-rules > small {
+  display: block;
+  color: var(--muted);
+}
+.game-only #game,
+.game-only .source-player {
+  width: 100vw;
+  max-width: 100vw;
+  max-height: 100dvh;
+  margin: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+}
+.game-only #game > .bar,
+.game-only #game > #gameNote,
+.game-only .source-player > .bar {
+  display: none;
+}
+.game-only #arena {
+  width: 100%;
+  max-height: 100dvh;
+  margin: 0;
+}
+.game-only .source-player iframe {
+  height: 100dvh;
 }

@@ -14,6 +14,7 @@ public sealed class StudioWorld : MonoBehaviour
     private class Foe
     {
         public CombatTarget target;
+        public StudioEnemy config;
         public int stacks;
         public float frozenUntil, slowUntil;
     }
@@ -34,7 +35,15 @@ public sealed class StudioWorld : MonoBehaviour
     public string Result { get; private set; }
     public int Health { get; private set; }
     public int Remaining { get; private set; }
-    public bool Paused => Story != null || !string.IsNullOrEmpty(Menu) || !string.IsNullOrEmpty(Result);
+    private bool hasTimers, deferExit;
+    private StudioScreenFlow flow = new StudioScreenFlow();
+    public bool HasOverlay => !string.IsNullOrEmpty(flow.Top);
+    public StudioLayout CurrentLayout => Project.Layout(HasOverlay                   ? flow.Top
+                                                        : Story != null              ? Map.dialogueId
+                                                        : string.IsNullOrEmpty(Menu) ? Map.hudId
+                                                                                     : Menu);
+    public bool Paused => Story != null || !string.IsNullOrEmpty(Result) ||
+                          (Project.schema < 4 ? !string.IsNullOrEmpty(Menu) : CurrentLayout.pauseGame);
     public bool Running { get; private set; }
     public StudioConnection Connection { get; private set; }
 
@@ -52,7 +61,7 @@ public sealed class StudioWorld : MonoBehaviour
     private readonly HashSet<string> triggers = new HashSet<string>();
     private readonly List<Foe> targets = new List<Foe>();
     private readonly HashSet<Foe> dashed = new HashSet<Foe>();
-    private readonly float[] cooldowns = new float[4];
+    private readonly float[] cooldowns = new float[12];
     private SpriteRenderer[] originalArt;
     private bool[] originalArtEnabled;
     private Vector4 originalMovement;
@@ -106,7 +115,11 @@ public sealed class StudioWorld : MonoBehaviour
             Running = true;
         }
         Project = project;
+        flow = new StudioScreenFlow();
+        hasTimers = Array.Exists(project.layouts,
+                                 l => l.rules != null && Array.Exists(l.rules, r => r.@event == "elapsed"));
         Enter(project.Map(project.startMap));
+        Fire("start");
     }
 
     private static Sprite MakeSprite(Texture2D texture) =>
@@ -143,10 +156,12 @@ public sealed class StudioWorld : MonoBehaviour
     private void Enter(StudioMap map)
     {
         ClearMap();
+        flow.EnterMap();
+        deferExit = false;
         Map = map;
         sceneRoot = new GameObject("Studio map - " + map.name);
         clock = 0;
-        lastDamage = -2;
+        lastDamage = float.NegativeInfinity;
         Menu = "";
         Result = "";
         Remaining = 0;
@@ -169,7 +184,7 @@ public sealed class StudioWorld : MonoBehaviour
             switch (o.type)
             {
             case "enemy":
-                AddEnemy(pos);
+                AddEnemy(pos, o);
                 break;
             case "platform":
                 Solid("Platform", pos - Vector2.up * .1f, new Vector2(o.width * UnitX, .2f), true);
@@ -178,7 +193,7 @@ public sealed class StudioWorld : MonoBehaviour
                 Piece("Exit", pos + Vector2.up * .65f, new Vector2(.3f, 1.3f), 1, new Color(.44f, .92f, .84f));
                 break;
             case "trigger":
-                if (!string.IsNullOrEmpty(o.storyId))
+                if (!string.IsNullOrEmpty(o.storyId) || !string.IsNullOrEmpty(o.eventKey))
                     Piece("Dialogue point", pos + Vector2.up * .5f, new Vector2(.4f, 1), 0,
                           new Color(.99f, .81f, .45f));
                 break;
@@ -191,6 +206,7 @@ public sealed class StudioWorld : MonoBehaviour
         }
         SetCharacter(Project.Character(map.characterId), false);
         OpenStory(map.entryStory);
+        Fire("enter");
         SyncControls();
         UpdateCamera();
     }
@@ -254,7 +270,7 @@ public sealed class StudioWorld : MonoBehaviour
             collider.usedByEffector = true;
         }
     }
-    private void AddEnemy(Vector2 pos)
+    private void AddEnemy(Vector2 pos, StudioObject data)
     {
         CombatTarget target;
         if (demoHud != null && demoHud.trainingDummy != null)
@@ -275,13 +291,24 @@ public sealed class StudioWorld : MonoBehaviour
             r.transform.SetParent(go.transform, true);
             target = go.AddComponent<CombatTarget>();
         }
-        target.Setup(CombatFaction.Enemy, Project.tuning.hp);
+        var config = data.enemy ?? new StudioEnemy();
+        if (!string.IsNullOrEmpty(data.label))
+            target.name = data.label;
+        if (!string.IsNullOrEmpty(data.image))
+        {
+            foreach (var r in target.GetComponentsInChildren<SpriteRenderer>())
+                r.enabled = false;
+            var art = Piece("Enemy art", pos + Vector2.up * .8f, new Vector2(1.5f, 1.6f), 5, Color.white,
+                            data.image, true);
+            art.transform.SetParent(target.transform, true);
+        }
+        target.Setup(CombatFaction.Enemy, config.health > 0 ? config.health : Project.tuning.hp);
         foreach (var collider in target.GetComponentsInChildren<Collider2D>())
         {
             collider.isTrigger = true;
             collider.enabled = true;
         }
-        foes.Add(new Foe { target = target });
+        foes.Add(new Foe { target = target, config = config });
         Remaining++;
     }
     private void LoadParts()
@@ -308,6 +335,8 @@ public sealed class StudioWorld : MonoBehaviour
     {
         Story = string.IsNullOrEmpty(id) ? null : Project.Story(id);
         lineIndex = 0;
+        if (Story != null)
+            Fire("storyStart", id);
         SyncControls();
     }
     public void Answer(int choice = -1, bool skip = false)
@@ -327,7 +356,14 @@ public sealed class StudioWorld : MonoBehaviour
             lineIndex++;
         if (lineIndex >= 0 && lineIndex < Story.nodes.Length)
             return;
+        string storyId = Story.id;
         Story = null;
+        flow.CloseAll();
+        if (Fire("storyEnd", storyId) && pendingExit != null)
+        {
+            deferExit = true;
+            return;
+        }
         if (pendingExit != null)
         {
             var exit = pendingExit;
@@ -349,6 +385,7 @@ public sealed class StudioWorld : MonoBehaviour
         else
         {
             Result = "맵 탐험 완료";
+            Fire("clear");
             SyncControls();
         }
     }
@@ -385,10 +422,114 @@ public sealed class StudioWorld : MonoBehaviour
             stack)
             AddStack(e);
     }
+    private bool Fire(string signal, string key = "", float previous = 101)
+    {
+        if (Actor == null ||
+            !flow.Fire(Project, Map.id, Actor.id, signal, key, 100f * Health / Actor.health, previous, clock))
+            return false;
+        SyncControls();
+        return true;
+    }
+    private void FinishOverlay()
+    {
+        if (!deferExit || HasOverlay || pendingExit == null)
+            return;
+        var exit = pendingExit;
+        pendingExit = null;
+        deferExit = false;
+        Travel(exit);
+    }
+    public bool Visible(StudioWidget w) => w.visible && flow.Matches(w.showFlag, w.showValue);
+    public bool Enabled(StudioWidget w) => flow.Matches(w.enableFlag, w.enableValue);
+    public void Activate(StudioWidget widget, bool primary = true)
+    {
+        if (!Visible(widget) || !Enabled(widget))
+            return;
+        if (primary)
+            Press(widget.action, widget.target);
+        if (widget.steps == null)
+            return;
+        foreach (var step in widget.steps)
+            if (flow.Matches(step.flag, step.flagState))
+                Press(step.action, step.target);
+    }
     public void Press(string action, string target = "")
     {
         if (!Running)
             return;
+        if (action == "newRun")
+        {
+            flow = new StudioScreenFlow();
+            Enter(Project.Map(Project.startMap));
+            Fire("start");
+            return;
+        }
+        if (action == "open")
+        {
+            if (Project.Layout(target) != null)
+                flow.Open(target);
+            SyncControls();
+            return;
+        }
+        if (action == "back")
+        {
+            if (HasOverlay)
+                flow.Back();
+            else
+                Menu = "";
+            SyncControls();
+            FinishOverlay();
+            return;
+        }
+        if (action == "flagOn" || action == "flagOff")
+        {
+            flow.Flag(target, action == "flagOn");
+            return;
+        }
+        if (action == "signal")
+        {
+            Fire("signal", target);
+            return;
+        }
+        if (action == "gotoMap")
+        {
+            var m = Project.Map(target);
+            if (m != null)
+                Enter(m);
+            return;
+        }
+        if (action == "startStory")
+        {
+            if (Project.Story(target) != null)
+            {
+                flow.CloseAll();
+                Menu = "";
+                pendingExit = null;
+                deferExit = false;
+                OpenStory(target);
+            }
+            return;
+        }
+        if (action == "selectActor")
+        {
+            var actor = Project.Character(target);
+            if (actor != null)
+            {
+                skill = null;
+                SetCharacter(actor, true);
+                Fire("switch");
+                SyncControls();
+            }
+            return;
+        }
+        if (action == "resume")
+        {
+            flow.CloseAll();
+            Menu = "";
+            SyncControls();
+            FinishOverlay();
+            return;
+        }
         if (action == "restart")
         {
             Enter(Map);
@@ -401,18 +542,24 @@ public sealed class StudioWorld : MonoBehaviour
         }
         if (Story != null || !string.IsNullOrEmpty(Result))
             return;
-        if (action == "resume")
+        if (action == "roadmap")
         {
-            Menu = "";
-            SyncControls();
+            var route = Actor.roadmap?.Build(Project, Actor);
+            if (route != null)
+            {
+                flow.CloseAll();
+                Menu = "";
+                Story = route;
+                lineIndex = 0;
+                SyncControls();
+            }
             return;
         }
-        if (action == "menu" || action == "open")
+        if (action == "menu")
         {
-            string id = action == "menu" ? Map.menuId : target;
-            if (Project.Layout(id)?.kind == "menu")
+            if (!Fire("menu"))
             {
-                Menu = id;
+                Menu = Map.menuId;
                 SyncControls();
             }
             return;
@@ -422,6 +569,7 @@ public sealed class StudioWorld : MonoBehaviour
             int at = Array.IndexOf(Project.characters, Actor);
             skill = null;
             SetCharacter(Project.characters[(at + 1) % Project.characters.Length], true);
+            Fire("switch");
             SyncControls();
             return;
         }
@@ -438,7 +586,8 @@ public sealed class StudioWorld : MonoBehaviour
             return;
         }
         if (!action.StartsWith("skill", StringComparison.Ordinal) ||
-            !int.TryParse(action.Substring(5), out int slot) || slot < 1 || slot > 4)
+            !int.TryParse(action.Substring(5), out int slot) || slot < 1 || slot > Actor.skills.Length ||
+            slot > cooldowns.Length)
             return;
         slot--;
         var next = Actor.skills[slot];
@@ -467,6 +616,7 @@ public sealed class StudioWorld : MonoBehaviour
         }
         targets.Sort((a, b) => Mathf.Abs(a.target.transform.position.x - skillOrigin.x)
                                    .CompareTo(Mathf.Abs(b.target.transform.position.x - skillOrigin.x)));
+        Fire("skill", action);
         cooldowns[slot] = clock + (next.cooldown >= 0 ? next.cooldown : t.Cooldown(next.mechanic));
         SyncControls();
     }
@@ -484,7 +634,17 @@ public sealed class StudioWorld : MonoBehaviour
         var t = Project.tuning;
         float damage = t.damage * skill.power;
         string kind = skill.mechanic;
-        if (kind == "dash")
+        if (kind == "sequence")
+        {
+            if (clock < nextHit)
+                return;
+            if (hitIndex < skill.steps.Length)
+            {
+                RunStep(skill.steps[hitIndex++], damage);
+                return;
+            }
+        }
+        else if (kind == "dash")
         {
             float previous = transform.position.x, elapsed = clock - started;
             Warp(skillOrigin +
@@ -556,11 +716,58 @@ public sealed class StudioWorld : MonoBehaviour
         SyncControls();
     }
 
+    private void RunStep(StudioStep step, float damage)
+    {
+        var pos = body.position;
+        switch (step.kind)
+        {
+        case "wait":
+            nextHit = clock + step.value;
+            return;
+        case "advance":
+            Warp(pos + Vector2.right * skillFacing * step.value * UnitX);
+            return;
+        case "origin":
+            Warp(skillOrigin);
+            return;
+        case "heal":
+            Health = Math.Min(Actor.health, Health + Mathf.RoundToInt(step.value));
+            return;
+        }
+        Foe closest = null;
+        float distance = float.PositiveInfinity;
+        foreach (var e in foes)
+        {
+            Vector2 delta = (Vector2)e.target.transform.position - pos;
+            float dx = Mathf.Abs(delta.x);
+            if (e.target.Health <= 0 || dx > step.range * UnitX || Mathf.Abs(delta.y) >= 19 * UnitY)
+                continue;
+            if (step.kind == "area" || (step.kind == "front" && delta.x * skillFacing >= 0))
+                Hit(e, damage * step.value);
+            if (dx < distance)
+            {
+                distance = dx;
+                closest = e;
+            }
+        }
+        if (closest == null)
+            return;
+        if (step.kind == "strike")
+            Hit(closest, damage * step.value);
+        if (step.kind == "seek")
+            Warp((Vector2)closest.target.transform.position - Vector2.right * skillFacing * step.value * UnitX);
+    }
+
     private void FixedUpdate()
     {
         if (!Running || Paused)
             return;
+        float previousHp = Health * 100f / Actor.health;
+        int previousFoes = Remaining;
+        float priorClock = clock;
         clock += Time.fixedDeltaTime;
+        if (hasTimers && Fire("elapsed", "", priorClock) && Paused)
+            return;
         StepSkill();
         Vector2 pos = transform.position;
         if (pos.x < OriginX + UnitX || pos.x > OriginX + (Map.width - 1) * UnitX)
@@ -580,21 +787,27 @@ public sealed class StudioWorld : MonoBehaviour
             float dx = pos.x - p.x;
             float slow =
                 Mathf.Min(.9f, Mathf.Max(e.stacks, e.slowUntil > clock ? 1 : 0) * Project.tuning.slow / 100);
-            if (Mathf.Abs(dx) > 2 * UnitX && Mathf.Abs(dx) < 28 * UnitX)
-                p.x += Mathf.Sign(dx) * 3.3f * UnitX * (1 - slow) * Time.fixedDeltaTime;
+            if (Mathf.Abs(dx) > 2 * UnitX && Mathf.Abs(dx) < e.config.sight * UnitX)
+                p.x += Mathf.Sign(dx) * e.config.speed * UnitX * (1 - slow) * Time.fixedDeltaTime;
             e.target.transform.position = p;
-            if (Mathf.Abs(dx) < 3 * UnitX && Mathf.Abs(pos.y - p.y) < 8 * UnitY && clock - lastDamage > .8f)
+            if (e.config.damage > 0 && Mathf.Abs(dx) < e.config.reach * UnitX &&
+                Mathf.Abs(pos.y - p.y) < 8 * UnitY && clock - lastDamage > e.config.interval)
             {
-                Health = Math.Max(0, Health - 8);
+                Health = Math.Max(0, Health - e.config.damage);
                 lastDamage = clock;
             }
         }
         if (Health <= 0)
         {
             Result = "전투 종료";
+            Fire("defeat");
             SyncControls();
             return;
         }
+        if (Health * 100f / Actor.health < previousHp && Fire("lowHp", "", previousHp))
+            return;
+        if (previousFoes > 0 && Remaining == 0 && Fire("enemies"))
+            return;
         foreach (var o in Map.objects)
         {
             if (o.type != "exit" && o.type != "trigger")
@@ -602,9 +815,12 @@ public sealed class StudioWorld : MonoBehaviour
             Vector2 delta = Point(o) - pos;
             if (Mathf.Abs(delta.x) >= 4 * UnitX || Mathf.Abs(delta.y) >= 10 * UnitY)
                 continue;
-            if (o.type == "trigger" && !string.IsNullOrEmpty(o.storyId) && triggers.Add(o.id))
+            if (o.type == "trigger" &&
+                (!string.IsNullOrEmpty(o.storyId) || !string.IsNullOrEmpty(o.eventKey)) && triggers.Add(o.id))
             {
                 OpenStory(o.storyId);
+                if (!string.IsNullOrEmpty(o.eventKey))
+                    Fire("signal", o.eventKey);
                 return;
             }
             if (o.type == "exit" && (Remaining == 0 || !Map.requireClear))

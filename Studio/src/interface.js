@@ -10,7 +10,8 @@ function drawInterface() {
     s.id = id;
     if (copy) {
       s.name = l.name.slice(0, 45) + ' 사본';
-      for (const w of s.elements) if (w.target === l.id) w.target = id;
+      for (const w of s.elements)
+        for (const act of [w, ...w.steps]) if (act.action === 'open' && act.target === l.id) act.target = id;
     }
     edit(() => {
       project.layouts.push(s);
@@ -25,11 +26,20 @@ function drawInterface() {
         elementId = '';
         draw();
       }),
+      action('＋ 버튼 추가', () => {
+        if (l.elements.length >= LIMIT.widgets) return note('화면 요소 한도에 도달했어요.');
+        const n = widget(uid(), 'button', 28, 38, 30, 12, { text: '새 버튼', action: 'back' });
+        edit(() => {
+          l.elements.push(n);
+          elementId = n.id;
+        });
+      }),
       selectField('새 화면 종류', screenKind, SCREEN_TYPES, (v) => (screenKind = v)),
       action('＋ 새 화면', () => add(false)),
       action('화면 복제', () => add(true)),
     ),
   );
+  a.append(row(action('▶ 이 화면 테스트', () => playProject(activeMap().id, l.id))));
   const w = named(l.elements, elementId) || l.elements[0];
   elementId = w?.id || '';
   const m = activeMap(),
@@ -37,6 +47,9 @@ function drawInterface() {
   const canvas = el('div');
   paintStage(canvas, m);
   canvas.classList.add('ui-canvas');
+  const backdrop = box('ui-backdrop');
+  styleScreen(backdrop, l);
+  canvas.append(backdrop);
   const sample = { character: c, map: m, hp: Math.round(c.health * 0.72), enemies: 3 },
     nodes = new Map();
   function applyGeometry(node, v) {
@@ -99,7 +112,7 @@ function drawInterface() {
     ),
   );
   const allowed = { ...WIDGETS };
-  if (l.kind !== 'dialogue' || l.elements.some((v) => v.type === 'dialogue')) delete allowed.dialogue;
+  if (l.elements.some((v) => v.type === 'dialogue')) delete allowed.dialogue;
   let type = 'text';
   a.append(
     row(
@@ -118,6 +131,7 @@ function drawInterface() {
     ),
     bindText('화면 이름', l, 'name'),
   );
+  drawScreenFlow(l, a);
   const linked = project.scenes.filter((m) => [m.hudId, m.menuId, m.dialogueId].includes(l.id));
   a.append(
     heading('사용 중인 맵'),
@@ -136,15 +150,14 @@ function drawInterface() {
       '화면 삭제',
       () => {
         const alt = project.layouts.find((v) => v !== l && v.kind === l.kind);
-        if (!alt) return note(SCREEN_TYPES[l.kind] + ' 화면 하나가 필요해요.');
-        if (!confirm(l.name + '을 삭제할까요? 이 화면의 연결은 ' + alt.name + '로 바뀌어요.')) return;
+        if (!alt && l.kind !== 'custom') return note(SCREEN_TYPES[l.kind] + ' 화면 하나가 필요해요.');
+        if (!confirm(l.name + ' 화면과 표시 조건을 삭제할까요?')) return;
         edit(() => {
           project.layouts = project.layouts.filter((v) => v !== l);
           for (const m of linked)
             for (const k of ['hudId', 'menuId', 'dialogueId']) if (m[k] === l.id) m[k] = alt.id;
-          for (const screen of project.layouts)
-            for (const v of screen.elements) if (v.target === l.id) v.target = alt.id;
-          layoutId = alt.id;
+          resetUIReferences(project, 'screen', l.id, alt?.id || '');
+          layoutId = alt?.id || project.layouts[0].id;
           elementId = '';
         });
       },
@@ -209,19 +222,32 @@ function drawInterface() {
   }
   b.append(g);
   if (w.type === 'button') {
-    const actions = screenActions(l.kind);
+    drawButtonActions(w, b);
+    const vis = el('details');
+    vis.append(
+      el('summary', '버튼 표시 · 활성 조건'),
+      bindText('표시 조건 상태 (비우면 항상)', w, 'showFlag'),
+      bindSelectBool('표시할 상태', w, 'showValue'),
+      bindText('활성 조건 상태 (비우면 항상)', w, 'enableFlag'),
+      bindSelectBool('누를 수 있는 상태', w, 'enableValue'),
+    );
+    b.append(vis);
     b.append(
-      selectField('버튼 동작', w.action, actions, (v) =>
-        edit(() => {
-          w.action = v;
-          w.target = v === 'open' ? project.layouts.find((s) => s.kind === 'menu').id : '';
-        }),
+      heading('버튼 모양'),
+      assetField('버튼 그림', w.image, (v) => edit(() => (w.image = v))),
+      bindSelect('그림 맞춤', w, 'imageFit', {
+        contain: '전체 표시',
+        cover: '가득 채움',
+        stretch: '크기에 맞춤',
+      }),
+      box(
+        'control-grid',
+        bindColor('테두리 색', w, 'borderColor', () => styleButton(nodes.get(w.id), w)),
+        bindColor('누를 때 색', w, 'pressedColor', () => styleButton(nodes.get(w.id), w)),
+        bindNumber('테두리 두께', w, 'borderWidth', 0, 12, 1, () => styleButton(nodes.get(w.id), w)),
+        bindNumber('모서리 둥글기 (%)', w, 'radius', 0, 50, 1, () => styleButton(nodes.get(w.id), w)),
       ),
     );
-    if (w.action === 'open')
-      b.append(
-        bindSelect('열 화면', w, 'target', optionMap(project.layouts.filter((s) => s.kind === 'menu'))),
-      );
   }
   if (!['image', 'panel', 'dialogue'].includes(w.type)) {
     const token = {};
@@ -265,7 +291,7 @@ function drawInterface() {
     ),
     bindSelect('정렬', w, 'align', { left: '왼쪽', center: '가운데', right: '오른쪽' }),
   );
-  if (w.type !== 'dialogue')
+  if (!(w.type === 'dialogue' && l.kind === 'dialogue'))
     b.append(checkField('게임에 표시', w.visible, (v) => edit(() => (w.visible = v))));
   b.append(
     row(
@@ -273,12 +299,17 @@ function drawInterface() {
       action('한 층 앞으로', () => edit(() => moveIn(l.elements, w, 1))),
     ),
   );
-  if (w.type !== 'dialogue')
+  if (!(w.type === 'dialogue' && l.kind === 'dialogue'))
     b.append(
       row(
         action('요소 복제', () => {
           if (l.elements.length >= LIMIT.widgets) return note('요소 한도에 도달했어요.');
-          const next = { ...w, id: uid(), x: Math.min(w.x + 2, 100 - w.w), y: Math.min(w.y + 2, 100 - w.h) };
+          const next = {
+            ...structuredClone(w),
+            id: uid(),
+            x: Math.min(w.x + 2, 100 - w.w),
+            y: Math.min(w.y + 2, 100 - w.h),
+          };
           edit(() => {
             l.elements.push(next);
             elementId = next.id;
