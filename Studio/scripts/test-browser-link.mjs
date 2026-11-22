@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
 import { once } from 'node:events';
 import { createRequire } from 'node:module';
-import { BUCKET, ownerDigest, ownerHeaders, worker } from './worker-fixture.mjs';
+import { BUCKET, ownerDigest, previewOwnerHeaders, worker } from './worker-fixture.mjs';
 const { chromium } = createRequire(import.meta.url)('playwright-core');
 
 async function fixture(identity) {
@@ -27,7 +27,7 @@ async function fixture(identity) {
 }
 const servers = [], browsers = [];
 try {
-  for (const identity of [ownerHeaders, {}]) {
+  for (const identity of [previewOwnerHeaders, {}]) {
     servers.push(await fixture(identity));
     browsers.push(await chromium.launch({ channel: 'chrome', headless: true, args: ['--allow-loopback-in-peer-connection'] }));
   }
@@ -39,8 +39,16 @@ try {
     return page;
   }));
   await host.locator('#editor').waitFor();
+  assert.equal(new URL(host.url()).search, '?tool=versions');
   await guest.locator('#owner-login').waitFor();
   assert(await guest.locator('#editor').isHidden());
+  const teammate = await fixture({ 'oai-authenticated-user-email': 'teammate@example.invalid' });
+  servers.push(teammate);
+  await guest.goto('http://127.0.0.1:' + teammate.address().port + '/');
+  await guest.getByText(/현재 계정의 소유자 권한을 확인할 수 없어요/).waitFor();
+  assert(await guest.locator('#owner-login').isHidden());
+  assert(await guest.locator('#editor').isHidden());
+  console.log('PASS mobile preview owner enters the editor with verified email; signed-in teammate stays at the gate');
   const password = randomUUID();
   await host.getByRole('button', { name: '팀 암호 설정', exact: true }).click();
   const dialog = host.getByRole('dialog');

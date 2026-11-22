@@ -484,10 +484,13 @@ async function openEditor() {
   } else {
     $('#team-password').hidden = $('#enter').hidden = !access.configured;
     $('#pw').disabled = $('#enter').disabled = !access.configured;
+    $('#owner-login').hidden = access.signedIn;
     $('#owner-login').href = '/signin-with-chatgpt?return_to=' + encodeURIComponent(location.pathname + location.search);
     $('#intro').textContent = access.configured
       ? '팀에서 정한 암호로 프로젝트를 여세요.'
-      : '소유자 계정으로 로그인하면 편집기가 열려요.';
+      : access.signedIn
+        ? '현재 계정의 소유자 권한을 확인할 수 없어요. 스튜디오를 만든 ChatGPT 계정으로 다시 열어 주세요.'
+        : '소유자 계정으로 로그인하면 편집기가 열려요.';
   }
 }
 $('#login').onsubmit = async (e) => {

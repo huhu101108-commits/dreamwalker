@@ -45,10 +45,9 @@ async function startSession(b, generation, scope, ownerOnly = false) {
 async function api(req, env, path) {
   const b = env.BUCKET,
     origin = new URL(req.url).origin;
-  const owner =
-    !!req.headers.get('oai-authenticated-user-id') &&
-    (await hash((req.headers.get('oai-authenticated-user-email') || '').trim().toLowerCase())) ===
-      env.STUDIO_OWNER_EMAIL_SHA256;
+  // Sites supplies the verified email in the mobile preview even when it omits the site-scoped ID.
+  const email = (req.headers.get('oai-authenticated-user-email') || '').trim().toLowerCase();
+  const owner = !!email && (await hash(email)) === env.STUDIO_OWNER_EMAIL_SHA256;
   let auth = await get(b, 'access');
   const bearer = req.headers.get('authorization') || '';
   const sessionId = bearer.startsWith('Bearer ')
@@ -61,7 +60,10 @@ async function api(req, env, path) {
   if (path.startsWith('/api/android/'))
     return androidJob(req, env, path.slice(13), { b, ok, owner, auth, session });
   if (req.method === 'GET' && path === '/api/status')
-    return json({ owner, configured: !!auth?.data.digest, ok, reviewRequired: !!auth?.data.reviewRequired });
+    return json({
+      owner, signedIn: !!(email || req.headers.get('oai-authenticated-user-id')),
+      configured: !!auth?.data.digest, ok, reviewRequired: !!auth?.data.reviewRequired,
+    });
   if (!ok && !['/api/login', '/api/password', '/api/owner-session'].includes(path))
     err(401, '스튜디오 암호로 입장하세요.');
   if (path === '/api/password' && !owner) err(403, '프로젝트 소유자만 설정할 수 있어요.');

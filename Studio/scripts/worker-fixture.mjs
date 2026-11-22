@@ -33,7 +33,8 @@ export const BUCKET = {
   },
 };
 const origin = 'https://studio.test';
-export const ownerHeaders = { 'oai-authenticated-user-email': owner, 'oai-authenticated-user-id': 'test-owner' };
+export const previewOwnerHeaders = { 'oai-authenticated-user-email': owner };
+export const ownerHeaders = { ...previewOwnerHeaders, 'oai-authenticated-user-id': 'test-owner' };
 export async function call(path, data, headers = {}) {
   return worker.fetch(
     new Request(origin + '/api/' + path, {
