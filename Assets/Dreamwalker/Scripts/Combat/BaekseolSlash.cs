@@ -36,8 +36,11 @@ namespace Dreamwalker.Combat
         private bool bufferedAttack;
         private bool requestAttack;
 
+        public event System.Action<CombatTarget> TargetHit;
+
         public bool IsAttacking => attacking;
         public Vector2 Offset => centerOffset;
+        public int Damage => damage;
         public float Reach => reach;
         public float HalfAngle => arcHalfAngle;
 
@@ -148,6 +151,7 @@ namespace Dreamwalker.Combat
                 if (target.TakeDamage(damage, CombatFaction.Player, push))
                 {
                     damaged.Add(id);
+                    TargetHit?.Invoke(target);
                     if (vfx != null) vfx.SpawnImpact(point);
                 }
             }

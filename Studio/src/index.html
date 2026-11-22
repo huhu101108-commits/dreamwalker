@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="theme-color" content="#101827" />
+    <title>Dreamwalker Studio</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <header>
+      <div class="word"><b>✧</b> DREAMWALKER <span>STUDIO</span></div>
+      <span id="status" aria-live="polite">설산 개발실</span>
+    </header>
+    <main id="gate">
+      <div class="cover" role="img" aria-label="눈 덮인 철도역의 백설"></div>
+      <form id="login">
+        <small>DREAMWALKER / TEAM WORKSPACE</small>
+        <h1>설산 개발실</h1>
+        <p id="intro">접속 상태를 확인하고 있어요.</p>
+        <label
+          >스튜디오 암호<input
+            id="pw"
+            type="password"
+            required
+            maxlength="128"
+            autocomplete="current-password"
+            placeholder="암호 입력" /></label
+        ><button class="accent" id="enter" disabled>스튜디오 입장 →</button
+        ><a target="_top" href="/signin-with-chatgpt?return_to=%2F">소유자 계정으로 로그인</a
+        ><output id="msg"></output>
+      </form>
+    </main>
+    <main id="editor" hidden>
+      <div class="bar">
+        <div>
+          <small>제작 프로젝트</small>
+          <h1 id="title"></h1>
+        </div>
+        <div class="actions">
+          <button id="undo" title="실행 취소">↶ 취소</button
+          ><button id="redo" title="다시 실행">↷ 재실행</button><button id="play">▶ 테스트 플레이</button
+          ><button id="save" class="accent">저장 · 게임 반영</button>
+        </div>
+      </div>
+      <nav id="tabs" aria-label="제작 도구">
+        <button data-tab="scene" class="on">맵 편집</button><button data-tab="characters">캐릭터</button
+        ><button data-tab="stories">스토리</button><button data-tab="interface">UI 디자인</button
+        ><button data-tab="balance">전투 수치</button><button data-tab="versions">버전 · 백업</button>
+      </nav>
+      <section id="content"></section>
+      <output id="note" role="status"></output>
+    </main>
+    <dialog id="game">
+      <div class="bar">
+        <strong id="level"></strong>
+        <div class="actions">
+          <button id="assist">보조 조작</button><button id="restart">다시 시작</button
+          ><button id="stop">편집기로</button>
+        </div>
+      </div>
+      <div id="arena" class="stage">
+        <div id="actors"></div>
+        <div id="overlay"></div>
+      </div>
+      <div id="controls" hidden></div>
+      <p id="gameNote" aria-live="polite"></p>
+    </dialog>
+    <dialog id="reader">
+      <div class="bar"><strong id="readerName"></strong><button id="readerClose">닫기</button></div>
+      <div id="readerArea" class="stage"></div>
+    </dialog>
+    <script src="/model.js"></script>
+    <script src="/simulation.js"></script>
+    <script src="/view.js"></script>
+    <script src="/maps.js"></script>
+    <script src="/characters.js"></script>
+    <script src="/stories.js"></script>
+    <script src="/interface.js"></script>
+    <script src="/game.js"></script>
+    <script src="/export.js"></script>
+    <script src="/app.js"></script>
+  </body>
+</html>

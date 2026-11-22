@@ -26,6 +26,7 @@ namespace Dreamwalker.Player
         private int facing = 1;
         private bool requestJump, requestDash;
 
+        public Vector4 MovementTuning => new Vector4(runSpeed, jumpSpeed, dashSpeed, dashDuration);
         public int Facing => facing;
         public bool IsDashing => dashRemaining > 0;
         public Rigidbody2D Body => body;
