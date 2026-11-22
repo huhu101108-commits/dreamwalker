@@ -1,0 +1,33 @@
+name: Tablet studio contracts
+on:
+  push:
+    branches: [feature/tablet-production-studio]
+    paths: ['Studio/**', 'Assets/Dreamwalker/**', '.github/workflows/tablet-studio.yml']
+  pull_request:
+    paths: ['Studio/**', 'Assets/Dreamwalker/**', '.github/workflows/tablet-studio.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Check Unity templates against source
+        working-directory: Studio
+        run: |
+          node scripts/sync-unity.mjs ..
+          git diff --exit-code -- templates/unity.json
+      - name: Verify tablet editor and game contracts
+        working-directory: Studio
+        run: npm test
+      - name: Execute native combat timing and save contracts
+        run: dotnet run --project Studio/scripts/native-check/StudioContract.csproj
