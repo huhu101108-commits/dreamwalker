@@ -60,7 +60,7 @@ fs.writeFileSync(
     'const SOURCE_BASE=' +
     JSON.stringify(sourceBase) +
     ';\n' +
-    ['model', 'android-service', 'link-test-service', 'server']
+    ['model', 'github-runner', 'android-service', 'link-test-service', 'server']
       .map((n) => read('src/' + n + '.js'))
       .join('\n'),
 );

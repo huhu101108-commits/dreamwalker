@@ -8,14 +8,11 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 const root = fileURLToPath(new URL('../../', import.meta.url));
-const studio = 'https://dreamwalker-snowfield-studio.congenialcockatoo.chatgpt.site';
-const editor = process.env.UNITY_EDITOR,
-  token = process.env.DREAMWALKER_RUNNER_KEY;
-if (!editor || !token) throw Error('Set UNITY_EDITOR and DREAMWALKER_RUNNER_KEY.');
+export const studio = 'https://dreamwalker-snowfield-studio.congenialcockatoo.chatgpt.site';
 const context = vm.createContext({});
 vm.runInContext(await readFile(new URL('../src/model.js', import.meta.url), 'utf8'), context);
 const editable = vm.runInContext('editablePath', context);
-async function api(route, { method = 'GET', job, body, headers = {} } = {}) {
+async function api(token, route, { method = 'GET', job, body, headers = {} } = {}) {
   const r = await fetch(studio + '/api/android/' + route, {
     method,
     headers: {
@@ -29,7 +26,7 @@ async function api(route, { method = 'GET', job, body, headers = {} } = {}) {
   if (!r.ok) throw Error(route + ' failed (' + r.status + ')');
   return r;
 }
-async function execute(job) {
+export async function executeAndroidJob(job, editor, token) {
   const workspace = await mkdtemp(path.join(tmpdir(), 'dreamwalker-android-'));
   try {
     for (const folder of ['Assets', 'Packages', 'ProjectSettings'])
@@ -54,7 +51,7 @@ async function execute(job) {
       await cp(path.join(root, 'Studio/art', builtin), path.join(images, 'builtin-' + builtin));
     for (const hash of job.release.images) {
       if (!/^[0-9a-f]{64}$/.test(hash)) throw Error('Invalid asset id');
-      const r = await api('image/' + hash, { job }),
+      const r = await api(token, 'image/' + hash, { job }),
         bytes = Buffer.from(await r.arrayBuffer());
       if (createHash('sha256').update(bytes).digest('hex') !== hash) throw Error('Image checksum mismatch');
       await writeFile(
@@ -63,7 +60,9 @@ async function execute(job) {
       );
     }
     const env = { ...process.env };
-    delete env.DREAMWALKER_RUNNER_KEY;
+    for (const name of Object.keys(env)) {
+      if (/^(ACTIONS_|GITHUB_|RUNNER_|INPUT_|DREAMWALKER_RUNNER_KEY$)/.test(name)) delete env[name];
+    }
     const log = path.join(workspace, 'Build.log');
     await new Promise((resolve, reject) => {
       const child = spawn(
@@ -81,7 +80,7 @@ async function execute(job) {
           '-logFile',
           log,
         ],
-        { shell: false, cwd: workspace, env, stdio: 'inherit' },
+        { shell: false, cwd: workspace, env, stdio: process.env.GITHUB_ACTIONS ? 'ignore' : 'inherit' },
       );
       const timer = setTimeout(() => child.kill('SIGTERM'), 100 * 60 * 1000);
       child.on('error', (e) => {
@@ -96,7 +95,7 @@ async function execute(job) {
     const apk = path.join(workspace, 'Build', 'Dreamwalker.apk'),
       size = (await stat(apk)).size;
     if (size > 90000000) throw Error('APK exceeds the studio upload limit (90 MB)');
-    await api('upload', {
+    await api(token, 'upload', {
       method: 'POST',
       job,
       body: createReadStream(apk),
@@ -104,7 +103,7 @@ async function execute(job) {
     });
     console.log('APK uploaded for release v' + job.release.rev);
   } catch (e) {
-    await api('failed', { method: 'POST', job, body: String(e.message).slice(0, 500) });
+    await api(token, 'failed', { method: 'POST', job, body: String(e.message).slice(0, 500) });
     try {
       await cp(path.join(workspace, 'Build.log'), path.join(tmpdir(), 'dreamwalker-last-build.log'));
     } catch {}
@@ -113,14 +112,18 @@ async function execute(job) {
     await rm(workspace, { recursive: true, force: true });
   }
 }
-const once = process.argv.includes('--once');
-do {
-  try {
-    const response = await api('claim', { method: 'POST' });
-    if (response.status !== 204) await execute(await response.json());
-  } catch (e) {
-    console.error(e.message);
-    if (once) process.exitCode = 1;
-  }
-  if (!once) await new Promise((resolve) => setTimeout(resolve, 30000));
-} while (!once);
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const editor = process.env.UNITY_EDITOR, token = process.env.DREAMWALKER_RUNNER_KEY;
+  if (!editor || !token) throw Error('Set UNITY_EDITOR and DREAMWALKER_RUNNER_KEY.');
+  const once = process.argv.includes('--once');
+  do {
+    try {
+      const response = await api(token, 'claim', { method: 'POST' });
+      if (response.status !== 204) await executeAndroidJob(await response.json(), editor, token);
+    } catch (e) {
+      console.error(e.message);
+      if (once) process.exitCode = 1;
+    }
+    if (!once) await new Promise((resolve) => setTimeout(resolve, 30000));
+  } while (!once);
+}

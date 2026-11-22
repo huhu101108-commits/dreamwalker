@@ -2,7 +2,7 @@
 
 [제작 스튜디오](https://dreamwalker-snowfield-studio.congenialcockatoo.chatgpt.site/) · [저장 버전 플레이](https://dreamwalker-snowfield-studio.congenialcockatoo.chatgpt.site/play)
 
-갤럭시 탭 브라우저에서 장면을 만들고 팀 암호로 공유하는 Dreamwalker 제작 도구다. 최초 접속 때 소유자가 ChatGPT로 로그인하여 8자 이상의 팀 암호를 정한다. 이후 팀원은 암호로 편집·플레이할 수 있다. 암호를 바꾸면 기존 세션이 만료된다.
+갤럭시 탭 브라우저에서 장면을 만들고 팀 암호로 공유하는 Dreamwalker 제작 도구다. 소유자는 ChatGPT 계정으로 로그인하면 바로 편집할 수 있다. 팀원이 참여할 때는 **버전 · 백업 → 팀 암호 설정**에서 8자 이상의 암호를 정한다. 팀원은 이 암호로 편집·플레이할 수 있다. 암호를 바꾸면 기존 세션이 만료된다.
 
 ## 패드에서 콘텐츠 제작
 

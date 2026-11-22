@@ -18,7 +18,7 @@
         <small>DREAMWALKER / TEAM WORKSPACE</small>
         <h1>설산 개발실</h1>
         <p id="intro">접속 상태를 확인하고 있어요.</p>
-        <label
+        <label id="team-password" hidden
           >스튜디오 암호<input
             id="pw"
             type="password"
@@ -26,8 +26,8 @@
             maxlength="128"
             autocomplete="current-password"
             placeholder="암호 입력" /></label
-        ><button class="accent" id="enter" disabled>스튜디오 입장 →</button
-        ><a target="_top" href="/signin-with-chatgpt?return_to=%2F">소유자 계정으로 로그인</a
+        ><button class="accent" id="enter" hidden disabled>팀 암호로 입장</button
+        ><a id="owner-login" target="_top" href="/signin-with-chatgpt?return_to=%2F">소유자 계정으로 열기</a
         ><output id="msg"></output>
       </form>
     </main>

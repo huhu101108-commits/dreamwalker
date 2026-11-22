@@ -394,7 +394,7 @@ function drawVersions() {
   if (!diagnostics.errors.length && !diagnostics.warnings.length) a.append(el('p', '화면 연결 검사 통과'));
   if (access.owner)
     b.append(
-      action('팀 암호 변경', () => {
+      action(access.configured ? '팀 암호 변경' : '팀 암호 설정', () => {
         const dialog = el('dialog'),
           form = el('form'),
           input = el('input'),
@@ -407,7 +407,8 @@ function drawVersions() {
         const submit = el('button', '새 암호 적용');
         submit.type = 'submit';
         form.append(
-          heading('팀 암호 변경', '변경하면 모든 기기에서 다시 로그인해야 해요.'),
+          heading(access.configured ? '팀 암호 변경' : '팀 암호 설정',
+            access.configured ? '새 암호를 적용하면 팀원이 다시 로그인해야 해요.' : '팀원이 사용할 암호를 정하세요.'),
           titled('새 암호 (8자 이상)', input),
           submit,
           action('취소', () => dialog.close()),
@@ -438,13 +439,19 @@ function drawVersions() {
           localStorage.removeItem(draftKey);
         } catch {}
         dirty = false;
-        location.reload();
+        if (access.owner) window.top.location.href = '/signout-with-chatgpt?return_to=%2F';
+        else location.reload();
       }
     }),
   );
 }
 async function openEditor() {
   access = await api('status');
+  if (access.owner && !access.ok) {
+    await api('owner-session', {});
+    access = await api('status');
+    if (!access.ok) throw Error('소유자 로그인 세션을 열 수 없어요. 브라우저의 쿠키 설정을 확인하세요.');
+  }
   if (access.ok) {
     const r = await api('project');
     const section = new URLSearchParams(location.search).get('tool');
@@ -475,25 +482,20 @@ async function openEditor() {
       await playProject(r.project.startMap);
     }
   } else {
-    $('#enter').disabled = !access.configured && !access.owner;
-    $('#enter').textContent = access.configured ? '스튜디오 입장 →' : '팀 암호 설정 · 입장';
+    $('#team-password').hidden = $('#enter').hidden = !access.configured;
+    $('#pw').disabled = $('#enter').disabled = !access.configured;
+    $('#owner-login').href = '/signin-with-chatgpt?return_to=' + encodeURIComponent(location.pathname + location.search);
     $('#intro').textContent = access.configured
       ? '팀에서 정한 암호로 프로젝트를 여세요.'
-      : access.owner
-        ? '팀원과 공유할 암호를 8자 이상으로 정해 주세요.'
-        : '소유자가 계정으로 로그인해 최초 암호를 설정하면 팀원이 입장할 수 있어요.';
-    $('#pw').autocomplete = access.configured ? 'current-password' : 'new-password';
+      : '소유자 계정으로 로그인하면 편집기가 열려요.';
   }
 }
 $('#login').onsubmit = async (e) => {
   e.preventDefault();
+  if (!access?.configured) return;
   const password = $('#pw').value;
   $('#enter').disabled = true;
   try {
-    if (!access.configured) {
-      await api('password', { password });
-      access.configured = true;
-    }
     await api('login', { password });
     $('#pw').value = '';
     await openEditor();

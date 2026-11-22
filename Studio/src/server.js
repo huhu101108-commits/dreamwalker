@@ -33,6 +33,15 @@ const get = async (b, k) => {
 };
 const put = (b, k, d, old) =>
   b.put(k, JSON.stringify(d), { onlyIf: old ? { etagMatches: old.etag } : { etagDoesNotMatch: '*' } });
+async function startSession(b, generation, scope, ownerOnly = false) {
+  const token = random();
+  await b.put('session/' + (await hash(token)), JSON.stringify({
+    gen: generation, exp: Date.now() + 43200000, scope, ownerOnly,
+  }));
+  return json(scope === 'read' ? { token } : { ok: true }, 200, {
+    'set-cookie': 'dw_session=' + token + '; Path=/; Max-Age=43200; Secure; HttpOnly; SameSite=Strict',
+  });
+}
 async function api(req, env, path) {
   const b = env.BUCKET,
     origin = new URL(req.url).origin;
@@ -40,24 +49,37 @@ async function api(req, env, path) {
     !!req.headers.get('oai-authenticated-user-id') &&
     (await hash((req.headers.get('oai-authenticated-user-email') || '').trim().toLowerCase())) ===
       env.STUDIO_OWNER_EMAIL_SHA256;
-  const auth = await get(b, 'access');
+  let auth = await get(b, 'access');
   const bearer = req.headers.get('authorization') || '';
   const sessionId = bearer.startsWith('Bearer ')
     ? bearer.slice(7)
     : (/(?:^|; *)dw_session=([a-f0-9]{48})(?:;|$)/.exec(req.headers.get('cookie') || '') || [])[1];
   const sk = sessionId && /^[a-f0-9]{48}$/.test(sessionId) ? 'session/' + (await hash(sessionId)) : null;
   const session = sk && (await get(b, sk));
-  const ok = !!(session && auth && session.data.gen === auth.data.gen && session.data.exp > Date.now());
+  const ok = !!(session && auth && session.data.gen === auth.data.gen && session.data.exp > Date.now()
+    && (!session.data.ownerOnly || owner));
   if (path.startsWith('/api/android/'))
     return androidJob(req, env, path.slice(13), { b, ok, owner, auth, session });
   if (req.method === 'GET' && path === '/api/status')
-    return json({ owner, configured: !!auth, ok, reviewRequired: !!auth?.data.reviewRequired });
-  if (!ok && path !== '/api/login' && path !== '/api/password') err(401, '스튜디오 암호로 입장하세요.');
+    return json({ owner, configured: !!auth?.data.digest, ok, reviewRequired: !!auth?.data.reviewRequired });
+  if (!ok && !['/api/login', '/api/password', '/api/owner-session'].includes(path))
+    err(401, '스튜디오 암호로 입장하세요.');
   if (path === '/api/password' && !owner) err(403, '프로젝트 소유자만 설정할 수 있어요.');
   const post = req.method === 'POST';
   if (!['GET', 'POST'].includes(req.method)) err(405, '지원하지 않는 요청이에요.');
   if (post && req.headers.get('origin') && req.headers.get('origin') !== origin)
     err(403, '허용되지 않은 출처');
+  if (path === '/api/owner-session') {
+    if (!post) err(405, '지원하지 않는 요청이에요.');
+    if (!owner) err(403, '소유자 계정으로 로그인하세요.');
+    if (!req.headers.get('content-type')?.startsWith('application/json')) err(415, 'JSON 요청이 필요해요.');
+    if (ok && session.data.scope === 'edit' && session.data.ownerOnly) return json({ ok: true });
+    if (!auth) {
+      await put(b, 'access', { gen: random(), reviewRequired: false }, null);
+      auth = await get(b, 'access');
+    }
+    return startSession(b, auth.data.gen, 'edit', true);
+  }
   if (path.startsWith('/api/assets')) {
     if (!ok) err(401, '스튜디오 암호로 입장하세요.');
     if (post && path === '/api/assets') {
@@ -126,7 +148,7 @@ async function api(req, env, path) {
     return json({ ok: true });
   }
   if (post && path === '/api/login') {
-    if (!auth) err(403, '소유자가 아직 암호를 설정하지 않았어요.');
+    if (!auth?.data.digest) err(403, '팀 암호가 아직 설정되지 않았어요.');
     const p = body.password;
     if (typeof p !== 'string' || p.length > 128) err(400, '암호를 확인하세요.');
     const rk = 'attempt/' + (await hash(req.headers.get('cf-connecting-ip') || 'unknown'));
@@ -138,18 +160,7 @@ async function api(req, env, path) {
     if (!reserved) err(429, '잠시 후 다시 시도하세요.');
     if (!equal(await derive(p, auth.data.salt), auth.data.digest)) err(401, '암호가 일치하지 않아요.');
     await put(b, rk, { count: 0, until: now + 300000 }, reserved);
-    const token = random();
-    await b.put(
-      'session/' + (await hash(token)),
-      JSON.stringify({
-        gen: auth.data.gen,
-        exp: now + 43200000,
-        scope: body.runtime === true ? 'read' : 'edit',
-      }),
-    );
-    return json(body.runtime === true ? { token } : { ok: true }, 200, {
-      'set-cookie': 'dw_session=' + token + '; Path=/; Max-Age=43200; Secure; HttpOnly; SameSite=Strict',
-    });
+    return startSession(b, auth.data.gen, body.runtime === true ? 'read' : 'edit');
   }
   if (!ok) err(401, '스튜디오 암호로 입장하세요.');
   if (post && path === '/api/logout') {

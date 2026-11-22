@@ -218,10 +218,22 @@ function addBuildPanel(host) {
         ] || data.job.state) +
         ' ' +
         (data.job.message || '')
-      : data.paired
+      : data.ci?.ready
+        ? '전용 GitHub 실행기에서 공유 버전을 빌드할 수 있어요.'
+        : data.paired
         ? '실행기 연결 키 발급됨 · 빌드 요청 가능'
         : 'Unity Android 빌드 실행기 연결 전';
     output.replaceChildren();
+    if (data.ci) {
+      const ci = data.ci;
+      const checked = new Date(ci.checked).toLocaleString('ko-KR');
+      const proof = el('a', 'GitHub 실행 기록');
+      proof.href = 'https://github.com/huhu101108-commits/dreamwalker/actions/runs/' + ci.run;
+      proof.target = '_blank';
+      proof.rel = 'noopener';
+      output.append(el('p', checked + ' 확인 · Unity 6000.0.23f1 ' + (ci.editor ? '감지' : '없음') +
+        ' · Android 빌드 모듈 ' + (ci.android ? '감지' : '없음') + ' · 연결된 갤럭시 탭 ' + ci.tablets + '대'), proof);
+    }
     if (data.job?.state === 'succeeded') {
       const link = el('a', 'APK 다운로드');
       link.href = '/api/android/result/' + data.job.id;
@@ -229,9 +241,9 @@ function addBuildPanel(host) {
       output.append(link);
     }
     if (access.owner) {
-      if (data.paired)
+      if (data.paired || data.ci?.ready)
         output.append(
-          action('현재 공유 버전 APK 요청', async () => {
+          action(data.ci?.ready && !data.paired ? '다음 실행에 현재 버전 APK 요청' : '현재 공유 버전 APK 요청', async () => {
             await api('android/queue', {});
             await refresh();
           }),

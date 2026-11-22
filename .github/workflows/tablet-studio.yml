@@ -2,9 +2,9 @@ name: Tablet studio contracts
 on:
   push:
     branches: [feature/tablet-production-studio]
-    paths: ['Studio/**', 'Assets/Dreamwalker/**', '.github/workflows/tablet-studio.yml']
+    paths: ['Studio/**', '!Studio/**/*.md', 'Assets/Dreamwalker/**', 'ProjectSettings/**', 'Packages/**', '.github/workflows/tablet-studio.yml']
   pull_request:
-    paths: ['Studio/**', 'Assets/Dreamwalker/**', '.github/workflows/tablet-studio.yml']
+    paths: ['Studio/**', '!Studio/**/*.md', 'Assets/Dreamwalker/**', 'ProjectSettings/**', 'Packages/**', '.github/workflows/tablet-studio.yml']
 
 permissions:
   contents: read
@@ -31,3 +31,29 @@ jobs:
         run: npm test
       - name: Execute native combat timing and save contracts
         run: dotnet run --project Studio/scripts/native-check/StudioContract.csproj
+      - name: Check owner entry and two-browser WebRTC
+        run: |
+          npm install --prefix "$RUNNER_TEMP/dw-browser" --ignore-scripts --no-audit --no-fund playwright-core@1.56.1
+          NODE_PATH="$RUNNER_TEMP/dw-browser/node_modules" node Studio/scripts/test-browser-link.mjs
+
+  studio-connection:
+    name: Connect the build runner to Studio
+    if: github.event_name == 'push' && github.ref == 'refs/heads/feature/tablet-production-studio'
+    needs: contracts
+    runs-on: ${{ vars.DREAMWALKER_ANDROID_RUNNER || 'ubuntu-latest' }}
+    concurrency:
+      group: dreamwalker-studio-android
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    timeout-minutes: 115
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Connect and check Unity and physical devices
+        run: node Studio/scripts/connect-actions-runner.mjs
