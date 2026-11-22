@@ -1012,6 +1012,8 @@ button.episode-card.detached {
 .obj.erasing { opacity:.25; }
 .screen-shortcuts, .asset-gallery { display:flex; flex-wrap:wrap; gap:.45rem; }
 .screen-shortcuts .on { border-color:#8fd7d0; box-shadow:inset 0 -2px #8fd7d0; }
+.source-file-list { max-height:18rem; overflow:auto; display:grid; gap:.25rem; }
+.source-file-list button { text-align:left; overflow-wrap:anywhere; }
 .file-picker, .outline-editor { display:grid; gap:.45rem; min-width:0; }
 .file-picker input[type=file] { min-height:44px; padding:.3rem; }
 .file-picker input::file-selector-button { min-height:36px; margin-right:.5rem; }

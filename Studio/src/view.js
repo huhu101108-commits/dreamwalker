@@ -24,6 +24,7 @@ function action(name, run, cls = '') {
 function titled(label, input) {
   const l = el('label');
   l.className = 'control';
+  if (!input.hasAttribute('aria-label')) input.setAttribute('aria-label', label);
   l.append(el('span', label), input);
   return l;
 }

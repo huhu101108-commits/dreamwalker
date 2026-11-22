@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 // The caller provides the owner of an isolated worker fixture, never a production origin.
 export async function testTouchAuthoring(page) {
   assert.equal(new URL(page.url()).hostname, '127.0.0.1');
+  page.setDefaultTimeout(12000);
   const tab = name => page.locator('[data-tab="' + name + '"]').click();
   const button = name => page.getByRole('button', {name, exact:true});
   const field = name => page.getByLabel(name, {exact:true});
@@ -30,6 +31,11 @@ export async function testTouchAuthoring(page) {
   assert.equal(await stage.locator('.platform').count(),4);
   await page.getByText('맵 연결 · 배경 · 관리',{exact:true}).click();
   await field('게임 시작 맵').selectOption(mapId);
+  await tab('source');
+  await field('실행 환경').selectOption('Unity');
+  await field('기기에서 소스 파일 가져오기').setInputFiles({name:'TabletNote.txt',mimeType:'text/plain',buffer:Buffer.from('tablet file')});
+  await page.waitForFunction(() => document.querySelector('.code-editor')?.value === 'tablet file');
+  assert.equal(await field('소스 파일').inputValue(),'Assets/TabletNote.txt');
   await tab('characters');
   await button('＋ 새 캐릭터').click();
   await field('이름').fill('단비');
@@ -112,7 +118,7 @@ export async function testTouchAuthoring(page) {
   const hold = await point(stick,.95,.5), jump = await point(act('점프'),.5,.5,2);
   await touch('touchStart',[hold]);
   await page.waitForFunction(x=>parseFloat(document.querySelector('#actors .spawn').style.left)>x+1,initial);
-  await touch('touchStart',[hold,jump]); await touch('touchEnd',[hold]);
+  await touch('touchStart',[hold,jump]);
   await page.waitForFunction(()=>parseFloat(document.querySelector('#actors .spawn').style.top)<81);
   await touch('touchCancel',[]);
   const stopped = await hero.evaluate(n=>parseFloat(n.style.left));

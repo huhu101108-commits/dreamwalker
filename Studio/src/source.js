@@ -68,10 +68,21 @@ function drawSource() {
   );
   const status = el('small', path ? (change ? '수정본' : '기본 소스') : '파일 없음');
   const list = el('select');
+  const browse = el('details'), fileButtons = box('source-file-list');
+  browse.append(el('summary','목록에서 파일 열기'),fileButtons);
+  const matches = () => paths.filter(p => p.toLowerCase().includes(sourceSearch.toLowerCase()));
+  function showButtons() {
+    if (!browse.open) return;
+    fileButtons.replaceChildren();
+    for (const p of matches()) fileButtons.append(action(p, () => choose(p), p === path ? 'on' : ''));
+    if (!fileButtons.children.length) fileButtons.append(el('p','검색 결과가 없어요.'));
+  }
+  browse.ontoggle = showButtons;
   list.setAttribute('aria-label', '소스 파일');
   const refreshList = () => {
     list.replaceChildren();
-    for (const p of paths.filter((p) => p.toLowerCase().includes(sourceSearch.toLowerCase())))
+    showButtons();
+    for (const p of matches())
       list.add(new Option(p, p));
     if ([...list.options].some((o) => o.value === path)) list.value = path;
     else list.selectedIndex = -1;
@@ -90,7 +101,7 @@ function drawSource() {
         100,
       ),
       titled('소스 파일', list),
-    ),
+    ), browse,
   );
   if (path) {
     const code = el('textarea');
@@ -131,6 +142,18 @@ function drawSource() {
   };
   b.append(
     titled('새 경로', name),
+    filePicker('기기에서 소스 파일 가져오기', '', false, async ([file],active) => {
+      const p = name.value.trim() || (sourceFilter === 'Web/' ? 'Web/' : 'Assets/') + file.name;
+      if (!editablePath(p) || (sourceFilter === 'Web/') !== p.startsWith('Web/'))
+        throw Error('실행 환경에 맞는 소스 파일과 경로를 선택하세요.');
+      if (file.size > 800000) throw Error('가져올 소스는 20만 자 이하여야 해요.');
+      const value = await file.text();
+      if (!active()) throw Error('편집 항목이 바뀌었어요. 다시 선택하세요.');
+      const other = [...Object.keys(files),...project.sourceFiles.map(f=>f.path)].find(v => v !== p && v.toLowerCase() === p.toLowerCase());
+      if (other) throw Error('같은 이름의 파일이 있어요. 새 경로를 입력하세요.');
+      if (Object.hasOwn(files,p) && value !== files[p] && !confirm(p + '의 편집 초안을 가져온 내용으로 바꿀까요?')) return;
+      edit(() => { setSourceFile(project,sourceBase,p,value); sourcePath=p; sourceSearch=''; });
+    }),
     row(
       action('파일 추가', () => {
         const p = checkNew();
