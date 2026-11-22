@@ -31,7 +31,8 @@ async function fileRelay(req, path, b, ownerKey, generation) {
       const old = await b.head(name), meta = old?.customMetadata;
       if (meta && Number(meta.until)>now && meta.owner !== ownerKey) continue;
       const id = random(), ticket = random(), until = now + RELAY_TTL;
-      const saved = await b.put(name,'',{
+      // R2 derives an ETag from object bytes. Unique waiting bodies fence successive leases.
+      const saved = await b.put(name,id,{
         onlyIf:old ? {etagMatches:old.etag} : {etagDoesNotMatch:'*'},
         customMetadata:{id,grant:await hash(ticket),owner:ownerKey,gen:generation,until:String(until),state:'waiting'}
       });
@@ -57,7 +58,12 @@ async function fileRelay(req, path, b, ownerKey, generation) {
   if (!ownerKey || meta.owner !== ownerKey) err(403,'파일 선택을 시작한 편집기에서만 열 수 있어요.');
   if (action === 'status' && req.method === 'GET') return json({state:meta.state});
   if (action === 'close' && req.method === 'POST') {
-    await b.put(name,'',{onlyIf:{etagMatches:old.etag},customMetadata:{until:'0',state:'closed'}});
+    let item=old;
+    for(let attempt=0;attempt<2 && item?.customMetadata?.id===id;attempt++) {
+      const closed=await b.put(name,'closed/'+id,{onlyIf:{etagMatches:item.etag},customMetadata:{until:'0',state:'closed'}});
+      if(closed) break;
+      item=await b.head(name);
+    }
     return json({ok:true});
   }
   if (action === 'file' && req.method === 'GET' && meta.state === 'ready') {

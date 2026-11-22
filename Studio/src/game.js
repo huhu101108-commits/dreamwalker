@@ -1,10 +1,14 @@
-function launchGame(mapId, screenId = '') {
+function launchGame(mapId, screenId = '', inspection = false) {
   const run = new FieldRun(structuredClone(project), mapId),
     modal = $('#game'),
     stage = $('#arena'),
     layer = $('#overlay'),
     actors = $('#actors');
   const audioBus=gameAudio(run.world,modal);
+  const sample=inspection ? {ticks:0,inputs:0} : null;
+  modal.inspectionSample=sample;
+  const countTouch=e=>{if(stage.contains(e.target) || $('#controls').contains(e.target)) sample.inputs++;};
+  if(sample) modal.addEventListener('pointerdown',countTouch,true);
   const saveKey =
     'dreamwalker-progress-v1:' +
     (typeof GAME_DATA === 'undefined' && location.pathname !== '/play' ? 'preview:' : 'game:') +
@@ -13,7 +17,10 @@ function launchGame(mapId, screenId = '') {
     lastSaved = '',
     savedAt = 0;
   try {
-    saveStore = window.localStorage;
+    if(inspection) {
+      const temporary=new Map();
+      saveStore={getItem:k=>temporary.get(k),setItem:(k,v)=>temporary.set(k,v)};
+    } else saveStore=window.localStorage;
   } catch {}
   if (!saveStore && typeof GAME_DATA !== 'undefined' && window.parent !== window) {
     let text = GAME_DATA.checkpoint;
@@ -55,8 +62,8 @@ function launchGame(mapId, screenId = '') {
     if (show) say('이 기기에 호환되는 저장 기록이 없어요.');
     return false;
   }
-  if (!screenId && (location.pathname === '/play' || typeof GAME_DATA !== 'undefined')) continueProgress();
-  run.startPresentation(screenId);
+  if (!inspection && !screenId && (location.pathname === '/play' || typeof GAME_DATA !== 'undefined')) continueProgress();
+  if(!inspection) run.startPresentation(screenId);
   let frame,
     last = performance.now(),
     acc = 0,
@@ -442,12 +449,18 @@ function launchGame(mapId, screenId = '') {
     last = ts;
     while (acc >= 1 / 60) {
       run.tick(1 / 60);
+      if(sample && !document.hidden) {
+        sample.ticks++;
+        if(sample.ticks%30===1 && typeof GAME_DATA!=='undefined' && window.parent!==window)
+          window.parent.postMessage({dreamwalker:'inspection',...sample},'*');
+      }
       acc -= 1 / 60;
     }
     render();
     frame = requestAnimationFrame(loop);
   }
   const down = (e) => {
+    if(sample && !e.repeat && (codes[e.code] || ['Enter','Space','Escape'].includes(e.code))) sample.inputs++;
     if (e.repeat) return;
     if (e.code === 'Escape' && (run.customScreen || run.menu)) {
       e.preventDefault();
@@ -491,6 +504,7 @@ function launchGame(mapId, screenId = '') {
   window.addEventListener('blur', blur);
   modal.onclose = () => {
     cancelAnimationFrame(frame);
+    if(sample) modal.removeEventListener('pointerdown',countTouch,true);
     audioBus.close();
     for (const release of releaseSticks) release();
     saveProgress();

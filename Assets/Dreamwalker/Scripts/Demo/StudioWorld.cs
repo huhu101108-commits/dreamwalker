@@ -300,6 +300,7 @@ public sealed partial class StudioWorld : MonoBehaviour
     {
         float fraction = preserveHealth && Actor != null ? (float)Health / Actor.health : 1;
         Actor = character;
+        if (Actor.motionClips != null) foreach (var clip in Actor.motionClips) Connection.Sound(clip.sound);
         Health = Mathf.Clamp(Mathf.CeilToInt(fraction * Actor.health), 1, Actor.health);
         var t = Project.tuning;
         motor.ApplyStudioMovement(t.runSpeed * Actor.speedScale, t.jumpSpeed * Actor.jumpScale, t.dashSpeed,

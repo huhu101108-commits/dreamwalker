@@ -246,14 +246,12 @@ function drawSource() {
       action('저장본 → 전체 Unity 프로젝트', () => exportUnityPack(true), 'accent'),
     );
 }
-async function packWeb(d, mapId, base, screenId = '', checkpoint = null) {
+async function packWeb(d, mapId, base, screenId = '', checkpoint = null, inspection = false) {
   const issue = problem(d);
   if (issue) throw Error(issue);
   const files = effectiveFiles(base, d.sourceFiles);
   if (!files['Web/index.html']) throw Error('실행하려면 Web/index.html이 필요해요.');
-  const world = structuredClone(d);
-  world.sourceFiles = [];
-  delete world.work;
+  const world = structuredClone(playableWorld(d));
   const images = {};
   await Promise.all(
     ['/stage.webp', '/player.webp'].map(async (path) => {
@@ -295,13 +293,13 @@ async function packWeb(d, mapId, base, screenId = '', checkpoint = null) {
   const init = doc.createElement('script');
   init.textContent =
     'const GAME_DATA=' +
-    JSON.stringify({ project: world, mapId, screenId, images, checkpoint }).replaceAll('<', '\\u003c') +
+    JSON.stringify({ project: world, mapId, screenId, images, checkpoint, inspection }).replaceAll('<', '\\u003c') +
     ';\n' +
     "addEventListener('error',e=>{const out=document.getElementById('runtime-error')||document.createElement('pre');out.id='runtime-error';out.textContent='게임 실행 오류 · '+(e.message||'소스를 확인하세요.');(document.body||document.documentElement).prepend(out);});";
   doc.head.prepend(policy, init);
   return '<!doctype html>\n' + doc.documentElement.outerHTML;
 }
-async function playCustom(d, mapId, screenId = '') {
+async function playCustom(d, mapId, screenId = '', inspection = false) {
   const snapshot = structuredClone(d),
     modal = el('dialog');
   modal.className = 'source-player';
@@ -318,11 +316,14 @@ async function playCustom(d, mapId, screenId = '') {
     'dreamwalker-progress-v1:' + (location.pathname === '/play' ? 'game:' : 'preview:') + snapshot.startMap;
   let saved = null;
   try {
-    saved = localStorage.getItem(key);
+    if(!inspection) saved = localStorage.getItem(key);
   } catch {}
   const fromChild = (e) => {
+    if(e.source!==frame.contentWindow) return;
+    if(inspection && (e.data?.dreamwalker==='inspection' || e.data?.dreamwalker==='close') &&
+        integer(e.data.ticks,0,1e9) && integer(e.data.inputs,0,1e9)) modal.inspectionSample={ticks:e.data.ticks,inputs:e.data.inputs};
     if (
-      e.source === frame.contentWindow &&
+      !inspection &&
       e.data?.dreamwalker === 'progress' &&
       typeof e.data.value === 'string' &&
       e.data.value.length <= 500000
@@ -342,7 +343,7 @@ async function playCustom(d, mapId, screenId = '') {
   };
   modal.showModal();
   try {
-    const html = await packWeb(snapshot, mapId, await getSourceBase(), screenId, saved);
+    const html = await packWeb(snapshot, mapId, await getSourceBase(), screenId, saved, inspection);
     if (!modal.open) return;
     frame.srcdoc = html;
     state.replaceWith(frame);
@@ -353,10 +354,10 @@ async function playCustom(d, mapId, screenId = '') {
   }
   return modal;
 }
-function playProject(mapId, screenId = '') {
+function playProject(mapId, screenId = '', inspection = false) {
   return project.sourceFiles.some((f) => f.path.startsWith('Web/'))
-    ? playCustom(project, mapId, screenId)
-    : launchGame(mapId, screenId);
+    ? playCustom(project, mapId, screenId, inspection)
+    : launchGame(mapId, screenId, inspection);
 }
 async function exportWebGame() {
   const snapshot = structuredClone(project),

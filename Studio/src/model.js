@@ -1063,6 +1063,7 @@ function mergeProject(base, mine, live) {
   const conflicts = [];
   const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   const merge = (a, b, c, path) => {
+    if (path==='/work' && a===undefined && b && c) a=emptyWork();
     if (same(b, c) || same(b, a)) return c;
     if (same(c, a)) return b;
     const arrays = [a, b, c].every(Array.isArray);
@@ -1103,9 +1104,12 @@ function mergeProject(base, mine, live) {
   };
   return { project: merge(base, mine, live, ''), conflicts };
 }
+function playableWorld(project) {
+  const {work,...content}=project;
+  return {...content,scenes:content.scenes.map(s=>({...s,objects:s.objects.map(({editorName,locked,prefab,...object})=>object)})),sourceFiles:[]};
+}
 function packNativeWorld(project) {
-  const {work, ...content} = project;
-  const world = { ...content, sourceFiles: [] };
+  const world = playableWorld(project);
   world.characters = project.characters.map(({ clips, ...c }) => ({
     ...c,
     motionClips: Object.entries(clips || {}).map(([key, clip]) => ({ key, ...clip })),
@@ -1143,6 +1147,7 @@ function workProblem(d) {
       !sceneObjectOK(d,{width:100,height:100},{...p.object,x:50,y:0}))) return '프리팹의 구성 요소를 확인하세요.';
   if (w.runs.some(r=>!['checks','play'].includes(r.kind) || typeof r.passed!=='boolean' || !textValue(r.note,2000) ||
       !Number.isSafeInteger(r.when) || !integer(r.rev,0,1e9) || !/^[0-9a-f]{64}$/.test(r.digest) ||
+      (r.ticks!==undefined && !integer(r.ticks,0,1e9)) || (r.inputs!==undefined && !integer(r.inputs,0,1e9)) ||
       !textValue(r.target,100) || !textValue(r.owner,60))) return '검수 기록 형식을 확인하세요.';
   return '';
 }

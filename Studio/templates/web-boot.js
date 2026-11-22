@@ -5,10 +5,10 @@ const note = (message) => {
 };
 function start() {
   document.querySelector('#replay').hidden = true;
-  launchGame(GAME_DATA.mapId || project.startMap, GAME_DATA.screenId);
+  launchGame(GAME_DATA.mapId || project.startMap, GAME_DATA.screenId, !!GAME_DATA.inspection);
 }
-document.querySelector('#game').addEventListener('close', () => {
-  if (parent !== window) parent.postMessage({ dreamwalker: 'close' }, '*');
+document.querySelector('#game').addEventListener('close', e => {
+  if (parent !== window) parent.postMessage({ dreamwalker: 'close', ...e.currentTarget.inspectionSample }, '*');
   else document.querySelector('#replay').hidden = false;
 });
 document.querySelector('#replay').onclick = start;

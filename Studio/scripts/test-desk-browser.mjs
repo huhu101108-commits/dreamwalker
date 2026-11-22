@@ -51,6 +51,20 @@ export async function testDeskBrowser(page) {
   assert.equal(await field('에셋 이름').inputValue(),'설원.wav');
   await page.getByRole('button',{name:/배경음으로 사용$/}).click();
   await button('선택한 대사의 음성으로 사용').click();
+  await tab('source');await field('실행 환경').selectOption('Unity');
+  const codePicker=page.locator('.file-picker').filter({has:field('기기에서 소스 파일 가져오기')});
+  await codePicker.getByRole('button',{name:'브라우저에서 내 파일 열기'}).click();
+  const filePage=await page.context().browser().newContext();
+  try {
+    const disk=await filePage.newPage();
+    await disk.goto(await page.getByRole('link',{name:'파일 선택 창 열기'}).getAttribute('href'));
+    await disk.getByLabel('파일 선택',{exact:true}).setInputFiles({name:'FieldReceipt.txt',mimeType:'text/plain',buffer:Buffer.from('relay target source')});
+    await disk.getByRole('button',{name:'편집기로 보내기'}).click();
+    await disk.getByText('파일을 보냈어요. 원래 편집기로 돌아가세요.').waitFor();
+    await page.bringToFront();
+    await page.waitForFunction(()=>document.querySelector('.code-editor')?.value==='relay target source');
+    assert.equal(await field('소스 파일').inputValue(),'Assets/FieldReceipt.txt');
+  } finally {await filePage.close();}
   await tab('scene');await button('타일 브러시').click();
   const stage=page.locator('.stage.edit');
   await stage.scrollIntoViewIfNeeded();
@@ -72,8 +86,15 @@ export async function testDeskBrowser(page) {
   const automatic=page.getByText('통과 · 전체 씬 · 자동 검사',{exact:true});
   await automatic.waitFor();await button('씬·화면 자동 검사').click();
   await page.getByText('같은 게임 내용의 검사 기록이 있어요.').waitFor();
+  const progress=()=>page.evaluate(()=>Object.fromEntries(Object.entries(localStorage).filter(([k])=>k.startsWith('dreamwalker-progress-'))));
+  const beforePlay=await progress();
   await button('이 맵 검수 플레이').click();await page.locator('#game[open]').waitFor();
+  await page.keyboard.press('Space');await page.keyboard.press('Space');
+  await page.keyboard.down('ArrowRight');
+  await page.waitForFunction(()=>document.querySelector('#game')?.inspectionSample?.ticks>=30);
+  await page.keyboard.up('ArrowRight');
   await page.locator('#stop').click();
+  assert.deepEqual(await progress(),beforePlay);
   await page.getByText('플레이한 초안의 결과를 입력하세요.').waitFor();
   await field('검수자').fill('QA');await field('재현 순서와 관찰 결과').fill('터치 이동 확인');
   await button('통과 기록').click();
@@ -83,7 +104,7 @@ export async function testDeskBrowser(page) {
   const saved=await response;assert.equal(saved.status(),200);
   const {project}=await saved.json();
   assert.equal(project.work.milestone,'격리 제작 검수');
-  assert(project.work.runs.some(r=>r.kind==='play' && r.passed && r.owner==='QA'));
+  assert(project.work.runs.some(r=>r.kind==='play' && r.passed && r.owner==='QA' && r.inputs>=1 && r.ticks>=30));
   assert.equal(project.work.runs.filter(r=>r.kind==='checks').length,1);
   assert(project.work.assets.some(a=>a.kind==='audio'&&a.name==='설원.wav'));
   assert(project.scenes.some(m=>m.music?.startsWith('asset:')));
@@ -96,5 +117,5 @@ export async function testDeskBrowser(page) {
   await button('제작 도구').click();await tab('assets');
   assert(await layout.locator('.canvas-panel').isVisible());assert.equal(await page.locator('#inspector-switch').getAttribute('aria-pressed'),'false');
   await page.reload();await page.getByRole('button',{name:/설원.wav/}).waitFor();
-  console.log('PASS tablet production desk: native document picker and separate-browser file return, work card, 2×2 sheet to motion, audio asset, tile brush, prefab placement, automatic/manual QA, shared save and portrait navigation');
+  console.log('PASS tablet production desk: native document picker and separate-browser file return, work card, 2×2 sheet to motion, audio asset, tile brush, prefab placement, automatic QA, measured play with isolated saves, per-field file return, shared save and portrait navigation');
 }

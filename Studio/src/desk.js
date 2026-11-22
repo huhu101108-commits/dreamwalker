@@ -122,8 +122,8 @@ function drawQuality() {
     if(!playReceipt || playReceipt.digest!==digest) throw Error('이 초안을 검수 플레이한 뒤 결과를 기록하세요.');
     if(!input.value.trim()) throw Error('관찰한 결과를 입력하세요.');
     const scene=named(project.scenes,playReceipt.map);
-    appendInspection(work,{kind:'play',passed,digest,rev:record.rev,draft:playReceipt.draft,target:scene?.name||'',owner:name.value.trim(),note:input.value.trim()});
-    playReceipt=null;
+    const receipt=playReceipt;playReceipt=null;
+    appendInspection(work,{kind:'play',passed,digest,rev:receipt.rev,draft:receipt.draft,target:scene?.name||'',owner:name.value.trim(),note:input.value.trim(),...receipt.sample});
   };
   const auto=action('씬·화면 자동 검사',async()=>{
     auto.disabled=true;
@@ -146,6 +146,7 @@ function drawQuality() {
       const detail=el('details');
       detail.append(el('summary',(r.passed?'통과':'수정 필요')+' · '+r.target+' · '+(r.kind==='checks'?'자동 검사':'플레이 검수')),
         el('p',(r.digest===current?'현재 게임 내용':'이전 게임 내용')+' · '+(r.draft?'초안 · 기준 ':'')+'v'+r.rev+' · '+new Date(r.when).toLocaleString('ko-KR')+(r.owner?' · '+r.owner:'')),el('pre',r.note));
+      if(r.kind==='play' && r.ticks!==undefined) detail.append(el('p','실행 '+(r.ticks/60).toFixed(1)+'초 · 조작 '+r.inputs+'회'));
       if(!r.passed) detail.append(action('버그 카드 만들기',()=>{
         if(work.tasks.some(t=>t.run===r.id)) return note('이 결과의 버그 카드가 이미 있어요.');
         if(work.tasks.length>=240) throw Error('카드 한도에 도달했어요.');
@@ -157,10 +158,11 @@ function drawQuality() {
   }).catch(error=>{result.textContent=error.message;});
   side.append(heading('플레이 검수'),selectField('검수할 맵',map.id,optionMap(project.scenes),id=>{sceneId=id;draw();}),
     action('이 맵 검수 플레이',async()=>{
-      const digest=await contentDigest(project), draft=dirty;
-      const modal=await playProject(map.id);
+      const digest=await contentDigest(project), draft=dirty, rev=record.rev;
+      playReceipt=null;
+      const modal=await playProject(map.id,'',true);
       if(!modal?.open) return;
-      modal.addEventListener('close',()=>{playReceipt={digest,map:map.id,draft};if(tab==='quality') draw();},{once:true});
+      modal.addEventListener('close',()=>{playReceipt={digest,map:map.id,draft,rev,sample:modal.inspectionSample || {}};if(tab==='quality') draw();},{once:true});
     }),el('p',playReceipt?'플레이한 초안의 결과를 입력하세요.':'맵을 플레이하고 편집기로 돌아와 결과를 기록하세요.'),
     titled('검수자',name),titled('재현 순서와 관찰 결과',input),row(action('통과 기록',saveManual(true)),action('수정 필요 기록',saveManual(false))));
   addBuildPanel(side);
