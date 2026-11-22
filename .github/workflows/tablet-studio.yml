@@ -69,7 +69,14 @@ jobs:
             ['/file-import.js', 'file-import.js'], ['/device-files.js', 'device-files.js'], ['/desk.js', 'desk.js']];
           for (const [route, file] of pages) {
             const response = await fetch(new URL(route, studio), {redirect:'error', signal:AbortSignal.timeout(15000)});
-            const actual = hash(Buffer.from(await response.arrayBuffer()));
+            const body = Buffer.from(await response.arrayBuffer()), actual = hash(body);
+            const markers = route === '/' ? ['id="editor"','id="project-import"','/desk.js'] :
+              route === '/device-files' ? ['id="disk"','type="file"','편집기로 보내기','/device-files.js'] : [];
+            if (markers.length) {
+              const missing = markers.filter(marker => !body.toString('utf8').includes(marker));
+              if (missing.length) throw Error(route + ' is missing published UI: ' + missing.join(', '));
+              console.log(route + ' matched ' + markers.length + ' tablet UI markers');
+            }
             const expected = hash(await readFile('Studio/src/' + file));
             if (!response.ok) throw Error(route + ' returned HTTP ' + response.status);
             console.log(route + ' HTTP ' + response.status + ' · ' +

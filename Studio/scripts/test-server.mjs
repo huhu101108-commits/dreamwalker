@@ -138,7 +138,11 @@ const uploadBuild = payload => worker.fetch(
 );
 const options = [bytes, Uint8Array.from([80, 75, 3, 4, 1])];
 const uploads = await Promise.all(options.map(uploadBuild));
-assert.deepEqual(uploads.map(r => r.status).sort(), [200, 409]);
+// A request that first reads an already-completed job has a closed lease (403).
+// Requests that both read the active lease compete for the final conditional write (409).
+assert.equal(uploads.filter(r => r.status === 200).length,1);
+assert([403,409].includes(uploads.find(r => r.status !== 200).status));
+assert.equal((await uploadBuild(options[0])).status,403);
 const downloaded = await call('android/result/' + secondJob.id, undefined, headers);
 assert.equal(downloaded.status, 200);
 assert.deepEqual(new Uint8Array(await downloaded.arrayBuffer()), options[uploads.findIndex(r => r.ok)]);
