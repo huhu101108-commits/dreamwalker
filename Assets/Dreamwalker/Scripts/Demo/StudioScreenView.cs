@@ -322,6 +322,11 @@ internal sealed class StudioScreenView
             var style =
                 Style(Mathf.Clamp(Mathf.RoundToInt(w.fontSize * Mathf.Min(Screen.width / 800f, 1.4f)), 8, 90),
                       w.align, StudioWorld.Tint(w.color, Color.white));
+            if (w.type == "inventory" || w.type == "quests")
+            {
+                world.DrawProgressWidget(w,r,style);
+                continue;
+            }
             if (w.type == "dialogue")
             {
                 DrawLine(r, style);

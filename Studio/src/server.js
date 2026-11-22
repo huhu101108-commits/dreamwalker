@@ -48,7 +48,10 @@ async function api(req, env, path) {
   const sk = sessionId && /^[a-f0-9]{48}$/.test(sessionId) ? 'session/' + (await hash(sessionId)) : null;
   const session = sk && (await get(b, sk));
   const ok = !!(session && auth && session.data.gen === auth.data.gen && session.data.exp > Date.now());
-  if (req.method === 'GET' && path === '/api/status') return json({ owner, configured: !!auth, ok });
+  if (path.startsWith('/api/android/'))
+    return androidJob(req, env, path.slice(13), { b, ok, owner, auth, session });
+  if (req.method === 'GET' && path === '/api/status')
+    return json({ owner, configured: !!auth, ok, reviewRequired: !!auth?.data.reviewRequired });
   if (!ok && path !== '/api/login' && path !== '/api/password') err(401, '스튜디오 암호로 입장하세요.');
   if (path === '/api/password' && !owner) err(403, '프로젝트 소유자만 설정할 수 있어요.');
   const post = req.method === 'POST';
@@ -75,10 +78,17 @@ async function api(req, env, path) {
     }
     const match = /^\/api\/assets\/([a-f0-9]{64})$/.exec(path);
     if (!post && match) {
+      const cacheHeaders = { 'cache-control': 'private, no-cache', etag: '"' + match[1] + '"' };
+      if (req.headers.get('if-none-match') === cacheHeaders.etag && (await b.head('asset/' + match[1])))
+        return new Response(null, { status: 304, headers: { ...headers, ...cacheHeaders } });
       const item = await b.get('asset/' + match[1]);
       if (!item) err(404, '이미지를 찾을 수 없어요.');
       return new Response(item.body, {
-        headers: { ...headers, 'content-type': item.httpMetadata?.contentType || 'image/png' },
+        headers: {
+          ...headers,
+          ...cacheHeaders,
+          'content-type': item.httpMetadata?.contentType || 'image/png',
+        },
       });
     }
     err(404, '이미지 경로를 확인하세요.');
@@ -97,8 +107,22 @@ async function api(req, env, path) {
     const p = body.password;
     if (typeof p !== 'string' || p.length < 8 || p.length > 128) err(400, '8~128자의 암호를 입력하세요.');
     const salt = random();
-    if (!(await put(b, 'access', { salt, digest: await derive(p, salt), gen: random() }, auth)))
+    if (
+      !(await put(
+        b,
+        'access',
+        { salt, digest: await derive(p, salt), gen: random(), reviewRequired: !!auth?.data.reviewRequired },
+        auth,
+      ))
+    )
       err(409, '접근 설정이 변경됐어요.');
+    return json({ ok: true });
+  }
+  if (post && path === '/api/policy') {
+    if (!owner || !ok || session.data.scope !== 'edit') err(403, '소유자만 승인 정책을 변경할 수 있어요.');
+    if (typeof body.required !== 'boolean') err(400, '정책 값을 확인하세요.');
+    if (!(await put(b, 'access', { ...auth.data, reviewRequired: body.required }, auth)))
+      err(409, '설정이 바뀌었어요.');
     return json({ ok: true });
   }
   if (post && path === '/api/login') {
@@ -138,6 +162,11 @@ async function api(req, env, path) {
     if (session.data.scope !== 'edit') err(403, '편집 권한이 필요해요.');
     return json(SOURCE_BASE);
   }
+  if (path.startsWith('/api/net-test/')) {
+    if (session.data.scope !== 'edit') err(403, '편집 팀원만 테스트할 수 있어요.');
+    if (path === '/api/net-test/echo' && !post) return json({ ok: true });
+    return linkTestRoom(req, b, path.slice(14), body);
+  }
   const old = await get(b, 'project');
   const cur = old?.data || { rev: 0, updated: null, project: seed(), history: [] };
   if (!post && path === '/api/runtime' && new URL(req.url).searchParams.get('since') === String(cur.rev))
@@ -145,7 +174,7 @@ async function api(req, env, path) {
   if (old) for (const version of [cur, ...cur.history]) version.project = migrateProject(version.project);
   if (!post && path === '/api/runtime') {
     if (session.data.scope === 'edit') return json({ rev: cur.rev, project: cur.project });
-    const world = { ...cur.project, sourceFiles: [] };
+    const world = packNativeWorld(cur.project);
     // Installed v3 clients predate additional slots and the graph action. Keep their four slots playable.
     if (new URL(req.url).searchParams.get('schema') !== '4') {
       world.schema = 3;
@@ -169,9 +198,58 @@ async function api(req, env, path) {
   }
   if (session.data.scope !== 'edit') err(403, '편집 권한이 필요해요.');
   if (!post && path === '/api/project') return json(cur);
+  if (!post && path === '/api/reviews') {
+    const queue = await get(b, 'reviews');
+    return json((queue?.data || []).map(({ id, label, when, rev }) => ({ id, label, when, rev })));
+  }
+  if (/^\/api\/reviews\/[a-f0-9]{48}$/.test(path) && !post) {
+    if (!owner) err(403, '소유자만 검토안을 열 수 있어요.');
+    const item = (await get(b, 'reviews'))?.data.find((v) => v.id === path.slice(13));
+    return item ? json(item) : json({ error: '검토안을 찾을 수 없어요.' }, 404);
+  }
+  if (post && ['/api/review', '/api/reject'].includes(path)) {
+    const oldQueue = await get(b, 'reviews'),
+      queue = oldQueue?.data || [];
+    if (path.endsWith('reject')) {
+      if (!owner) err(403, '소유자만 처리할 수 있어요.');
+      if (
+        !(await put(
+          b,
+          'reviews',
+          queue.filter((v) => v.id !== body.id),
+          oldQueue,
+        ))
+      )
+        err(409, '검토 목록이 변경됐어요.');
+      return json({ ok: true });
+    }
+    const issue = problem(body.project);
+    if (issue) err(400, issue);
+    if (!Number.isInteger(body.rev) || body.rev < 0 || body.rev > cur.rev)
+      err(400, '기준 버전을 확인하세요.');
+    if (queue.length >= 8) err(409, '기존 검토안을 먼저 처리하세요.');
+    const id = random();
+    const entry = {
+      id,
+      rev: body.rev,
+      when: Date.now(),
+      label: String(body.label || '팀 수정안').slice(0, 80),
+      project: body.project,
+    };
+    if (!(await put(b, 'reviews', [...queue, entry], oldQueue)))
+      err(409, '다른 제안이 접수됐어요. 다시 제출하세요.');
+    return json({ id });
+  }
   if (post && path === '/api/save') {
-    if (body.rev !== cur.rev)
-      err(409, '팀원이 먼저 저장했어요. 내 초안을 내보낸 뒤 서버 버전을 다시 열어 주세요.');
+    if (auth.data.reviewRequired && !owner) err(403, '팀 수정안을 소유자에게 검토 요청하세요.');
+    if (body.rev !== cur.rev) {
+      const base = cur.history.find((h) => h.rev === body.rev);
+      if (!body.merge || !base) err(409, '기준 버전이 변경됐어요. 내 초안을 보관하고 최신본을 확인하세요.');
+      const merged = mergeProject(base.project, body.project, cur.project);
+      if (merged.conflicts.length)
+        err(409, '같은 항목을 수정했어요 · ' + merged.conflicts.slice(0, 4).join(', '));
+      body.project = merged.project;
+    }
     body.project = migrateProject(body.project);
     const issue = problem(body.project) || inspectScreens(body.project).errors[0];
     if (issue) err(400, issue);
@@ -199,10 +277,18 @@ export default {
       const path = new URL(req.url).pathname;
       if (path.startsWith('/api/')) return await api(req, env, path);
       if (path in FILES) {
-        const [mime, data] = FILES[path];
+        const [mime, data, etag] = FILES[path];
+        const cached = {
+          ...headers,
+          etag,
+          'content-type': mime,
+          'cache-control': 'public, max-age=0, must-revalidate',
+        };
+        if (req.headers.get('if-none-match') === etag)
+          return new Response(null, { status: 304, headers: cached });
         return new Response(
           mime.startsWith('image/') ? Uint8Array.from(atob(data), (c) => c.charCodeAt(0)) : data,
-          { headers: { ...headers, 'content-type': mime } },
+          { headers: cached },
         );
       }
       return new Response('Not found', { status: 404 });

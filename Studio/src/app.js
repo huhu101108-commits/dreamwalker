@@ -18,6 +18,23 @@ let past = [],
   future = [],
   lastGroup = null;
 const expandedSections = new Map();
+const draftKey = 'dreamwalker-team-draft-v1';
+let draftTimer,
+  dirtyCheckTimer,
+  publishedText = '';
+function persistDraft() {
+  clearTimeout(draftTimer);
+  if (!dirty || !project || !record) return;
+  try {
+    localStorage.setItem(draftKey, JSON.stringify({ rev: record.rev, project }));
+  } catch {
+    note('기기 초안을 저장할 공간이 부족해요. 백업을 내보내세요.');
+  }
+}
+window.addEventListener('pagehide', persistDraft);
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) persistDraft();
+});
 const activeMap = () => named(project.scenes, sceneId) || named(project.scenes, project.startMap);
 const activeActor = () => named(project.characters, actorId) || project.characters[0];
 const activeLayout = () => named(project.layouts, layoutId) || project.layouts[0];
@@ -40,13 +57,26 @@ async function api(path, body) {
   if (!response.ok) throw Error(data.error || '요청을 처리하지 못했어요.');
   return data;
 }
-function mark() {
-  dirty = JSON.stringify(project) !== JSON.stringify(record.project);
+function mark(grouped = false) {
+  dirty = grouped || JSON.stringify(project) !== publishedText;
+  if (grouped) {
+    clearTimeout(dirtyCheckTimer);
+    dirtyCheckTimer = setTimeout(() => mark(), 180);
+  }
   $('#status').textContent = dirty ? '편집 중 · 저장 전' : '공유 버전 v' + record.rev;
   $('#undo').disabled = !past.length;
   $('#redo').disabled = !future.length;
+  clearTimeout(draftTimer);
+  if (dirty) draftTimer = setTimeout(persistDraft, 450);
 }
 function edit(operation, redraw = true, group = null) {
+  if (group && group === lastGroup) {
+    operation();
+    future = [];
+    mark(true);
+    if (redraw) draw();
+    return;
+  }
   const before = JSON.stringify(project);
   operation();
   if (before !== JSON.stringify(project)) {
@@ -109,6 +139,9 @@ function draw() {
     roadmap: drawRoadmap,
     source: drawSource,
     interface: drawInterface,
+    network: drawNetwork,
+    motion: drawProduction,
+    rpg: drawRPG,
     balance: drawBalance,
     versions: drawVersions,
   })[tab]();
@@ -123,6 +156,7 @@ function loadRecord(r) {
     issue = problem(data);
   if (issue) throw Error(issue);
   r.project = data;
+  publishedText = JSON.stringify(data);
   record = r;
   project = structuredClone(data);
   if (!named(project.scenes, sceneId)) sceneId = data.startMap;
@@ -136,7 +170,10 @@ function drawBalance() {
   const root = $('#content');
   root.append(heading('공통 전투 수치', '캐릭터별 능력 배율과 스킬 배율은 캐릭터 탭에서 조정해요.'));
   const groups = [
-    ['기본 전투', ['runSpeed', 'jumpSpeed', 'damage', 'reach', 'hp', 'startupTicks', 'activeTicks', 'recoveryTicks']],
+    [
+      '기본 전투',
+      ['runSpeed', 'jumpSpeed', 'damage', 'reach', 'hp', 'startupTicks', 'activeTicks', 'recoveryTicks'],
+    ],
     ['서리', ['slow', 'freeze', 'afterSlow', 'frostMax', 'interval']],
     ['설풍보', ['dashSpeed', 'dashDuration', 'dashPower', 'dashCd']],
     ['빙화연격', ['flurry', 'flurryPower', 'flurryFinal', 'flurryCd']],
@@ -267,6 +304,90 @@ function drawVersions() {
       if (!dirty || confirm('현재 초안을 닫고 최신 저장본을 열까요?')) loadRecord(await api('project'));
     }),
   );
+  addBuildPanel(b);
+  let local;
+  try {
+    local = JSON.parse(localStorage.getItem(draftKey));
+  } catch {}
+  if (local?.project && !problem(migrateProject(local.project)))
+    b.append(
+      action('기기 초안 복구 · 기준 v' + local.rev, () => {
+        const base = [record, ...record.history].find((h) => h.rev === local.rev);
+        if (!base) return note('기준 버전이 기록에서 만료됐어요. 기기 초안을 내려받아 비교하세요.');
+        const merged = mergeProject(base.project, migrateProject(local.project), record.project);
+        if (merged.conflicts.length)
+          return note('복구 전 같은 항목을 수정했어요 · ' + merged.conflicts.slice(0, 4).join(', '));
+        edit(() => {
+          project = structuredClone(merged.project);
+        });
+        note('기기 초안을 복구했어요.');
+      }),
+      action('기기 초안 내려받기', () => download(local.project, 'Dreamwalker-device-draft.json')),
+    );
+  b.append(
+    action('팀 수정안 검토 요청', async () => {
+      const issue = problem(project);
+      if (issue) throw Error(issue);
+      const label = prompt('변경 내용 한 줄', '');
+      if (!label) return;
+      const copy = structuredClone(project);
+      await upgradeInlineArt(copy);
+      await api('review', { rev: record.rev, project: copy, label });
+      note('수정안을 소유자에게 제출했어요.');
+    }),
+  );
+  if (access.owner) {
+    b.append(
+      checkField('팀 변경은 소유자 승인 후 게임에 반영', access.reviewRequired, async (required) => {
+        try {
+          await api('policy', { required });
+          access.reviewRequired = required;
+          draw();
+        } catch (e) {
+          note(e.message);
+          draw();
+        }
+      }),
+      action('접수된 수정안 확인', async () => {
+        const rows = await api('reviews');
+        if (!rows.length) return note('검토할 수정안이 없어요.');
+        const list = box('group');
+        b.append(list);
+        for (const entry of rows)
+          list.append(
+            row(
+              el('strong', entry.label),
+              action('변경 비교', async () => {
+                const q = await api('reviews/' + entry.id),
+                  latest = await api('project');
+                const base = [latest, ...latest.history].find((v) => v.rev === q.rev);
+                if (!base) return note('기준 버전이 만료됐어요. 최신 버전 기준으로 재제출하세요.');
+                const merged = mergeProject(base.project, q.project, latest.project);
+                if (merged.conflicts.length) return note('충돌 · ' + merged.conflicts.slice(0, 4).join(', '));
+                const changes = Object.keys(q.project).filter(
+                  (k) => JSON.stringify(base.project[k]) !== JSON.stringify(q.project[k]),
+                );
+                list.append(
+                  el('p', entry.label + ' · ' + changes.join(', ')),
+                  action('수정안 내려받기', () => download(q.project, 'Dreamwalker-review.json')),
+                  action('승인 · 게임 반영', async () => {
+                    const r = await api('save', { rev: q.rev, project: q.project, merge: true });
+                    await api('reject', { id: q.id });
+                    if (!dirty) loadRecord(r);
+                    note('승인 완료 · v' + r.rev);
+                  }),
+                );
+              }),
+              action('반려', async () => {
+                await api('reject', { id: entry.id });
+                draw();
+                note('수정안을 반려했어요.');
+              }),
+            ),
+          );
+      }),
+    );
+  }
   const diagnostics = inspectScreens(project);
   a.append(heading('화면 흐름 검사'));
   for (const issue of [...diagnostics.errors, ...diagnostics.warnings]) a.append(el('p', issue));
@@ -313,6 +434,9 @@ function drawVersions() {
     action('로그아웃', async () => {
       if (!dirty || confirm('현재 초안을 닫고 로그아웃할까요?')) {
         await api('logout', {});
+        try {
+          localStorage.removeItem(draftKey);
+        } catch {}
         dirty = false;
         location.reload();
       }
@@ -326,6 +450,24 @@ async function openEditor() {
     const section = new URLSearchParams(location.search).get('tool');
     if ([...$('#tabs').children].some((n) => n.dataset.tab === section)) tab = section;
     loadRecord(r);
+    if (access.reviewRequired && !access.owner) $('#save').textContent = '소유자 검토 요청';
+    if (location.pathname !== '/play')
+      try {
+        const local = JSON.parse(localStorage.getItem(draftKey));
+        if (local?.project) {
+          const base = [r, ...r.history].find((v) => v.rev === local.rev),
+            draft = migrateProject(local.project);
+          if (base && !problem(draft)) {
+            const merged = mergeProject(migrateProject(base.project), draft, r.project);
+            if (!merged.conflicts.length && !problem(merged.project)) {
+              edit(() => {
+                project = structuredClone(merged.project);
+              });
+              note('저장 전 기기 초안을 복구했어요.');
+            } else note('같은 항목이 변경됐어요. 버전 · 백업에서 기기 초안을 확인하세요.');
+          } else note('기기 초안이 있어요. 버전 · 백업에서 내려받을 수 있어요.');
+        }
+      } catch {}
     $('#gate').hidden = true;
     $('#editor').hidden = false;
     if (location.pathname === '/play') {
@@ -380,10 +522,22 @@ $('#save').onclick = async () => {
       sent = JSON.stringify(project),
       publication = JSON.parse(sent);
     await upgradeInlineArt(publication);
-    const r = await api('save', { rev, project: publication });
-    if (JSON.stringify(project) === sent) loadRecord(r);
-    else {
+    if (access.reviewRequired && !access.owner) {
+      const label = prompt('검토할 변경 내용 한 줄', '');
+      if (!label) return;
+      await api('review', { rev, project: publication, label });
+      note('소유자 검토 요청을 제출했어요.');
+      return;
+    }
+    const r = await api('save', { rev, project: publication, merge: true });
+    if (JSON.stringify(project) === sent) {
+      try {
+        localStorage.removeItem(draftKey);
+      } catch {}
+      loadRecord(r);
+    } else {
       record = r;
+      publishedText = JSON.stringify(r.project);
       mark();
     }
     note('공유 버전 v' + r.rev + ' 저장 완료');

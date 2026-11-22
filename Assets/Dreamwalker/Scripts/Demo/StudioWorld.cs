@@ -8,11 +8,13 @@ namespace Dreamwalker.Demo
 {
 // Materializes a published map beside the existing demo. The original player,
 // motor, hit geometry and target component remain the native gameplay entry points.
-public sealed class StudioWorld : MonoBehaviour
+public sealed partial class StudioWorld : MonoBehaviour
 {
     internal const float UnitX = 1f / 3.5f, UnitY = .16f, OriginX = 1000f;
     private class Foe
     {
+        public string id, state;
+        public int stateTicks;
         public CombatTarget target;
         public StudioEnemy config;
         public int stacks;
@@ -128,8 +130,8 @@ public sealed class StudioWorld : MonoBehaviour
         flow = new StudioScreenFlow();
         hasTimers = Array.Exists(project.layouts,
                                  l => l.rules != null && Array.Exists(l.rules, r => r.@event == "elapsed"));
-        Enter(project.Map(project.startMap));
-        Fire("start");
+        ResetProgress();
+        if (!RestoreProgress()) { Enter(project.Map(project.startMap)); Fire("start"); }
     }
 
     private static Sprite MakeSprite(Texture2D texture) =>
@@ -165,8 +167,9 @@ public sealed class StudioWorld : MonoBehaviour
         pendingExit = null;
     }
 
-    private void Enter(StudioMap map, bool preserveHealth = false)
+    private void Enter(StudioMap map, bool preserveHealth = false, bool restoring = false)
     {
+        if (preserveHealth) RememberMap();
         ClearMap();
         flow.EnterMap();
         deferExit = false;
@@ -221,8 +224,8 @@ public sealed class StudioWorld : MonoBehaviour
         cameraOffset = new Vector2(Mathf.Clamp(spawn.x - 46, 0, map.width - 100),
             Mathf.Clamp(spawn.y - 36, 0, Mathf.Max(0, map.height - 100)));
         SetCharacter(Project.Character(map.characterId), preserveHealth);
-        OpenStory(map.entryStory);
-        Fire("enter");
+        ApplyMapMemory();
+        if (!restoring) { OpenStory(map.entryStory); Fire("enter"); }
         SyncControls();
         UpdateCamera();
     }
@@ -252,6 +255,7 @@ public sealed class StudioWorld : MonoBehaviour
             Actor.name, (Vector2)transform.position + Vector2.up * 1.15f, new Vector2(1.65f, 2.3f), 15,
             string.IsNullOrEmpty(reference) ? Tint(Actor.color, Color.cyan) : Color.white, reference, true);
         bodyImage.transform.SetParent(transform, true);
+        lastSpriteRef = lastPose = null;
     }
 
     private SpriteRenderer Piece(string label, Vector2 center, Vector2 size, int order, Color color,
@@ -327,7 +331,7 @@ public sealed class StudioWorld : MonoBehaviour
             collider.isTrigger = true;
             collider.enabled = true;
         }
-        foes.Add(new Foe { target = target, config = config });
+        foes.Add(new Foe { id = data.id, target = target, config = config });
         Remaining++;
     }
     private void LoadParts()
@@ -376,6 +380,7 @@ public sealed class StudioWorld : MonoBehaviour
         if (lineIndex >= 0 && lineIndex < Story.nodes.Length)
             return;
         string storyId = Story.id;
+        storiesDone.Add(storyId); GrantRewards();
         Story = null;
         flow.CloseAll();
         if (Fire("storyEnd", storyId) && pendingExit != null)
@@ -393,6 +398,7 @@ public sealed class StudioWorld : MonoBehaviour
     }
     private void Travel(StudioObject exit)
     {
+        mapsDone.Add(Map.id); GrantRewards();
         var dest = Project.Map(exit.to);
         if (exit.to == "next")
         {
@@ -436,7 +442,7 @@ public sealed class StudioWorld : MonoBehaviour
     {
         if (e == null || e.target.Health <= 0)
             return;
-        if (e.target.TakeDamage(Mathf.Max(1, Mathf.RoundToInt(damage * Actor.attackScale)),
+        if (e.target.TakeDamage(Mathf.Max(1, Mathf.FloorToInt(damage * (1 + (float)GearPower() / Project.tuning.damage) * Actor.attackScale + .5f)),
                                 CombatFaction.Player, Vector2.zero) &&
             stack)
             AddStack(e);
@@ -478,6 +484,9 @@ public sealed class StudioWorld : MonoBehaviour
             return;
         if (action == "newRun")
         {
+            PlayerPrefs.DeleteKey(SaveKey);
+            lastCheckpoint = null;
+            ResetProgress();
             flow = new StudioScreenFlow();
             Enter(Project.Map(Project.startMap));
             Fire("start");
@@ -551,6 +560,7 @@ public sealed class StudioWorld : MonoBehaviour
         }
         if (action == "restart")
         {
+            mapHistory.Remove(Map.id);
             Enter(Map);
             return;
         }
@@ -601,6 +611,7 @@ public sealed class StudioWorld : MonoBehaviour
         }
         if (action == "attack")
         {
+            if (!slash.IsAttacking) motionEpoch++;
             slash.RequestAttack();
             return;
         }
@@ -613,6 +624,8 @@ public sealed class StudioWorld : MonoBehaviour
         if (next.mechanic == "none" || clock < cooldowns[slot] || slash.IsAttacking)
             return;
         skill = next;
+        activeSkillKey = action;
+        motionEpoch++;
         started = nextHit = clock;
         hitIndex = 0;
         skillOrigin = body.position;
@@ -781,14 +794,12 @@ public sealed class StudioWorld : MonoBehaviour
     {
         if (from <= -slash.HalfAngle + .001f) slashHits.Clear();
         int face = motor.Facing;
-        Vector2 origin = body.position + new Vector2(.25f * face, 1.01f);
+        var player=body.position;
         foreach (var e in foes)
         {
             if (e.target.Health <= 0 || slashHits.Contains(e)) continue;
-            Vector2 delta = (Vector2)e.target.transform.position + Vector2.up * .8f - origin;
-            Vector2 closest = delta - new Vector2(Mathf.Clamp(delta.x, -.35f, .35f), Mathf.Clamp(delta.y, -.8f, .8f));
-            if (closest.sqrMagnitude < .0001f) closest = delta;
-            if (!CombatGeometry.IsInsideSweptArc(origin, origin + closest, face, slash.Reach, from, to)) continue;
+            var pos=e.target.transform.position;
+            if (!StudioCombatClock.SweepTouches(player.x,player.y,pos.x,pos.y,face,slash.Reach,from,to,e.config.hurtWidth,e.config.hurtHeight)) continue;
             Hit(e, Project.tuning.damage);
             slashHits.Add(e);
         }
@@ -839,6 +850,23 @@ public sealed class StudioWorld : MonoBehaviour
             float dx = pos.x - p.x;
             float slow =
                 Mathf.Min(.9f, Mathf.Max(e.stacks, e.slowUntil > clock ? 1 : 0) * Project.tuning.slow / 100);
+            if (e.config.style == "guard" || e.config.style == "boss")
+            {
+                bool phaseTwo = e.config.style == "boss" && e.target.Health * 100 <=
+                    (e.config.health > 0 ? e.config.health : Project.tuning.hp) * Math.Max(1,e.config.phase);
+                bool close = Mathf.Abs(dx) < e.config.reach * UnitX * (phaseTwo ? 1.5f : 1) && Mathf.Abs(pos.y-p.y) < 8*UnitY;
+                if (e.state == "windup")
+                {
+                    if (--e.stateTicks <= 0) {
+                        if (close) { Health = Math.Max(0,Health-e.config.damage*(phaseTwo?2:1)); lastDamage=clock; }
+                        e.state="recovery"; e.stateTicks=Math.Max(1,e.config.recovery);
+                    }
+                }
+                else if (e.state == "recovery") { if (--e.stateTicks <= 0) e.state="idle"; }
+                else if (close) { e.state="windup"; e.stateTicks=Math.Max(1,Mathf.RoundToInt(e.config.windup*(phaseTwo ? .6f : 1))); }
+                else if (Mathf.Abs(dx)<e.config.sight*UnitX) e.target.transform.position=p+Vector2.right*Mathf.Sign(dx)*e.config.speed*UnitX*(1-slow)*Time.fixedDeltaTime;
+                continue;
+            }
             if (Mathf.Abs(dx) > 2 * UnitX && Mathf.Abs(dx) < e.config.sight * UnitX)
                 p.x += Mathf.Sign(dx) * e.config.speed * UnitX * (1 - slow) * Time.fixedDeltaTime;
             e.target.transform.position = p;
@@ -919,12 +947,22 @@ public sealed class StudioWorld : MonoBehaviour
             LoadParts();
             bodyImage.flipX = motor.Facing < 0;
             UpdateCamera();
+            PaintMotion();
+            RecordFrame();
+            if (Time.unscaledTime >= nextProgressSave) { SaveProgress(); nextProgressSave = Time.unscaledTime + 5; }
         }
     }
     private void OnGUI()
     {
-        if (Running)
-            screenView.Draw();
+        if (!Running) return;
+        screenView.Draw(); DrawDiagnostics();
+        if (!Paused || CurrentLayout == null) return;
+        bool recovery = Array.Exists(CurrentLayout.elements, w => Visible(w) && Enabled(w) &&
+            (w.type == "dialogue" && Story != null || w.type == "button" && (w.action == "back" || w.action == "resume" ||
+             w.action == "restart" || w.action == "newRun" || w.action == "gotoMap" || w.action == "open" ||
+             (Story != null && (w.action == "skip" || w.action == "nextLine")))));
+        if (!recovery && GUI.Button(new Rect(Screen.width-104,4,100,38),"화면 닫기"))
+            Press(HasOverlay || Story == null ? "back" : "skip");
     }
     private void OnDestroy()
     {
@@ -934,6 +972,7 @@ public sealed class StudioWorld : MonoBehaviour
     {
         if (!Running)
             return;
+        SaveProgress();
         Running = false;
         Time.fixedDeltaTime = previousStep;
         ClearMap();

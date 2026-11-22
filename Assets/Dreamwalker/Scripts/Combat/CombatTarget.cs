@@ -45,6 +45,8 @@ namespace Dreamwalker.Combat
             if (health > 0) health = Mathf.Clamp(health + maximumHealth - previous, 1, maximumHealth);
         }
 
+        public void RestoreHealth(int value) => health = Mathf.Clamp(value, 0, maximumHealth);
+
         public bool TakeDamage(int damage, CombatFaction attacker, Vector2 knockback)
         {
             if (attacker == faction || health <= 0 || damage <= 0) return false;

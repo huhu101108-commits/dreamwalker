@@ -26,6 +26,15 @@ internal sealed class StudioScreenFlow
     private readonly HashSet<string> onceMap = new HashSet<string>();
     public string Top => layers.Count == 0 ? "" : layers[layers.Count - 1];
 
+    public string[] Flags => new List<string>(flags).ToArray();
+    public string[] RunRules => new List<string>(onceGame).ToArray();
+    public string[] MapRules => new List<string>(onceMap).ToArray();
+    public void Restore(string[] f,string[] run,string[] map)
+    {
+        flags.Clear(); onceGame.Clear(); onceMap.Clear();
+        flags.UnionWith(f ?? Array.Empty<string>()); onceGame.UnionWith(run ?? Array.Empty<string>());
+        onceMap.UnionWith(map ?? Array.Empty<string>()); layers.Clear();
+    }
     public void EnterMap()
     {
         layers.Clear();

@@ -104,6 +104,74 @@ assert.equal(modern.project.sourceFiles.length, 0);
 const release = await (await call('runtime', undefined, token)).json();
 assert.equal(release.project.schema, 3);
 assert.equal(release.project.characters[0].portrait, doc.characters[0].portrait);
+const ownerTeam = { ...headers, ...ownerHeaders };
+assert.equal((await call('policy', { required: true }, headers)).status, 403);
+assert.equal((await call('policy', { required: true }, ownerTeam)).status, 200);
+assert.equal((await call('save', { rev: 1, project: doc }, headers)).status, 403);
+const proposal = await (await call('review', { rev: 1, project: doc, label: '대사 검토' }, headers)).json();
+assert(proposal.id);
+assert.equal((await call('reviews/' + proposal.id, undefined, ownerTeam)).status, 200);
+assert.equal((await call('reject', { id: proposal.id }, ownerTeam)).status, 200);
+assert.equal((await call('android/queue', {}, ownerTeam)).status, 409);
+const paired = await (await call('android/pair', {}, ownerTeam)).json();
+assert(paired.key);
+const runner = { Authorization: 'Bearer ' + paired.key };
+const job = await (await call('android/queue', {}, ownerTeam)).json();
+assert(job.id);
+assert.equal((await call('android/queue', {}, ownerTeam)).status, 409);
+const claimed = await (await call('android/claim', {}, runner)).json();
+assert.equal(claimed.id, job.id);
+assert.equal(claimed.release.rev, 1);
+assert.equal((await call('android/claim', {}, runner)).status, 204);
+const runnerJob = { ...runner, 'X-Build-Id': claimed.id, 'X-Build-Lease': claimed.lease };
+assert.equal(
+  (await call('android/image/' + doc.characters[0].portrait.slice(6), undefined, runnerJob)).status,
+  200,
+);
+const fail = await call('android/failed', 'Unity test runner unavailable', runnerJob);
+assert.equal(fail.status, 200);
+assert.equal((await (await call('android/status', undefined, headers)).json()).job.state, 'failed');
+assert.equal((await call('policy', { required: false }, ownerTeam)).status, 200);
+const secondJob = await (await call('android/queue', {}, ownerTeam)).json();
+const secondClaim = await (await call('android/claim', {}, runner)).json();
+const bytes = new Uint8Array([80, 75, 3, 4, 0]);
+const uploaded = await worker.fetch(
+  new Request(origin + '/api/android/upload', {
+    method: 'POST',
+    body: bytes,
+    headers: {
+      ...runner,
+      'x-build-id': secondJob.id,
+      'x-build-lease': secondClaim.lease,
+      'content-length': String(bytes.length),
+    },
+  }),
+  { BUCKET, STUDIO_OWNER_EMAIL_SHA256: ownerDigest },
+);
+assert.equal(uploaded.status, 200);
+const downloaded = await call('android/result/' + secondJob.id, undefined, headers);
+assert.equal(downloaded.status, 200);
+assert.deepEqual(new Uint8Array(await downloaded.arrayBuffer()), bytes);
+assert.equal((await call('android/result/' + secondJob.id)).status, 403);
+const sdp = 'v=0\r\ns=Dreamwalker private transport test\r\n';
+const room = await (await call('net-test/create', { sdp }, headers)).json();
+assert(room.id);
+assert.equal((await call('net-test/join/' + room.id, { sdp }, headers)).status, 200);
+assert.equal((await call('net-test/join/' + room.id, { sdp }, headers)).status, 409);
+assert.equal((await (await call('net-test/description/' + room.id, undefined, headers)).json()).answer, sdp);
+assert.equal((await call('net-test/close/' + room.id, {}, headers)).status, 200);
+assert.equal(
+  (
+    await call('assets/' + doc.characters[0].portrait.slice(6), undefined, {
+      ...headers,
+      'If-None-Match': '"' + doc.characters[0].portrait.slice(6) + '"',
+    })
+  ).status,
+  304,
+);
+console.log(
+  'PASS owner approval, private build queue and fixture artifact transfer, room pairing and conditional cache',
+);
 assert.equal((await call('password', { password: pwd + 'x' }, { ...headers, ...ownerHeaders })).status, 200);
 assert.equal((await call('project', undefined, headers)).status, 401);
 console.log('PASS server access, CAS, validation, asset upload/read, release polling, password rotation');

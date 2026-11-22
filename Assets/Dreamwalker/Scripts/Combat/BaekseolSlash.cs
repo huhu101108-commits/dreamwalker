@@ -38,6 +38,7 @@ namespace Dreamwalker.Combat
 
         public event System.Action<CombatTarget> TargetHit;
         public System.Action<float, float> StudioSweep { get; set; }
+        public int StudioSequence { get; private set; }
         private int studioTick, startupTicks, activeTicks, recoveryTicks;
         public void SetStudioTiming(int startup, int activeFrames, int recoveryFrames)
         {
@@ -64,8 +65,8 @@ namespace Dreamwalker.Combat
             }
             else if (frame <= activeTicks)
             {
-                float from = Mathf.Lerp(-arcHalfAngle, arcHalfAngle, (float)(frame - 1) / activeTicks);
-                float to = Mathf.Lerp(-arcHalfAngle, arcHalfAngle, (float)frame / activeTicks);
+                float from = Dreamwalker.Demo.StudioCombatClock.Angle(frame - 1, activeTicks);
+                float to = Dreamwalker.Demo.StudioCombatClock.Angle(frame, activeTicks);
                 SetBladeAngle(to);
                 StudioSweep?.Invoke(from, to);
                 if (vfx != null) vfx.ShowStrike(centerOffset, reach, arcHalfAngle, to);
@@ -108,7 +109,7 @@ namespace Dreamwalker.Combat
         public void RequestAttack()
         {
             if (StudioSweep == null) { requestAttack = true; return; }
-            if (!attacking) { studioTick = 0; StartSlash(); }
+            if (!attacking) { StudioSequence++; studioTick = 0; StartSlash(); }
             else if (studioTick >= startupTicks + activeTicks) bufferedAttack = true;
         }
 

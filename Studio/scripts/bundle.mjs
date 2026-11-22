@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { createHash } from 'node:crypto';
 const read = (path) => fs.readFileSync(path, 'utf8');
 const files = {};
 for (const [path, name, type] of [
@@ -10,6 +11,8 @@ for (const [path, name, type] of [
 }
 for (const name of [
   'app',
+  'production',
+  'network-test',
   'model',
   'simulation',
   'game',
@@ -47,6 +50,8 @@ const web = {
   'Web/view.js': read('src/view.js').split('function pointerDrag(')[0],
 };
 const sourceBase = { ...web, ...native };
+for (const entry of Object.values(files))
+  entry.push('"' + createHash('sha256').update(entry[1]).digest('hex') + '"');
 fs.writeFileSync(
   'dist/server/index.js',
   'const FILES=' +
@@ -55,5 +60,7 @@ fs.writeFileSync(
     'const SOURCE_BASE=' +
     JSON.stringify(sourceBase) +
     ';\n' +
-    ['model', 'server'].map((n) => read('src/' + n + '.js')).join('\n'),
+    ['model', 'android-service', 'link-test-service', 'server']
+      .map((n) => read('src/' + n + '.js'))
+      .join('\n'),
 );

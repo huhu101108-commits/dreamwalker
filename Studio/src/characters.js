@@ -57,6 +57,15 @@ function drawCharacters() {
   );
   a.append(bar);
   const skill = c.skills[selectedSlot];
+  function changeSlots(operation) {
+    const linked = new Map(c.skills.map((v, i) => [v, c.clips?.['skill' + (i + 1)]]));
+    operation();
+    if (!c.clips) return;
+    for (const key of Object.keys(c.clips)) if (skillSlot(key) >= 0) delete c.clips[key];
+    c.skills.forEach((v, i) => {
+      if (linked.get(v)) c.clips['skill' + (i + 1)] = linked.get(v);
+    });
+  }
   a.append(
     box(
       'control-grid',
@@ -87,13 +96,13 @@ function drawCharacters() {
       }),
       action('슬롯 앞으로', () =>
         edit(() => {
-          moveIn(c.skills, skill, -1);
+          changeSlots(() => moveIn(c.skills, skill, -1));
           selectedSlot = c.skills.indexOf(skill);
         }),
       ),
       action('슬롯 뒤로', () =>
         edit(() => {
-          moveIn(c.skills, skill, 1);
+          changeSlots(() => moveIn(c.skills, skill, 1));
           selectedSlot = c.skills.indexOf(skill);
         }),
       ),
@@ -102,7 +111,7 @@ function drawCharacters() {
         () => {
           if (c.skills.length === 1) return note('스킬 슬롯 하나가 필요해요.');
           if (confirm('이 스킬 슬롯을 삭제할까요? 뒤쪽 스킬이 한 칸씩 앞으로 이동해요.'))
-            edit(() => c.skills.splice(selectedSlot, 1));
+            edit(() => changeSlots(() => c.skills.splice(selectedSlot, 1)));
         },
         'danger',
       ),

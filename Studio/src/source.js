@@ -223,7 +223,7 @@ function drawSource() {
       action('저장본 → 전체 Unity 프로젝트', () => exportUnityPack(true), 'accent'),
     );
 }
-async function packWeb(d, mapId, base, screenId = '') {
+async function packWeb(d, mapId, base, screenId = '', checkpoint = null) {
   const issue = problem(d);
   if (issue) throw Error(issue);
   const files = effectiveFiles(base, d.sourceFiles);
@@ -271,7 +271,7 @@ async function packWeb(d, mapId, base, screenId = '') {
   const init = doc.createElement('script');
   init.textContent =
     'const GAME_DATA=' +
-    JSON.stringify({ project: world, mapId, screenId, images }).replaceAll('<', '\\u003c') +
+    JSON.stringify({ project: world, mapId, screenId, images, checkpoint }).replaceAll('<', '\\u003c') +
     ';\n' +
     "addEventListener('error',e=>{const out=document.getElementById('runtime-error')||document.createElement('pre');out.id='runtime-error';out.textContent='게임 실행 오류 · '+(e.message||'소스를 확인하세요.');(document.body||document.documentElement).prepend(out);});";
   doc.head.prepend(policy, init);
@@ -290,7 +290,24 @@ async function playCustom(d, mapId, screenId = '') {
   const state = el('p', '게임을 여는 중…');
   modal.append(bar, state);
   document.body.append(modal);
+  const key =
+    'dreamwalker-progress-v1:' + (location.pathname === '/play' ? 'game:' : 'preview:') + snapshot.startMap;
+  let saved = null;
+  try {
+    saved = localStorage.getItem(key);
+  } catch {}
   const fromChild = (e) => {
+    if (
+      e.source === frame.contentWindow &&
+      e.data?.dreamwalker === 'progress' &&
+      typeof e.data.value === 'string' &&
+      e.data.value.length <= 500000
+    ) {
+      try {
+        const d = JSON.parse(e.data.value);
+        if (d.version === 1 && named(snapshot.scenes, d.map)) localStorage.setItem(key, e.data.value);
+      } catch {}
+    }
     if (e.source === frame.contentWindow && e.data?.dreamwalker === 'close') modal.close();
   };
   window.addEventListener('message', fromChild);
@@ -301,7 +318,7 @@ async function playCustom(d, mapId, screenId = '') {
   };
   modal.showModal();
   try {
-    const html = await packWeb(snapshot, mapId, await getSourceBase(), screenId);
+    const html = await packWeb(snapshot, mapId, await getSourceBase(), screenId, saved);
     if (!modal.open) return;
     frame.srcdoc = html;
     state.replaceWith(frame);

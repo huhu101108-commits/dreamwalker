@@ -105,8 +105,9 @@ sim.press('skill3');
 for (let i = 0; i < 70; i++) sim.tick(1 / 60);
 assert.equal(sim.hero.x, beforeX);
 assert(
-  Math.abs(beforeHp - sim.foes[0].hp - doc.tuning.shadow * doc.tuning.damage * doc.tuning.shadowPower) <
-    0.001,
+  Math.abs(
+    beforeHp - sim.foes[0].hp - doc.tuning.shadow * Math.round(doc.tuning.damage * doc.tuning.shadowPower),
+  ) < 0.001,
 );
 sim.press('skill4');
 for (let i = 0; i < 50; i++) sim.tick(1 / 60);

@@ -44,7 +44,8 @@ class MapGrid {
     this.cells = new Map();
     for (const o of objects) {
       const radius = (o.width || 12) / 2;
-      const low = Math.floor((o.x - radius) / 50), high = Math.floor((o.x + radius) / 50);
+      const low = Math.floor((o.x - radius) / 50),
+        high = Math.floor((o.x + radius) / 50);
       for (let x = low; x <= high; x++)
         for (let y = Math.floor(o.y / 50); y <= Math.floor((o.y + (o.height || 24)) / 50); y++) {
           const key = x + ',' + y;
@@ -64,12 +65,18 @@ class MapGrid {
   }
 }
 function slashTouches(hero, target, reach, from, to) {
-  const dx = (target.x - hero.x) * hero.face / 3.5 - 0.25;
-  const dy = (target.y - hero.y) * 0.16 + 0.8 - 1.01;
-  let x = dx - clamp(dx, -0.35, 0.35), y = dy - clamp(dy, -0.8, 0.8);
-  if (x*x + y*y < 0.0001) { x = dx; y = dy; }
-  const angle = Math.atan2(y, x) * 180 / Math.PI;
-  return x*x + y*y <= reach*reach && (x*x + y*y < 0.0001 || (angle >= from - 7 && angle <= to + 7));
+  const dx = ((target.x - hero.x) * hero.face) / 3.5 - 0.25;
+  const halfW = (target.enemy?.hurtWidth || 0.7) / 2,
+    halfH = (target.enemy?.hurtHeight || 1.6) / 2;
+  const dy = (target.y - hero.y) * 0.16 + halfH - 1.01;
+  let x = dx - clamp(dx, -halfW, halfW),
+    y = dy - clamp(dy, -halfH, halfH);
+  if (x * x + y * y < 0.0001) {
+    x = dx;
+    y = dy;
+  }
+  const angle = (Math.atan2(y, x) * 180) / Math.PI;
+  return x * x + y * y <= reach * reach && (x * x + y * y < 0.0001 || (angle >= from - 7 && angle <= to + 7));
 }
 
 class FieldRun {
@@ -88,6 +95,11 @@ class FieldRun {
     this.flags = new Set();
     this.runRules = new Set();
     this.completedStories = new Set();
+    this.clearedMaps = new Set();
+    this.rewards = new Set();
+    this.bag = new Map();
+    this.gear = new Map();
+    this.progressVersion = 0;
     this.mapMemory = new Map();
     this.enter(mapId || world.startMap);
     this.fire('start');
@@ -96,7 +108,9 @@ class FieldRun {
     return named(this.world.characters, this.characterId);
   }
   get enemiesLeft() {
-    return this.foes.filter((e) => e.hp > 0).length;
+    let living = 0;
+    for (const e of this.foes) if (e.hp > 0) living++;
+    return living;
   }
   get camera() {
     return this.viewport.x;
@@ -115,38 +129,107 @@ class FieldRun {
   }
   rememberMap() {
     if (!this.map || !this.hero) return;
-    this.mapMemory.set(this.map.id, { seen: [...this.seen], defeated: this.foes.filter(e => e.hp <= 0).map(e => e.id) });
+    this.mapMemory.set(this.map.id, {
+      seen: [...this.seen],
+      defeated: this.foes.filter((e) => e.hp <= 0).map((e) => e.id),
+    });
   }
   checkpoint() {
-    if (this.result || this.hero.hp <= 0 || this.dialogue || this.sequence || this.pendingTravel || this.layers.length) return null;
+    if (
+      this.hero.hp <= 0 ||
+      this.dialogue ||
+      this.sequence ||
+      this.pendingTravel ||
+      (this.layers.length && this.result !== 'clear')
+    )
+      return null;
     this.rememberMap();
-    return { version: 1, map: this.map.id, actor: this.characterId, hp: this.hero.hp,
-      x: this.hero.x, y: this.hero.y, face: this.hero.face, flags: [...this.flags], rules: [...this.runRules],
-      stories: [...this.completedStories], maps: [...this.mapMemory], mapRules: [...this.mapRules],
-      enemies: this.foes.map(e => [e.id, e.hp, e.x, e.stacks, Math.max(0, e.ice - this.clock), Math.max(0, e.after - this.clock)]) };
+    return {
+      version: 1,
+      result: this.result,
+      map: this.map.id,
+      actor: this.characterId,
+      hp: this.hero.hp,
+      x: this.hero.x,
+      y: this.hero.y,
+      face: this.hero.face,
+      flags: [...this.flags],
+      rules: [...this.runRules],
+      stories: [...this.completedStories],
+      maps: [...this.mapMemory],
+      mapRules: [...this.mapRules],
+      cleared: [...this.clearedMaps],
+      rewards: [...this.rewards],
+      bag: [...this.bag],
+      gear: [...this.gear],
+      enemies: this.foes.map((e) => [
+        e.id,
+        e.hp,
+        e.x,
+        e.stacks,
+        Math.max(0, e.ice - this.clock),
+        Math.max(0, e.after - this.clock),
+      ]),
+    };
   }
   restore(data) {
-    if (!data || data.version !== 1 || !named(this.world.scenes, data.map) || !named(this.world.characters, data.actor) ||
-      ![data.hp, data.x, data.y].every(Number.isFinite) || data.hp <= 0 ||
+    if (
+      !data ||
+      data.version !== 1 ||
+      !named(this.world.scenes, data.map) ||
+      !named(this.world.characters, data.actor) ||
+      ![data.hp, data.x, data.y].every(Number.isFinite) ||
+      data.hp <= 0 ||
       ![data.maps, data.stories, data.flags, data.rules, data.mapRules, data.enemies].every(Array.isArray) ||
-      !data.maps.every(r => Array.isArray(r) && r[1] && Array.isArray(r[1].seen) && Array.isArray(r[1].defeated)) ||
-      !data.enemies.every(r => Array.isArray(r) && r.length === 6 && r.slice(1).every(Number.isFinite))) return false;
+      !data.maps.every(
+        (r) => Array.isArray(r) && r[1] && Array.isArray(r[1].seen) && Array.isArray(r[1].defeated),
+      ) ||
+      !data.enemies.every((r) => Array.isArray(r) && r.length === 6 && r.slice(1).every(Number.isFinite))
+    )
+      return false;
+    const pairs = (xs) => (Array.isArray(xs) ? xs.filter((x) => Array.isArray(x) && x.length === 2) : []);
+    this.clearedMaps = new Set(Array.isArray(data.cleared) ? data.cleared : []);
+    this.rewards = new Set(Array.isArray(data.rewards) ? data.rewards : []);
+    const items = this.world.items || [];
+    this.bag = new Map(pairs(data.bag).filter(([id, n]) => named(items, id) && integer(n, 1, 999999)));
+    this.gear = new Map(
+      pairs(data.gear).filter(
+        ([key, id]) =>
+          this.bag.has(id) && this.world.characters.some((c) => key === c.id + ':' + named(items, id).slot),
+      ),
+    );
+    this.progressVersion++;
     this.mapMemory = new Map(data.maps);
-    this.flags = new Set(data.flags); this.runRules = new Set(data.rules);
+    this.flags = new Set(data.flags);
+    this.runRules = new Set(data.rules);
     this.completedStories = new Set(data.stories);
     this.enter(data.map, 'restore');
     this.mapRules = new Set(data.mapRules);
     this.characterId = data.actor;
-    Object.assign(this.hero, { hp: clamp(data.hp, 1, this.character.health), x: clamp(data.x, 1, this.map.width - 1),
-      y: clamp(data.y, 0, (this.map.height || 100) - 18), face: data.face < 0 ? -1 : 1 });
-    const saved = new Map(data.enemies.map(e => [e[0], e]));
+    Object.assign(this.hero, {
+      hp: clamp(data.hp, 1, this.character.health),
+      x: clamp(data.x, 1, this.map.width - 1),
+      y: clamp(data.y, 0, (this.map.height || 100) - 18),
+      face: data.face < 0 ? -1 : 1,
+    });
+    const saved = new Map(data.enemies.map((e) => [e[0], e]));
     for (const e of this.foes) {
       const v = saved.get(e.id);
-      if (v) Object.assign(e, { hp: clamp(v[1], 0, e.maxHp), x: clamp(v[2], 1, this.map.width - 1),
-        stacks: clamp(v[3], 0, this.t.frostMax), ice: v[4], after: v[5] });
+      if (v)
+        Object.assign(e, {
+          hp: clamp(v[1], 0, e.maxHp),
+          x: clamp(v[2], 1, this.map.width - 1),
+          stacks: clamp(v[3], 0, this.t.frostMax),
+          ice: v[4],
+          after: v[5],
+        });
     }
     this.lastLiving = this.enemiesLeft;
     this.viewport = new MapViewport(this.map, this.hero);
+    if (data.result === 'clear') {
+      this.result = 'clear';
+      this.fire('clear');
+    }
     this.serial++;
     return true;
   }
@@ -194,8 +277,10 @@ class FieldRun {
     for (const e of this.foes) if (dead.has(e.id)) e.hp = 0;
     this.lastLiving = this.enemiesLeft;
     this.viewport = new MapViewport(this.map, this.hero);
-    this.platforms = this.map.objects.filter(o => o.type === 'platform').map(o => ({ ...o, originX: o.x, originY: o.y }));
-    this.lifts = this.platforms.filter(o => o.motion);
+    this.platforms = this.map.objects
+      .filter((o) => o.type === 'platform')
+      .map((o) => ({ ...o, originX: o.x, originY: o.y }));
+    this.lifts = this.platforms.filter((o) => o.motion);
     this.support = null;
     this.triggers = this.map.objects.filter((o) => o.type === 'trigger' && (o.storyId || o.eventKey));
     this.exits = this.map.objects.filter((o) => o.type === 'exit');
@@ -223,12 +308,49 @@ class FieldRun {
     this.dialogue = null;
     this.afterStory = null;
     this.completedStories.add(id);
+    this.grantRewards();
     this.serial++;
     this.layers = [];
     if (this.fire('storyEnd', id) && after) this.pendingTravel = after;
     else after?.();
   }
+  gearPower() {
+    let total = 0;
+    for (const slot of Object.keys(GEAR_SLOTS)) {
+      const id = this.gear.get(this.characterId + ':' + slot);
+      if (id) total += named(this.world.items || [], id)?.power || 0;
+    }
+    return total;
+  }
+  equip(id) {
+    const item = named(this.world.items || [], id);
+    if (!item || !this.bag.has(id)) return false;
+    const key = this.characterId + ':' + item.slot;
+    if (this.gear.get(key) === id) this.gear.delete(key);
+    else {
+      let occupied = 0;
+      for (const value of this.gear.values()) if (value === id) occupied++;
+      if (occupied >= this.bag.get(id)) return false;
+      this.gear.set(key, id);
+    }
+    this.progressVersion++;
+    return true;
+  }
+  grantRewards() {
+    for (const q of this.world.quests || []) {
+      if (
+        this.rewards.has(q.id) ||
+        !(q.kind === 'clear' ? this.clearedMaps : this.completedStories).has(q.target)
+      )
+        continue;
+      this.rewards.add(q.id);
+      this.bag.set(q.reward, Math.min(999999, (this.bag.get(q.reward) || 0) + q.count));
+      this.progressVersion++;
+    }
+  }
   go(exit) {
+    this.clearedMaps.add(this.map.id);
+    this.grantRewards();
     const next = this.world.scenes[this.world.scenes.indexOf(this.map) + 1];
     const dest = exit.to === 'next' ? next?.id : exit.to;
     if (!dest || dest === 'end-of-game') {
@@ -313,6 +435,11 @@ class FieldRun {
       this.runRules.clear();
       this.mapMemory.clear();
       this.completedStories.clear();
+      this.clearedMaps.clear();
+      this.rewards.clear();
+      this.bag.clear();
+      this.gear.clear();
+      this.progressVersion++;
       this.enter(this.world.startMap, 'restart');
       this.fire('start');
       return;
@@ -449,6 +576,7 @@ class FieldRun {
     if (type === 'hook' || type === 'shot') targets = targets.filter((e) => (e.x - h.x) * h.face >= 0);
     this.sequence = {
       type,
+      action,
       s,
       targets,
       hits: new Set(),
@@ -471,7 +599,10 @@ class FieldRun {
   }
   hit(e, amount, stack = true) {
     if (!e || e.hp <= 0) return;
-    const damage = amount * this.character.attackScale;
+    const damage = Math.max(
+      1,
+      Math.round(amount * (1 + this.gearPower() / this.t.damage) * this.character.attackScale),
+    );
     e.hp = Math.max(0, e.hp - damage);
     if (stack && this.character.passive === 'frost') e.stacks = Math.min(this.t.frostMax, e.stacks + 1);
     this.events.push({ type: 'hit', text: '−' + Math.max(1, Math.round(damage)), x: e.x, y: e.y });
@@ -582,12 +713,14 @@ class FieldRun {
     a.tick++;
     const frame = a.tick - a.startup;
     if (frame > 0 && frame <= a.active) {
-      const from = -55 + 110 * (frame - 1) / a.active, to = -55 + 110 * frame / a.active;
+      const from = -55 + (110 * (frame - 1)) / a.active,
+        to = -55 + (110 * frame) / a.active;
       const reach = this.t.reach * this.character.reachScale;
-      for (const e of this.foes) if (e.hp > 0 && !a.hit.has(e.id) && slashTouches(this.hero, e, reach, from, to)) {
-        this.hit(e, this.t.damage);
-        a.hit.add(e.id);
-      }
+      for (const e of this.foes)
+        if (e.hp > 0 && !a.hit.has(e.id) && slashTouches(this.hero, e, reach, from, to)) {
+          this.hit(e, this.t.damage);
+          a.hit.add(e.id);
+        }
     }
     if (a.tick >= a.startup + a.active + a.recovery) {
       this.stroke = null;
@@ -596,14 +729,15 @@ class FieldRun {
   }
   movePlatforms() {
     for (const p of this.lifts) {
-      const wave = (1 - Math.cos(2 * Math.PI * this.clock / p.motion.period)) / 2;
+      const wave = (1 - Math.cos((2 * Math.PI * this.clock) / p.motion.period)) / 2;
       const x = clamp(p.originX + p.motion.dx * wave, 1, this.map.width - 1);
       const y = clamp(p.originY + p.motion.dy * wave, 0, (this.map.height || 100) - 18);
       if (this.support === p && this.hero.ground) {
         this.hero.x = clamp(this.hero.x + x - p.x, 1, this.map.width - 1);
         this.hero.y += y - p.y;
       }
-      p.x = x; p.y = y;
+      p.x = x;
+      p.y = y;
     }
   }
   tick(dt) {
@@ -625,9 +759,13 @@ class FieldRun {
     h.y += h.vy * dt;
     h.ground = false;
     if (h.vy <= 0) {
-      let floor = 0, support = null;
+      let floor = 0,
+        support = null;
       for (const p of this.platforms)
-        if (Math.abs(p.x - h.x) <= p.width / 2 && old >= p.y - 0.01 && p.y >= floor) { floor = p.y; support = p; }
+        if (Math.abs(p.x - h.x) <= p.width / 2 && old >= p.y - 0.01 && p.y >= floor) {
+          floor = p.y;
+          support = p;
+        }
       if (h.y <= floor) {
         this.support = support;
         h.y = floor;
@@ -643,6 +781,27 @@ class FieldRun {
       if (e.hp <= 0 || e.ice > this.clock) continue;
       const delta = h.x - e.x,
         slow = Math.min(0.9, (Math.max(e.stacks, e.after > this.clock ? 1 : 0) * t.slow) / 100);
+      if (e.enemy.style === 'guard' || e.enemy.style === 'boss') {
+        const enraged = e.enemy.style === 'boss' && (e.hp / e.maxHp) * 100 <= (e.enemy.phase || 50);
+        const range = e.enemy.reach * (enraged ? 1.5 : 1);
+        const close = Math.abs(delta) < range && Math.abs(h.y - e.y) < 8;
+        if (e.state === 'windup') {
+          if (--e.remaining <= 0) {
+            if (close && e.enemy.damage) {
+              h.hp = Math.max(0, h.hp - e.enemy.damage * (enraged ? 2 : 1));
+              h.lastHit = this.clock;
+            }
+            e.state = 'recovery';
+            e.remaining = e.enemy.recovery || 30;
+          }
+        } else if (e.state === 'recovery') {
+          if (--e.remaining <= 0) e.state = 'idle';
+        } else if (close) {
+          e.state = 'windup';
+          e.remaining = Math.max(1, Math.round((e.enemy.windup || 18) * (enraged ? 0.6 : 1)));
+        } else if (Math.abs(delta) < e.enemy.sight) e.x += Math.sign(delta) * e.enemy.speed * (1 - slow) * dt;
+        continue;
+      }
       if (Math.abs(delta) > 2 && Math.abs(delta) < e.enemy.sight)
         e.x += Math.sign(delta) * e.enemy.speed * (1 - slow) * dt;
       if (

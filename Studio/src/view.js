@@ -230,8 +230,102 @@ function updateWidget(n, w, state) {
   } else if (w.type === 'enemies') n.textContent = (w.text || '남은 적') + ' ' + state.enemies;
   else if (w.type === 'character') n.textContent = w.text || c.name;
   else if (w.type === 'map') n.textContent = w.text || state.map.name;
+  else if (w.type === 'inventory') n.textContent = '보유 장비 · 장착 변경';
+  else if (w.type === 'quests') n.textContent = '의뢰 목록 · 진행 상태';
   else if (w.type === 'text') n.textContent = w.text;
   else if (w.type === 'button') n.textContent = w.text || getActionLabel(w.action, c);
+}
+let cueContext;
+function playCue(kind) {
+  if (!kind) return;
+  try {
+    cueContext ||= new (window.AudioContext || window.webkitAudioContext)();
+    if (cueContext.state === 'suspended') cueContext.resume().catch(() => {});
+    const osc = cueContext.createOscillator(),
+      gain = cueContext.createGain(),
+      t = cueContext.currentTime;
+    osc.type = kind === 'slash' ? 'triangle' : 'sine';
+    osc.frequency.setValueAtTime(kind === 'ice' ? 1100 : kind === 'bell' ? 620 : 460, t);
+    osc.frequency.exponentialRampToValueAtTime(kind === 'ice' ? 350 : kind === 'bell' ? 600 : 120, t + 0.12);
+    gain.gain.setValueAtTime(0.035, t);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.17);
+    osc.connect(gain);
+    gain.connect(cueContext.destination);
+    osc.start(t);
+    osc.stop(t + 0.19);
+    osc.onended = () => {
+      osc.disconnect();
+      gain.disconnect();
+    };
+  } catch {}
+}
+function paintProgressWidget(n, w, run) {
+  n.replaceChildren();
+  if (w.type === 'quests') {
+    for (const q of run.world.quests || [])
+      n.append(el('div', (run.rewards.has(q.id) ? '완료 · ' : '진행 · ') + q.name));
+    if (!n.childElementCount) n.textContent = '등록된 의뢰가 없어요.';
+  } else {
+    for (const [id, count] of run.bag) {
+      const item = named(run.world.items || [], id);
+      if (!item) continue;
+      const current = named(run.world.items || [], run.gear.get(run.characterId + ':' + item.slot));
+      const b = el(
+        'button',
+        item.name +
+          ' ×' +
+          count +
+          ' · ' +
+          (current === item
+            ? '장착 해제'
+            : GEAR_SLOTS[item.slot] + ' 공격력 ' + (current?.power || 0) + ' → ' + item.power),
+      );
+      b.type = 'button';
+      b.onclick = () => {
+        if (!run.equip(id)) b.textContent = '다른 캐릭터가 장착 중이에요.';
+      };
+      n.append(b);
+    }
+    if (!n.childElementCount) n.textContent = '보유한 장비가 없어요.';
+  }
+}
+function paintCombatOverlay(canvas, run) {
+  const width = canvas.clientWidth,
+    height = canvas.clientHeight;
+  if (!width || !height) return;
+  if (canvas.width !== width) canvas.width = width;
+  if (canvas.height !== height) canvas.height = height;
+  const ctx = canvas.getContext('2d'),
+    camera = run.viewport,
+    hero = run.hero;
+  const px = (x) => ((x - camera.x) * width) / 100,
+    py = (y) => ((82 - y + camera.y) * height) / 100;
+  ctx.clearRect(0, 0, width, height);
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = '#ffb590';
+  for (const e of run.foes)
+    if (e.hp > 0 && Math.abs(e.x - camera.x - 50) < 65) {
+      const w = (e.enemy.hurtWidth || 0.7) * 3.5,
+        h = (e.enemy.hurtHeight || 1.6) / 0.16;
+      ctx.strokeRect(px(e.x - w / 2), py(e.y + h), (w * width) / 100, (h * height) / 100);
+    }
+  const a = run.stroke;
+  if (!a) return;
+  const step = a.tick - a.startup,
+    active = step > 0 && step <= a.active;
+  const from = active ? -55 + (110 * (step - 1)) / a.active : -55,
+    to = active ? -55 + (110 * step) / a.active : 55;
+  const reach = run.t.reach * run.character.reachScale;
+  ctx.save();
+  ctx.translate(px(hero.x + 0.25 * 3.5 * hero.face), py(hero.y + 1.01 / 0.16));
+  ctx.scale((hero.face * 3.5 * width) / 100, -height / (100 * 0.16));
+  ctx.fillStyle = active ? '#61f4ffb8' : '#f4d77155';
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.arc(0, 0, reach, (from * Math.PI) / 180, (to * Math.PI) / 180);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
 }
 function pointerDrag(n, onStart, onMove, onEnd) {
   n.onpointerdown = (e) => {
@@ -335,6 +429,10 @@ async function upgradeInlineArt(d) {
   for (const c of d.characters) {
     await convert(c, 'sprite');
     await convert(c, 'portrait');
+    for (const clip of Object.values(c.clips || {})) {
+      await convert(clip, 'fx');
+      for (const frame of clip.frames) await convert(frame, 'image');
+    }
   }
   for (const s of d.scenes) {
     await convert(s, 'backdrop', true);

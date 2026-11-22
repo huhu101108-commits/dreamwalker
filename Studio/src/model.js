@@ -93,6 +93,8 @@ const OBJECTS = {
 };
 const THEMES = { snow: '설원', dusk: '노을', night: '밤' };
 const WIDGETS = {
+  inventory: '인벤토리 · 장비 장착',
+  quests: '의뢰 진행 목록',
   hp: '체력 바',
   enemies: '남은 적',
   map: '맵 이름',
@@ -385,6 +387,8 @@ function seed() {
     schema: SCHEMA,
     title: 'Dreamwalker',
     sourceFiles: [],
+    items: [],
+    quests: [],
     customJson: '{}',
     tuning: tuningDefaults(),
     characters: [newCharacter('baekseol', '백설', true)],
@@ -396,14 +400,18 @@ function seed() {
 }
 // Upgrade stored content without assigning a speaker's dialogue to an invented storyline.
 function withProductionDefaults(doc) {
-  if (doc?.schema !== SCHEMA || !Array.isArray(doc.scenes) || !doc.tuning) return doc;
+  if (doc?.schema !== SCHEMA || !Array.isArray(doc.scenes) || !doc.tuning || typeof doc.tuning !== 'object')
+    return doc;
   const d = structuredClone(doc);
+  if (d.items === undefined) d.items = [];
+  if (d.quests === undefined) d.quests = [];
   for (const key of ['startupTicks', 'activeTicks', 'recoveryTicks'])
     if (!(key in d.tuning)) d.tuning[key] = FIELDS[key][4];
-  for (const m of d.scenes) if (m) {
-    if (m.height === undefined) m.height = 100;
-    if (m.camera === undefined) m.camera = cameraDefaults();
-  }
+  for (const m of d.scenes)
+    if (m) {
+      if (m.height === undefined) m.height = 100;
+      if (m.camera === undefined) m.camera = cameraDefaults();
+    }
   return d;
 }
 function migrateProject(input) {
@@ -661,9 +669,13 @@ function problem(d) {
       !has(THEMES, s.theme) ||
       !integer(s.width, 100, 3200) ||
       !integer(s.height ?? 100, 100, 1600) ||
-      (s.camera !== undefined && (!s.camera || !num(s.camera.follow, 0, 30) ||
-        !num(s.camera.deadX, 0, 35) || !num(s.camera.deadY, 0, 35) ||
-        !num(s.camera.parallax, 0, 1) || !num(s.camera.drift, 0, 5))) ||
+      (s.camera !== undefined &&
+        (!s.camera ||
+          !num(s.camera.follow, 0, 30) ||
+          !num(s.camera.deadX, 0, 35) ||
+          !num(s.camera.deadY, 0, 35) ||
+          !num(s.camera.parallax, 0, 1) ||
+          !num(s.camera.drift, 0, 5))) ||
       !imageRef(s.backdrop) ||
       !character(s.characterId) ||
       !screen(s.hudId, 'hud') ||
@@ -690,18 +702,29 @@ function problem(d) {
             !num(o.enemy.sight, 0, 150) ||
             !num(o.enemy.reach, 0, 30) ||
             !num(o.enemy.interval, 0.05, 30) ||
+            (o.enemy.hurtWidth !== undefined && !num(o.enemy.hurtWidth, 0.1, 12)) ||
+            (o.enemy.hurtHeight !== undefined && !num(o.enemy.hurtHeight, 0.1, 15)) ||
+            (o.enemy.style !== undefined && !['contact', 'guard', 'boss'].includes(o.enemy.style)) ||
+            (o.enemy.windup !== undefined && !integer(o.enemy.windup, 1, 180)) ||
+            (o.enemy.recovery !== undefined && !integer(o.enemy.recovery, 1, 300)) ||
+            (o.enemy.phase !== undefined && !integer(o.enemy.phase, 1, 99)) ||
             !textValue(o.label, 50) ||
             !imageRef(o.image))) ||
         (o.type === 'exit' && !['next', 'end-of-game'].includes(o.to) && !named(d.scenes, o.to)) ||
         (o.type === 'trigger' && (!story(o.storyId) || !signalKey(o.eventKey ?? '', true))) ||
-        (o.type === 'platform' && (!num(o.width, 3, 60) || (o.motion !== undefined &&
-          (!o.motion || !num(o.motion.dx, -200, 200) || !num(o.motion.dy, -150, 150) || !num(o.motion.period, 0.5, 90))))) ||
+        (o.type === 'platform' &&
+          (!num(o.width, 3, 60) ||
+            (o.motion !== undefined &&
+              (!o.motion ||
+                !num(o.motion.dx, -200, 200) ||
+                !num(o.motion.dy, -150, 150) ||
+                !num(o.motion.period, 0.5, 90))))) ||
         (o.type === 'prop' &&
           (!num(o.width, 2, 55) || !num(o.height, 2, 65) || !textValue(o.label, 50) || !imageRef(o.image)))
       )
         return s.name + '의 개체 좌표 또는 연결을 확인하세요.';
   }
-  return '';
+  return productionProblem(d);
 }
 const valid = (d) => problem(d) === '';
 function imageRefs(d) {
@@ -712,6 +735,10 @@ function imageRefs(d) {
   d.characters.forEach((c) => {
     add(c.sprite);
     add(c.portrait);
+    for (const clip of Object.values(c.clips || {})) {
+      add(clip.fx);
+      for (const frame of clip.frames) add(frame.image);
+    }
   });
   d.scenes.forEach((s) => {
     add(s.backdrop);
@@ -773,36 +800,58 @@ function detachEpisodeReference(world, key, id) {
 
 // A paused screen must have a touch route out even when optional flags are false.
 function inspectScreens(doc) {
-  const errors = [], warnings = [], writers = new Set(), destinations = new Set();
-  for (const scene of doc.scenes) for (const id of [scene.hudId, scene.menuId, scene.dialogueId]) destinations.add(id);
+  const errors = [],
+    warnings = [],
+    writers = new Set(),
+    destinations = new Set();
+  for (const scene of doc.scenes)
+    for (const id of [scene.hudId, scene.menuId, scene.dialogueId]) destinations.add(id);
   const transitions = (w) => [{ action: w.action, target: w.target }, ...w.steps];
   for (const l of doc.layouts) {
     if (l.rules.length) destinations.add(l.id);
-    for (const w of l.elements) if (w.type === 'button' && w.visible) {
-      for (const s of transitions(w)) if (s.action === 'flagOn') writers.add(s.target);
-    }
+    for (const w of l.elements)
+      if (w.type === 'button' && w.visible) {
+        for (const s of transitions(w)) if (s.action === 'flagOn') writers.add(s.target);
+      }
   }
   const reachable = new Set(destinations);
   for (let changed = true; changed;) {
     changed = false;
-    for (const l of doc.layouts) if (reachable.has(l.id))
-      for (const w of l.elements) if (w.type === 'button' && w.visible)
-        for (const s of transitions(w)) if (s.action === 'open' && !reachable.has(s.target)) {
-          reachable.add(s.target); changed = true;
-        }
+    for (const l of doc.layouts)
+      if (reachable.has(l.id))
+        for (const w of l.elements)
+          if (w.type === 'button' && w.visible)
+            for (const s of transitions(w))
+              if (s.action === 'open' && !reachable.has(s.target)) {
+                reachable.add(s.target);
+                changed = true;
+              }
   }
-  const safe = new Set(doc.layouts.filter(l => !l.pauseGame).map(l => l.id));
-  const exit = new Set(['back','resume','restart','newRun','gotoMap','startStory','skip','nextLine']);
+  const safe = new Set(doc.layouts.filter((l) => !l.pauseGame).map((l) => l.id));
+  const exit = new Set(['back', 'resume', 'restart', 'newRun', 'gotoMap', 'startStory', 'skip', 'nextLine']);
   for (let changed = true; changed;) {
     changed = false;
     for (const l of doc.layouts) {
       if (safe.has(l.id)) continue;
-      if (l.elements.some(w => w.visible && (!w.showFlag || (!w.showValue && !writers.has(w.showFlag))) &&
-        (w.type === 'dialogue' && l.kind === 'dialogue' || (w.type === 'button' &&
-          (!w.enableFlag || (!w.enableValue && !writers.has(w.enableFlag))) && transitions(w).some(s =>
-            !s.flag && ((exit.has(s.action) && (!['skip','nextLine'].includes(s.action) || l.kind === 'dialogue')) ||
-              (s.action === 'open' && safe.has(s.target)))))))) {
-        safe.add(l.id); changed = true;
+      if (
+        l.elements.some(
+          (w) =>
+            w.visible &&
+            (!w.showFlag || (!w.showValue && !writers.has(w.showFlag))) &&
+            ((w.type === 'dialogue' && l.kind === 'dialogue') ||
+              (w.type === 'button' &&
+                (!w.enableFlag || (!w.enableValue && !writers.has(w.enableFlag))) &&
+                transitions(w).some(
+                  (s) =>
+                    !s.flag &&
+                    ((exit.has(s.action) &&
+                      (!['skip', 'nextLine'].includes(s.action) || l.kind === 'dialogue')) ||
+                      (s.action === 'open' && safe.has(s.target))),
+                ))),
+        )
+      ) {
+        safe.add(l.id);
+        changed = true;
       }
     }
   }
@@ -810,8 +859,131 @@ function inspectScreens(doc) {
     if (!reachable.has(l.id)) warnings.push(l.name + ' 화면을 여는 버튼이나 이벤트가 없어요.');
     if (reachable.has(l.id) && l.pauseGame && !safe.has(l.id))
       errors.push(l.name + '에 조건 없이 사용할 수 있는 복귀·진행 버튼을 연결하세요.');
-    for (const w of l.elements) for (const f of [w.showFlag, w.enableFlag]) if (f && !writers.has(f))
-      warnings.push(l.name + '의 상태 «' + f + '»를 켜는 버튼이 없어요.');
+    for (const w of l.elements)
+      for (const f of [w.showFlag, w.enableFlag])
+        if (f && !writers.has(f)) warnings.push(l.name + '의 상태 «' + f + '»를 켜는 버튼이 없어요.');
   }
   return { errors, warnings: [...new Set(warnings)] };
+}
+
+const GEAR_SLOTS = {
+  weapon: '무기',
+  head: '머리',
+  top: '상의',
+  bottom: '하의',
+  feet: '신발',
+  extra1: '추가 장비 1',
+  extra2: '추가 장비 2',
+  extra3: '추가 장비 3',
+  extra4: '추가 장비 4',
+  extra5: '추가 장비 5',
+};
+const motionNames = (actor) => ({
+  idle: '대기',
+  run: '달리기',
+  jump: '점프',
+  attack: '기본 공격',
+  ...Object.fromEntries(actor.skills.map((s, i) => ['skill' + (i + 1), s.name])),
+});
+const newClip = () => ({ frames: [], fx: '', cue: '', cueTick: 0 });
+function poseAt(clip, ticks, loop) {
+  if (!clip?.frames?.length) return null;
+  const duration = clip.frames.reduce((n, f) => n + f.ticks, 0);
+  let at = loop ? ticks % duration : Math.min(ticks, duration - 1);
+  for (const f of clip.frames) {
+    if (at < f.ticks) return f;
+    at -= f.ticks;
+  }
+  return clip.frames.at(-1);
+}
+function productionProblem(d) {
+  if (!rows(d.items || [], 0, 200) || !rows(d.quests || [], 0, 200))
+    return '아이템·의뢰 ID와 개수를 확인하세요.';
+  const items = d.items || [];
+  for (const v of items)
+    if (!textValue(v.name, 50, true) || !has(GEAR_SLOTS, v.slot) || !integer(v.power, 0, 9999))
+      return '장비 이름·부위·공격력을 확인하세요.';
+  for (const q of d.quests || [])
+    if (
+      !textValue(q.name, 50, true) ||
+      !['clear', 'story'].includes(q.kind) ||
+      !(q.kind === 'clear' ? named(d.scenes, q.target) : named(d.stories, q.target)) ||
+      !named(items, q.reward) ||
+      !integer(q.count, 1, 999)
+    )
+      return q.name + '의 완료 조건과 보상 장비를 지정하세요.';
+  for (const c of d.characters) {
+    if (c.clips === undefined) continue;
+    if (!c.clips || typeof c.clips !== 'object' || Array.isArray(c.clips) || Object.keys(c.clips).length > 16)
+      return c.name + '의 모션 목록을 확인하세요.';
+    for (const [key, v] of Object.entries(c.clips)) {
+      if (
+        !/^(idle|run|jump|attack|skill(?:[1-9]|1[0-2]))$/.test(key) ||
+        !v ||
+        !Array.isArray(v.frames) ||
+        v.frames.length > 64 ||
+        !v.frames.every((f) => f && f.image && imageRef(f.image) && integer(f.ticks, 1, 120)) ||
+        !imageRef(v.fx) ||
+        !['', 'slash', 'ice', 'bell'].includes(v.cue) ||
+        !integer(v.cueTick, 0, 600)
+      )
+        return c.name + '의 모션 프레임과 효과 시점을 확인하세요.';
+    }
+  }
+  return '';
+}
+
+// Merge named records and their fields independently. Conflicting edits retain the published version
+// until an editor resolves them; concurrent reorders of the same list are explicit conflicts.
+function mergeProject(base, mine, live) {
+  const conflicts = [];
+  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  const merge = (a, b, c, path) => {
+    if (same(b, c) || same(b, a)) return c;
+    if (same(c, a)) return b;
+    const arrays = [a, b, c].every(Array.isArray);
+    if (arrays) {
+      const all = [...a, ...b, ...c],
+        key =
+          all.length && all.every((x) => x && typeof x === 'object' && 'id' in x)
+            ? 'id'
+            : all.length && all.every((x) => x && typeof x === 'object' && 'path' in x)
+              ? 'path'
+              : null;
+      if (key) {
+        const maps = [a, b, c].map((xs) => new Map(xs.map((v) => [v[key], v])));
+        const retained = a.map((v) => v[key]).filter((id) => maps.every((m) => m.has(id)));
+        const oldOrder = new Set(retained),
+          order = (xs) => xs.map((v) => v[key]).filter((id) => oldOrder.has(id));
+        const left = order(b),
+          right = order(c);
+        if (!same(left, retained) && !same(right, retained) && !same(left, right))
+          conflicts.push(path + ' 순서');
+        const first = same(left, retained) ? c : b;
+        const ids = [...new Set([...first, ...(first === c ? b : c)].map((v) => v[key]))];
+        return ids
+          .map((id) => merge(...maps.map((m) => m.get(id)), path + '/' + id))
+          .filter((v) => v !== undefined);
+      }
+    } else if ([a, b, c].every((x) => x && typeof x === 'object' && !Array.isArray(x))) {
+      const out = {};
+      for (const k of new Set([...Object.keys(a), ...Object.keys(b), ...Object.keys(c)])) {
+        const v = merge(a[k], b[k], c[k], path + '/' + k);
+        if (v !== undefined)
+          Object.defineProperty(out, k, { value: v, enumerable: true, writable: true, configurable: true });
+      }
+      return out;
+    }
+    conflicts.push(path);
+    return c;
+  };
+  return { project: merge(base, mine, live, ''), conflicts };
+}
+function packNativeWorld(project) {
+  const world = { ...project, sourceFiles: [] };
+  world.characters = project.characters.map(({ clips, ...c }) => ({
+    ...c,
+    motionClips: Object.entries(clips || {}).map(([key, clip]) => ({ key, ...clip })),
+  }));
+  return world;
 }

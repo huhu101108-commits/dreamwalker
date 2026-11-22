@@ -99,6 +99,10 @@ async function exportUnityPack(fullProject = false) {
   for (const c of d.characters) {
     await convert(c, 'sprite');
     await convert(c, 'portrait');
+    for (const clip of Object.values(c.clips || {})) {
+      await convert(clip, 'fx');
+      for (const frame of clip.frames) await convert(frame, 'image');
+    }
   }
   for (const s of d.scenes) {
     await convert(s, 'backdrop');
@@ -115,7 +119,7 @@ async function exportUnityPack(fullProject = false) {
     for (const [path, text] of Object.entries(files))
       if (!path.startsWith('Web/')) items.push([path, new TextEncoder().encode(text)]);
   }
-  d.sourceFiles = [];
+  release.project = packNativeWorld(d);
   items.push([root + 'release.json', new TextEncoder().encode(JSON.stringify(release))]);
   const url = URL.createObjectURL(zipArchive(items)),
     a = el('a');

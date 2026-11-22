@@ -73,7 +73,12 @@ function drawMaps() {
   a.append(palette, stage);
   function addAt(x, y) {
     if (s.objects.length >= LIMIT.objects) return note('맵의 개체 한도에 도달했어요.');
-    const o = makeObject(mapTool, uid(), clamp(Math.round(x), 1, s.width - 1), clamp(Math.round(y), 0, s.height - 18));
+    const o = makeObject(
+      mapTool,
+      uid(),
+      clamp(Math.round(x), 1, s.width - 1),
+      clamp(Math.round(y), 0, s.height - 18),
+    );
     edit(() => {
       s.objects.push(o);
       mapObject = o.id;
@@ -84,13 +89,22 @@ function drawMaps() {
     stage.classList.add('placing');
     stage.onpointerdown = (e) => {
       const r = stage.getBoundingClientRect();
-      addAt(offset + ((e.clientX - r.left) / r.width) * 100, offsetY + 82 - ((e.clientY - r.top) / r.height) * 100);
+      addAt(
+        offset + ((e.clientX - r.left) / r.width) * 100,
+        offsetY + 82 - ((e.clientY - r.top) / r.height) * 100,
+      );
     };
   }
   const nodes = new Map();
   for (const o of s.objects) {
     const margin = o.width || 5;
-    if (o.x + margin < offset || o.x - margin > offset + 100 || o.y > bottom + 84 || o.y + (o.height || 24) < bottom - 18) continue;
+    if (
+      o.x + margin < offset ||
+      o.x - margin > offset + 100 ||
+      o.y > bottom + 84 ||
+      o.y + (o.height || 24) < bottom - 18
+    )
+      continue;
     const n = actorNode(o, c);
     placeWorld(n, o, offset, offsetY);
     n.classList.toggle('selected', o.id === mapObject);
@@ -131,8 +145,17 @@ function drawMaps() {
       ),
     );
   if (floorCount > 1)
-    nav.append(selectField('편집 높이 구간', String(mapFloor), Object.fromEntries(
-      Array.from({ length: floorCount }, (_, i) => [i, (i + 1) + '층'])), (v) => { mapFloor = Number(v); draw(); }));
+    nav.append(
+      selectField(
+        '편집 높이 구간',
+        String(mapFloor),
+        Object.fromEntries(Array.from({ length: floorCount }, (_, i) => [i, i + 1 + '층'])),
+        (v) => {
+          mapFloor = Number(v);
+          draw();
+        },
+      ),
+    );
   a.append(
     nav,
     el(
@@ -146,16 +169,28 @@ function drawMaps() {
   mapObject = o.id;
   const attrs = box('control-grid', bindText('맵 이름', s, 'name'), bindSelect('시간대', s, 'theme', THEMES));
   attrs.append(
-    ...[['width', '가로 길이', 3200], ['height', '세로 높이', 1600]].map(([key, label, max]) => {
+    ...[
+      ['width', '가로 길이', 3200],
+      ['height', '세로 높이', 1600],
+    ].map(([key, label, max]) => {
       const size = el('input');
       Object.assign(size, { type: 'number', min: 100, max, step: 1, value: s[key] });
       size.onchange = () => {
         const value = size.valueAsNumber;
         const axis = key === 'width' ? 'x' : 'y';
         const edge = value - (axis === 'x' ? 1 : 18);
-        if (!integer(value, 100, max)) { size.value = s[key]; return note(label + ' 범위는 100~' + max + '예요.'); }
-        if (s.objects.some(o => o[axis] > edge) && !confirm('범위 밖 개체를 새 맵 경계로 옮길까요?')) { size.value = s[key]; return; }
-        edit(() => { s[key] = value; for (const o of s.objects) o[axis] = Math.min(o[axis], edge); });
+        if (!integer(value, 100, max)) {
+          size.value = s[key];
+          return note(label + ' 범위는 100~' + max + '예요.');
+        }
+        if (s.objects.some((o) => o[axis] > edge) && !confirm('범위 밖 개체를 새 맵 경계로 옮길까요?')) {
+          size.value = s[key];
+          return;
+        }
+        edit(() => {
+          s[key] = value;
+          for (const o of s.objects) o[axis] = Math.min(o[axis], edge);
+        });
       };
       return titled(label + ' (100 = 한 화면)', size);
     }),
@@ -208,12 +243,14 @@ function drawMaps() {
     ),
   );
   const cameraPanel = el('details');
-  cameraPanel.append(el('summary', '카메라 · 배경 움직임'),
+  cameraPanel.append(
+    el('summary', '카메라 · 배경 움직임'),
     bindNumber('추적 반응 (0 = 즉시)', s.camera, 'follow', 0, 30, 0.1),
     bindNumber('좌우 여유 폭', s.camera, 'deadX', 0, 35, 1),
     bindNumber('상하 여유 폭', s.camera, 'deadY', 0, 35, 1),
     bindNumber('배경 시차 강도', s.camera, 'parallax', 0, 1, 0.01),
-    bindNumber('바람에 흔들리는 배경 폭 (%)', s.camera, 'drift', 0, 5, 0.1));
+    bindNumber('바람에 흔들리는 배경 폭 (%)', s.camera, 'drift', 0, 5, 0.1),
+  );
   a.append(heading('맵 설정'), attrs, cameraPanel, links);
   b.append(
     heading('개체 속성'),
@@ -224,7 +261,7 @@ function drawMaps() {
       (v) => {
         mapObject = v;
         mapPage = Math.min(pageCount - 1, Math.floor(named(s.objects, v).x / 100));
-        mapFloor = Math.min(floorCount - 1, Math.floor(named(s.objects, v).y / 100));
+        mapFloor = Math.min(floorCount - 1, Math.max(0, Math.ceil((named(s.objects, v).y - 82) / 100)));
         mapTool = '';
         draw();
       },
@@ -249,6 +286,26 @@ function drawMaps() {
     b.append(
       heading('이 적의 전투 설정'),
       bindText('적 이름', o, 'label'),
+      numberField('피격 상자 폭 (m)', o.enemy.hurtWidth || 0.7, 0.1, 12, 0.05, (v) =>
+        edit(() => (o.enemy.hurtWidth = v), false, o.enemy),
+      ),
+      numberField('피격 상자 높이 (m)', o.enemy.hurtHeight || 1.6, 0.1, 15, 0.05, (v) =>
+        edit(() => (o.enemy.hurtHeight = v), false, o.enemy),
+      ),
+      selectField(
+        '공격 행동',
+        o.enemy.style || 'contact',
+        { contact: '접촉 공격', guard: '예고 후 타격', boss: '체력에 따른 2단계 보스' },
+        (v) =>
+          edit(() =>
+            Object.assign(o.enemy, {
+              style: v,
+              windup: o.enemy.windup || 18,
+              recovery: o.enemy.recovery || 30,
+              phase: o.enemy.phase || 50,
+            }),
+          ),
+      ),
       assetField('적 이미지', o.image, (v) => edit(() => (o.image = v))),
       box(
         'control-grid',
@@ -261,13 +318,31 @@ function drawMaps() {
       ),
     );
   }
+  if (o.type === 'enemy' && o.enemy.style && o.enemy.style !== 'contact') {
+    b.append(
+      bindNumber('공격 예고 틱', o.enemy, 'windup', 1, 180, 1),
+      bindNumber('공격 후 회복 틱', o.enemy, 'recovery', 1, 300, 1),
+    );
+    if (o.enemy.style === 'boss') b.append(bindNumber('2단계 진입 체력 (%)', o.enemy, 'phase', 1, 99, 1));
+  }
   if (o.type === 'platform') {
     b.append(bindNumber('발판 너비', o, 'width', 3, 60, 1, refresh));
-    if (!o.motion) b.append(action('이동 발판으로 설정', () => edit(() => { o.motion = motionDefaults(); o.motion.dx = 12; })));
-    else b.append(bindNumber('발판 가로 왕복 거리', o.motion, 'dx', -200, 200, 1),
-      bindNumber('발판 세로 왕복 거리', o.motion, 'dy', -150, 150, 1),
-      bindNumber('왕복 주기 (초)', o.motion, 'period', 0.5, 90, 0.1),
-      action('고정 발판으로 변경', () => edit(() => delete o.motion)));
+    if (!o.motion)
+      b.append(
+        action('이동 발판으로 설정', () =>
+          edit(() => {
+            o.motion = motionDefaults();
+            o.motion.dx = 12;
+          }),
+        ),
+      );
+    else
+      b.append(
+        bindNumber('발판 가로 왕복 거리', o.motion, 'dx', -200, 200, 1),
+        bindNumber('발판 세로 왕복 거리', o.motion, 'dy', -150, 150, 1),
+        bindNumber('왕복 주기 (초)', o.motion, 'period', 0.5, 90, 0.1),
+        action('고정 발판으로 변경', () => edit(() => delete o.motion)),
+      );
   }
   if (o.type === 'trigger')
     b.append(

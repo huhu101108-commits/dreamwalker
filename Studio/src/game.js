@@ -4,23 +4,52 @@ function launchGame(mapId, screenId = '') {
     stage = $('#arena'),
     layer = $('#overlay'),
     actors = $('#actors');
-  const saveKey = 'dreamwalker-progress-v1:' + (typeof GAME_DATA === 'undefined' && location.pathname !== '/play' ? 'preview:' : 'game:') + run.world.startMap;
-  let saveStore, lastSaved = '', savedAt = 0;
-  try { saveStore = window.localStorage; } catch {}
+  const saveKey =
+    'dreamwalker-progress-v1:' +
+    (typeof GAME_DATA === 'undefined' && location.pathname !== '/play' ? 'preview:' : 'game:') +
+    run.world.startMap;
+  let saveStore,
+    lastSaved = '',
+    savedAt = 0;
+  try {
+    saveStore = window.localStorage;
+  } catch {}
+  if (!saveStore && typeof GAME_DATA !== 'undefined' && window.parent !== window) {
+    let text = GAME_DATA.checkpoint;
+    saveStore = {
+      getItem: () => text,
+      setItem: (_, value) => {
+        text = value;
+        window.parent.postMessage({ dreamwalker: 'progress', value }, '*');
+      },
+    };
+  }
   function saveProgress(show = false) {
     const data = run.checkpoint();
-    if (!data || !saveStore) { if (show) say('대화나 전투 동작이 끝난 뒤 저장할 수 있어요.'); return; }
+    if (!saveStore) {
+      if (show) say('이 실행 환경은 기기 저장소를 사용할 수 없어요.');
+      return;
+    }
+    if (!data) {
+      if (show) say('대화나 전투 동작이 끝난 뒤 저장할 수 있어요.');
+      return;
+    }
     try {
       const text = JSON.stringify(data);
       if (text !== lastSaved) saveStore.setItem(saveKey, text);
       lastSaved = text;
       if (show) say('이 기기에 진행 상황을 저장했어요.');
-    } catch { if (show) say('기기 저장 공간을 사용할 수 없어요.'); }
+    } catch {
+      if (show) say('기기 저장 공간을 사용할 수 없어요.');
+    }
   }
   function continueProgress(show = false) {
     try {
       const text = saveStore?.getItem(saveKey);
-      if (text && run.restore(JSON.parse(text))) { lastSaved = text; return true; }
+      if (text && run.restore(JSON.parse(text))) {
+        lastSaved = text;
+        return true;
+      }
     } catch {}
     if (show) say('이 기기에 호환되는 저장 기록이 없어요.');
     return false;
@@ -34,9 +63,19 @@ function launchGame(mapId, screenId = '') {
     widgets = [],
     markers = new Map(),
     effects = [],
+    clipState = null,
     lastNotice = '';
-  let mapSerial = null, prevCharacter = null, grid, movable = [], visibleSet = new Set();
-  let drawnFrames = 0, measuredFrames = 0, frameTime = 0, previousSample = performance.now(), slowFrames = 0, enabledStats = false;
+  let mapSerial = null,
+    prevCharacter = null,
+    grid,
+    movable = [],
+    visibleSet = new Set();
+  let drawnFrames = 0,
+    measuredFrames = 0,
+    frameTime = 0,
+    previousSample = performance.now(),
+    slowFrames = 0,
+    enabledStats = false;
   const diagnostics = el('output');
   diagnostics.className = 'perf-readout';
   stage.append(diagnostics);
@@ -47,11 +86,27 @@ function launchGame(mapId, screenId = '') {
     extra.push(n);
     return n;
   }
-  const exitOverlay = barButton('화면 닫기', () => { run.press(run.dialogue && !run.customScreen ? 'skip' : 'back'); render(); });
+  const exitOverlay = barButton('화면 닫기', () => {
+    run.press(run.dialogue && !run.customScreen ? 'skip' : 'back');
+    render();
+  });
   barButton('진행 저장', () => saveProgress(true));
-  barButton('이어하기', () => { if (continueProgress(true)) render(); });
-  barButton('성능', () => { enabledStats = !enabledStats; diagnostics.hidden = !enabledStats; });
+  barButton('이어하기', () => {
+    if (continueProgress(true)) render();
+  });
+  barButton('성능', () => {
+    enabledStats = !enabledStats;
+    diagnostics.hidden = !enabledStats;
+  });
   diagnostics.hidden = true;
+  const hitCanvas = el('canvas');
+  hitCanvas.className = 'hit-overlay';
+  hitCanvas.hidden = true;
+  hitCanvas.setAttribute('aria-hidden', 'true');
+  stage.append(hitCanvas);
+  barButton('판정 표시', () => {
+    hitCanvas.hidden = !hitCanvas.hidden;
+  });
   const controls = () => [
     'left',
     'right',
@@ -114,9 +169,11 @@ function launchGame(mapId, screenId = '') {
       effects = [];
       mapSerial = run.hero;
       prevCharacter = run.character;
-      const scenery = run.map.objects.filter(o => ['prop','exit','trigger'].includes(o.type) &&
-        (o.type !== 'trigger' || o.storyId || o.eventKey));
-      grid = new MapGrid([...scenery, ...run.platforms.filter(o => !o.motion)]);
+      const scenery = run.map.objects.filter(
+        (o) =>
+          ['prop', 'exit', 'trigger'].includes(o.type) && (o.type !== 'trigger' || o.storyId || o.eventKey),
+      );
+      grid = new MapGrid([...scenery, ...run.platforms.filter((o) => !o.motion)]);
       movable = [...run.lifts, ...run.foes, run.hero];
     }
     layer.replaceChildren();
@@ -189,45 +246,113 @@ function launchGame(mapId, screenId = '') {
       lastNotice = text;
     }
   }
+  let backgroundStamp = '';
   let hudStamp = '';
   function render() {
     if (serial !== run.serial) {
       rebuild();
       hudStamp = '';
     }
+    if (!hitCanvas.hidden) paintCombatOverlay(hitCanvas, run);
     const camera = run.camera;
-    const bottom = run.viewport.y, settings = run.viewport.options;
+    const bottom = run.viewport.y,
+      settings = run.viewport.options;
     const shift = settings.parallax * (camera / (run.map.width || 100)) * 20;
     const bob = settings.drift ? Math.sin(run.clock * 0.65) * settings.drift : 0;
-    if (!reduceMotion && (settings.parallax || settings.drift)) {
-      stage.style.backgroundSize = '115% 115%';
-      stage.style.backgroundPosition = (50 - shift + bob) + '% ' + (50 + bottom / (run.map.height || 100) * settings.parallax * 18) + '%';
-    } else { stage.style.backgroundSize = ''; stage.style.backgroundPosition = ''; }
-    stage.style.setProperty('--ground-y', Math.min(101, 82 + bottom) + '%');
+    const backgroundKey = [
+      shift.toFixed(3),
+      bob.toFixed(3),
+      bottom.toFixed(2),
+      settings.parallax,
+      settings.drift,
+      run.map.id,
+    ].join('|');
+    if (backgroundStamp !== backgroundKey) {
+      backgroundStamp = backgroundKey;
+      if (!reduceMotion && (settings.parallax || settings.drift)) {
+        stage.style.backgroundSize = '115% 115%';
+        stage.style.backgroundPosition =
+          50 - shift + bob + '% ' + (50 + (bottom / (run.map.height || 100)) * settings.parallax * 18) + '%';
+      } else {
+        stage.style.backgroundSize = '';
+        stage.style.backgroundPosition = '';
+      }
+      stage.style.setProperty('--ground-y', Math.min(101, 82 + bottom) + '%');
+    }
     grid.query(camera - 6, bottom - 20, camera + 106, bottom + 88, visibleSet);
     for (const o of movable) visibleSet.add(o);
     for (const o of visibleSet) {
       const radius = (o.width || 14) / 2;
-      if (o.x + radius < camera - 1 || o.x - radius > camera + 101 || o.y > bottom + 84 ||
-        o.y + (o.height || 25) < bottom - 18 || (o.type === 'enemy' && o.hp <= 0) ||
-        (o.type === 'trigger' && run.seen.has(o.id))) { visibleSet.delete(o); continue; }
+      if (
+        o.x + radius < camera - 1 ||
+        o.x - radius > camera + 101 ||
+        o.y > bottom + 84 ||
+        o.y + (o.height || 25) < bottom - 18 ||
+        (o.type === 'enemy' && o.hp <= 0) ||
+        (o.type === 'trigger' && run.seen.has(o.id))
+      ) {
+        visibleSet.delete(o);
+        continue;
+      }
       let n = markers.get(o);
-      if (!n) { n = actorNode(o, run.character); markers.set(o, n); actors.append(n); }
+      if (!n) {
+        n = actorNode(o, run.character);
+        markers.set(o, n);
+        actors.append(n);
+      }
       placeWorld(n, o, camera, bottom);
       if (o.type === 'enemy') {
         n.textContent = o.ice > run.clock ? '❄' : o.stacks || (o.image ? '' : '◆');
+        n.classList.toggle('windup', o.state === 'windup');
         n.style.opacity = 0.5 + (0.5 * o.hp) / o.maxHp;
       } else if (o.type === 'spawn') {
         n.style.transform = 'translate(-50%,-100%) scaleX(' + run.hero.face + ')';
+        const pose =
+          run.sequence?.action ||
+          (run.stroke
+            ? 'attack'
+            : !o.ground
+              ? 'jump'
+              : run.keys.has('left') || run.keys.has('right')
+                ? 'run'
+                : 'idle');
+        const clip = run.character.clips?.[pose],
+          token = run.sequence || run.stroke || pose;
+        if (!clipState || clipState.token !== token || clipState.node !== n)
+          clipState = { token, node: n, start: run.clock, heard: false, url: null };
+        const t = Math.max(0, Math.round(60 * (run.clock - clipState.start)));
+        const f = poseAt(clip, t, pose === 'idle' || pose === 'run');
+        const url = f ? imageUrl(f.image) : characterUrl(run.character);
+        if (clipState.url !== url) {
+          n.style.backgroundImage = '';
+          cssImage(n, url);
+          clipState.url = url;
+        }
+        if (clip && !clipState.heard && t >= clip.cueTick) {
+          clipState.heard = true;
+          playCue(clip.cue);
+          if (clip.fx) {
+            const fx = el('div');
+            fx.className = 'motion-fx';
+            cssImage(fx, imageUrl(clip.fx));
+            actors.append(fx);
+            effects.push({ n: fx, x: o.x + o.face * 4, y: o.y + 8, until: run.clock + 0.12 });
+          }
+        }
         n.classList.toggle('hurt', run.clock - run.hero.lastHit < 0.12);
       }
     }
-    for (const [o, n] of markers) if (!visibleSet.has(o)) { n.remove(); markers.delete(o); }
+    for (const [o, n] of markers)
+      if (!visibleSet.has(o)) {
+        n.remove();
+        markers.delete(o);
+      }
     const state = { character: run.character, hp: run.hero.hp, map: run.map, enemies: run.enemiesLeft };
-    const stamp = state.hp + '|' + state.enemies;
+    const stamp = state.hp + '|' + state.enemies + '|' + run.progressVersion;
     if (hudStamp !== stamp) {
       for (const { w, n } of widgets)
-        if (w.type !== 'dialogue' && w.type !== 'panel' && w.type !== 'image') updateWidget(n, w, state);
+        if (w.type === 'inventory' || w.type === 'quests') paintProgressWidget(n, w, run);
+        else if (w.type !== 'dialogue' && w.type !== 'panel' && w.type !== 'image') updateWidget(n, w, state);
       hudStamp = stamp;
     }
     for (const e of run.events.splice(0)) {
@@ -255,11 +380,17 @@ function launchGame(mapId, screenId = '') {
     if (ts - last > 25) slowFrames++;
     frameTime += ts - last;
     if (ts - previousSample >= 1000) {
-      measuredFrames = Math.round(drawnFrames * 1000 / Math.max(frameTime, 1));
-      if (enabledStats) diagnostics.textContent = measuredFrames + ' FPS · 표시 개체 ' + markers.size + ' · 25ms 초과 ' + slowFrames + '프레임';
-      drawnFrames = slowFrames = frameTime = 0; previousSample = ts;
+      measuredFrames = Math.round((drawnFrames * 1000) / Math.max(frameTime, 1));
+      if (enabledStats)
+        diagnostics.textContent =
+          measuredFrames + ' FPS · 표시 개체 ' + markers.size + ' · 25ms 초과 ' + slowFrames + '프레임';
+      drawnFrames = slowFrames = frameTime = 0;
+      previousSample = ts;
     }
-    if (ts - savedAt > 5000) { saveProgress(); savedAt = ts; }
+    if (ts - savedAt > 5000) {
+      saveProgress();
+      savedAt = ts;
+    }
     acc += Math.min(0.1, (ts - last) / 1000);
     last = ts;
     while (acc >= 1 / 60) {
@@ -291,7 +422,10 @@ function launchGame(mapId, screenId = '') {
     }
   };
   const up = (e) => run.keys.delete(codes[e.code]),
-    blur = () => { run.keys.clear(); saveProgress(); };
+    blur = () => {
+      run.keys.clear();
+      saveProgress();
+    };
   $('#assist').onclick = () => {
     $('#controls').hidden = !$('#controls').hidden;
   };
@@ -311,7 +445,8 @@ function launchGame(mapId, screenId = '') {
     cancelAnimationFrame(frame);
     saveProgress();
     diagnostics.remove();
-    extra.forEach(n => n.remove());
+    hitCanvas.remove();
+    extra.forEach((n) => n.remove());
     window.removeEventListener('keydown', down);
     window.removeEventListener('keyup', up);
     window.removeEventListener('blur', blur);

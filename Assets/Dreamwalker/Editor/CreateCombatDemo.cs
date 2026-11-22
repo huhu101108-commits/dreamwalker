@@ -23,7 +23,7 @@ namespace Dreamwalker.EditorTools
         [MenuItem("Tools/Dreamwalker/Create Combat Demo Scene")]
         public static void Build()
         {
-            if (File.Exists(ScenePath) &&
+            if (!Application.isBatchMode && File.Exists(ScenePath) &&
                 !EditorUtility.DisplayDialog("Dreamwalker", "Recreate the demo scene? This will overwrite the existing demo scene.", "Recreate", "Cancel"))
                 return;
 
@@ -136,8 +136,24 @@ namespace Dreamwalker.EditorTools
             EditorSceneManager.SaveScene(SceneManager.GetActiveScene(), ScenePath);
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
-            EditorUtility.DisplayDialog("Dreamwalker combat", 
+            if (!Application.isBatchMode) EditorUtility.DisplayDialog("Dreamwalker combat",
                 "The demo scene is ready. Press Play. Move A/D, jump Space, dash Shift, attack J or Z.", "OK");
+        }
+
+        // Execute with -batchmode -buildTarget Android -executeMethod Dreamwalker.EditorTools.CreateCombatDemo.BuildAndroid.
+        public static void BuildAndroid()
+        {
+            if (!File.Exists(ScenePath)) Build();
+            if (!BuildPipeline.IsBuildTargetSupported(BuildTargetGroup.Android, BuildTarget.Android))
+                throw new System.InvalidOperationException("Android Build Support is not installed.");
+            Directory.CreateDirectory("Build");
+            EditorUserBuildSettings.buildAppBundle = false;
+            var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions {
+                scenes = new[] { ScenePath }, locationPathName = "Build/Dreamwalker.apk",
+                target = BuildTarget.Android, options = BuildOptions.Development
+            });
+            if (report.summary.result != UnityEditor.Build.Reporting.BuildResult.Succeeded)
+                throw new System.InvalidOperationException("Android build failed: " + report.summary.result);
         }
 
         private static Sprite MakeSprite(string label, bool rounded)

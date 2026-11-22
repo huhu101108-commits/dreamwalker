@@ -991,3 +991,17 @@ button.episode-card.detached {
 .perf-readout { position: absolute; top: 13%; left: 2%; color: #fff; background: #152234eb; border-radius: .4em; padding: .35em .65em; pointer-events: none; z-index: 5; font-variant-numeric: tabular-nums; }
 #game .bar .actions { display: flex; flex-wrap: wrap; gap: .3rem; }
 #game .bar .actions button { min-height: 36px; }
+
+.motion-preview { position:relative; display:grid; place-items:center; min-height:220px; background:#213644; border-radius:.6rem; }
+.motion-preview img { grid-area:1/1; max-width:95%; max-height:240px; }
+.frame-thumb { width:3.5rem; height:3.5rem; object-fit:contain; }
+.motion-fx { position:absolute; width:18%; height:24%; background: center/contain no-repeat; transform:translate(-50%,-70%); pointer-events:none; }
+.obj.enemy.windup { outline:3px solid #ffc06a; }
+.widget-inventory, .widget-quests { overflow:auto; pointer-events:auto; }
+
+.game-only #game > .bar { display:flex; flex-wrap:wrap; }
+.game-only #game > #gameNote { display:block; margin:.2rem .6rem; }
+
+.hit-overlay { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:2; }
+
+.widget-inventory, .widget-quests { display:block; text-align:left; }

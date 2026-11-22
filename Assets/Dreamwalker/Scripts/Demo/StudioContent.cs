@@ -19,6 +19,8 @@ public class StudioProject
     public StudioCharacter[] characters;
     public StudioStory[] stories;
     public StudioLayout[] layouts;
+    public StudioItem[] items;
+    public StudioQuest[] quests;
     public StudioMap Map(string id) => Array.Find(scenes, v => v.id == id);
     public StudioCharacter Character(string id) => Array.Find(characters, v => v.id == id);
     public StudioStory Story(string id) => Array.Find(stories, v => v.id == id);
@@ -58,6 +60,7 @@ public class StudioCharacter
     public float speedScale, jumpScale, attackScale, reachScale;
     public StudioSkill[] skills;
     public StudioRoadmap roadmap;
+    public StudioClip[] motionClips;
 }
 [Serializable]
 public class StudioSkill
@@ -75,6 +78,9 @@ public class StudioStep
 [Serializable]
 public class StudioEnemy
 {
+    public string style;
+    public float hurtWidth=.7f,hurtHeight=1.6f;
+    public int windup = 18, recovery = 30, phase = 50;
     public int health, damage = 8;
     public float speed = 3.3f, sight = 28, reach = 3, interval = .8f;
 }
@@ -143,4 +149,12 @@ public class StudioWidget
     public StudioAction[] steps;
     public bool visible;
 }
+}
+
+namespace Dreamwalker.Demo
+{
+[Serializable] public class StudioItem { public string id, name, slot; public int power; }
+[Serializable] public class StudioQuest { public string id, name, kind, target, reward; public int count; }
+[Serializable] public class StudioClip { public string key, fx, cue; public int cueTick; public StudioFrame[] frames; }
+[Serializable] public class StudioFrame { public string image; public int ticks; }
 }
