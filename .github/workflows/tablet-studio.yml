@@ -57,3 +57,22 @@ jobs:
           node-version: '22'
       - name: Connect and check Unity and physical devices
         run: node Studio/scripts/connect-actions-runner.mjs
+      - name: Read published tablet editor and file picker
+        shell: bash
+        run: |
+          node --input-type=module - <<'JS'
+          import { readFile } from 'node:fs/promises';
+          import { createHash } from 'node:crypto';
+          import { studio } from './Studio/scripts/android-runner.mjs';
+          const hash = bytes => createHash('sha256').update(bytes).digest('hex');
+          const pages = [['/', 'index.html'], ['/device-files', 'device-files.html'],
+            ['/file-import.js', 'file-import.js'], ['/device-files.js', 'device-files.js'], ['/desk.js', 'desk.js']];
+          for (const [route, file] of pages) {
+            const response = await fetch(new URL(route, studio), {redirect:'error', signal:AbortSignal.timeout(15000)});
+            const actual = hash(Buffer.from(await response.arrayBuffer()));
+            const expected = hash(await readFile('Studio/src/' + file));
+            if (!response.ok) throw Error(route + ' returned HTTP ' + response.status);
+            console.log(route + ' HTTP ' + response.status + ' · ' +
+              (actual === expected ? 'matches checked-out source' : 'different published source') + ' · ' + actual);
+          }
+          JS
