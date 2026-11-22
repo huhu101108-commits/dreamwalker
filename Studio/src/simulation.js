@@ -159,7 +159,7 @@ class FieldRun {
   }
   checkpoint() {
     if (
-      this.presentation || this.hero.hp <= 0 ||
+      this.presentation || this.hero.hp <= 0 || this.hero.y < 0 ||
       this.dialogue ||
       this.sequence ||
       this.pendingTravel ||

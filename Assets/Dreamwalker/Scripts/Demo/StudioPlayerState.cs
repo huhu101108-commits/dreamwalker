@@ -99,7 +99,7 @@ public sealed partial class StudioWorld
     }
     private bool SaveProgress()
     {
-        if (!Running || Map == null || Health <= 0 || Story != null || skill != null || pendingExit != null ||
+        if (!Running || Map == null || Health <= 0 || body.position.y < 0 || Story != null || skill != null || pendingExit != null ||
             (HasOverlay && string.IsNullOrEmpty(Result)))
             return false;
         RememberMap();

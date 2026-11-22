@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { readFile, mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 // The caller provides the owner of an isolated worker fixture, never a production origin.
 export async function testTouchAuthoring(page) {
@@ -98,6 +101,30 @@ export async function testTouchAuthoring(page) {
   const lines=project.stories.find(s=>s.id===story).nodes;
   assert(lines.every(n=>n.side==='right' && n.backdrop.startsWith('asset:') && n.portrait.startsWith('asset:')));
   assert.equal(project.layouts.find(l=>l.id===map.menuId).elements[0].points.length,4);
+  await tab('source');
+  await field('실행 환경').selectOption('Web/');
+  const download = page.waitForEvent('download');
+  await button('초안 → 오프라인 게임 HTML').click();
+  const htmlFile = await download;
+  const directory = await mkdtemp(join(tmpdir(),'dreamwalker-offline-'));
+  const savedFile = join(directory,'game.html');
+  await htmlFile.saveAs(savedFile);
+  const offline = await page.context().browser().newContext({offline:true});
+  try {
+    const offlinePage = await offline.newPage();
+    await offlinePage.goto(pathToFileURL(savedFile).href);
+    const layer = offlinePage.locator('#overlay');
+    await layer.getByText('새벽의 다리').waitFor();
+    await layer.getByRole('button',{name:'게임 시작'}).click();
+    await layer.getByRole('button',{name:'이 캐릭터로 시작'}).click();
+    await layer.getByRole('button',{name:'강 건너기'}).click();
+    await layer.getByRole('button',{name:'전투로'}).click();
+    await layer.locator('.stick-ring').waitFor();
+    assert.equal(await offlinePage.locator('#runtime-error').count(),0);
+  } finally {
+    await offline.close();
+    await rm(directory,{recursive:true,force:true});
+  }
   await page.goto(new URL('/play',page.url()).href);
   const game = page.locator('#game'), overlay = game.locator('#overlay');
   const act = name => overlay.getByRole('button',{name,exact:true});
@@ -124,10 +151,22 @@ export async function testTouchAuthoring(page) {
   const stopped = await hero.evaluate(n=>parseFloat(n.style.left));
   await page.waitForFunction(()=>parseFloat(document.querySelector('#actors .spawn').style.top)>=82);
   assert(Math.abs((await hero.evaluate(n=>parseFloat(n.style.left))) - stopped) < .7);
+  await page.evaluate(() => {
+    const activate = FieldRun.prototype.activate;
+    FieldRun.prototype.activate = function(w) {
+      activate.call(this,w);
+      if (w.action === 'attack') window.attackWhileMoving = this.stickAxis > 0 && !!this.stroke;
+    };
+  });
+  const attack = await point(act('베기'),.5,.5,2);
+  await touch('touchStart',[hold]);
+  await touch('touchStart',[hold,attack]);
+  await page.waitForFunction(()=>window.attackWhileMoving);
+  await touch('touchEnd',[]);
   await act('메뉴').click();
   assert((await act('여행 계속').evaluate(n=>n.style.clipPath)).startsWith('polygon('));
   await act('여행 계속').click();
   await stick.waitFor();
   await cdp.detach();
-  console.log('PASS touch-drawn terrain and eraser, native picker & image decoder fallback, clipboard artwork, per-line story direction, title → roster → loading → story → battle, custom menu polygon, simultaneous joystick/jump, release, saved replay');
+  console.log('PASS touch-drawn terrain and eraser, native picker & image decoder fallback, clipboard artwork, per-line story direction, title → roster → loading → story → battle, custom menu polygon, simultaneous joystick/jump and attack, release, saved replay and offline HTML');
 }

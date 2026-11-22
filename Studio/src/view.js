@@ -241,12 +241,12 @@ function newWidgetView(w) {
 function updateWidget(n, w, state) {
   const c = state.character;
   if (w.type === 'hp') {
-    n.firstChild.style.width = clamp((state.hp / c.health) * 100, 0, 100) + '%';
-    n.lastChild.textContent = (w.text || c.name) + '　' + Math.ceil(state.hp) + ' / ' + c.health;
+    n.querySelector('.hp-fill').style.width = clamp((state.hp / c.health) * 100, 0, 100) + '%';
+    n.querySelector('.hp-label').textContent = (w.text || c.name) + '　' + Math.ceil(state.hp) + ' / ' + c.health;
   } else if (w.type === 'loading') {
     const percent = Math.round(100 * (state.loading ?? 0.6));
-    n.firstChild.style.width = percent + '%';
-    n.lastChild.textContent = (w.text || '로딩') + ' ' + percent + '%';
+    n.querySelector('.hp-fill').style.width = percent + '%';
+    n.querySelector('.hp-label').textContent = (w.text || '로딩') + ' ' + percent + '%';
   } else if (w.type === 'portrait') {
     const url = characterUrl(c, true);
     n.style.backgroundImage = '';

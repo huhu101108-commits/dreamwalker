@@ -169,10 +169,8 @@ public sealed partial class StudioWorld : MonoBehaviour
         Sprite.Create(texture, new Rect(0, 0, texture.width, texture.height), new Vector2(.5f, .5f), 100, 0,
                       SpriteMeshType.FullRect);
     private static Vector2 Point(StudioObject o) => new Vector2(OriginX + o.x * UnitX, o.y *UnitY);
-    internal static Color Tint(string hex, Color fallback) => ColorUtility.TryParseHtmlString(hex,
-                                                                                              out var color)
-                                                                  ? color
-                                                                  : fallback;
+    internal static Color Tint(string hex, Color fallback) =>
+        !string.IsNullOrEmpty(hex) && ColorUtility.TryParseHtmlString(hex, out var color) ? color : fallback;
 
     private void ClearMap()
     {

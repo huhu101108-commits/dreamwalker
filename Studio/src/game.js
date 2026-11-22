@@ -179,6 +179,13 @@ function launchGame(mapId, screenId = '') {
     if (run.presentation?.role === 'loading' && loadingRequest !== run.presentation) {
       const p = loadingRequest = run.presentation;
       const urls = new Set([imageUrl(run.map.backdrop), characterUrl(run.character), characterUrl(run.character,true)]);
+      if (!run.map.backdrop && run.map.floorMode !== 'drawn')
+        urls.add(typeof GAME_DATA === 'undefined' ? '/stage.webp' : GAME_DATA.images['/stage.webp']);
+      if (run.dialogue) {
+        const n = run.dialogue.node;
+        urls.add(imageUrl(n.backdrop));
+        urls.add(imageUrl(n.portrait) || characterUrl(named(run.world.characters,n.speaker),true));
+      }
       for (const o of run.map.objects) if (o.image) urls.add(imageUrl(o.image));
       for (const id of [run.map.hudId,run.map.menuId,run.map.dialogueId]) {
         const layout = named(run.world.layouts,id);
