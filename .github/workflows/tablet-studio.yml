@@ -57,7 +57,7 @@ jobs:
           node-version: '22'
       - name: Connect and check Unity and physical devices
         run: node Studio/scripts/connect-actions-runner.mjs
-      - name: Read published tablet editor and file picker
+      - name: Read published tablet editor, file picker and dialogue composer
         shell: bash
         run: |
           node --input-type=module - <<'JS'
@@ -66,12 +66,15 @@ jobs:
           import { studio } from './Studio/scripts/android-runner.mjs';
           const hash = bytes => createHash('sha256').update(bytes).digest('hex');
           const pages = [['/', 'index.html'], ['/device-files', 'device-files.html'],
-            ['/file-import.js', 'file-import.js'], ['/device-files.js', 'device-files.js'], ['/desk.js', 'desk.js']];
+            ['/file-import.js', 'file-import.js'], ['/device-files.js', 'device-files.js'], ['/file-wire.js', 'file-wire.js'],
+            ['/shot-view.js', 'shot-view.js'], ['/shot-editor.js', 'shot-editor.js'], ['/desk.js', 'desk.js']];
           for (const [route, file] of pages) {
             const response = await fetch(new URL(route, studio), {redirect:'error', signal:AbortSignal.timeout(15000)});
             const body = Buffer.from(await response.arrayBuffer()), actual = hash(body);
-            const markers = route === '/' ? ['id="editor"','id="project-import"','/desk.js'] :
-              route === '/device-files' ? ['id="disk"','type="file"','편집기로 보내기','/device-files.js'] : [];
+            const markers = route === '/' ? ['id="editor"','id="project-import"','/desk.js','/shot-editor.js','/shot-view.js'] :
+              route === '/device-files' ? ['id="disk"','id="pair-code"','type="file"','편집기로 보내기','/device-files.js'] :
+              route === '/shot-editor.js' ? ['drawShotEditor','이 줄 화면 편집','선택 레이어 크기 조절'] :
+              route === '/shot-view.js' ? ['makeShotView','shotCoversField'] : [];
             if (markers.length) {
               const missing = markers.filter(marker => !body.toString('utf8').includes(marker));
               if (missing.length) throw Error(route + ' is missing published UI: ' + missing.join(', '));
