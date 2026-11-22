@@ -6,12 +6,17 @@ function drawMaps() {
   const pageCount = Math.ceil(s.width / 100);
   mapPage = clamp(mapPage, 0, pageCount - 1);
   const offset = Math.min(mapPage * 100, s.width - 100);
+  const floorCount = Math.ceil(s.height / 100);
+  mapFloor = clamp(mapFloor, 0, floorCount - 1);
+  const bottom = Math.min(mapFloor * 100, s.height - 100);
+  const offsetY = bottom;
   const stories = { '': '연결 안 함', ...optionMap(project.stories) };
   const mapOptions = optionMap(project.scenes);
   function pick(id) {
     sceneId = id;
     mapObject = '';
     mapPage = 0;
+    mapFloor = 0;
     mapTool = '';
   }
   function addMap(copy = false) {
@@ -43,6 +48,7 @@ function drawMaps() {
   const stage = el('div');
   paintStage(stage, s);
   stage.classList.add('edit');
+  stage.style.setProperty('--ground-y', Math.min(101, 82 + bottom) + '%');
   stage.setAttribute('aria-label', s.name + ' 편집 캔버스');
   const palette = box('palette');
   for (const [type, name] of Object.entries({
@@ -67,7 +73,7 @@ function drawMaps() {
   a.append(palette, stage);
   function addAt(x, y) {
     if (s.objects.length >= LIMIT.objects) return note('맵의 개체 한도에 도달했어요.');
-    const o = makeObject(mapTool, uid(), clamp(Math.round(x), 1, s.width - 1), clamp(Math.round(y), 0, 65));
+    const o = makeObject(mapTool, uid(), clamp(Math.round(x), 1, s.width - 1), clamp(Math.round(y), 0, s.height - 18));
     edit(() => {
       s.objects.push(o);
       mapObject = o.id;
@@ -78,15 +84,15 @@ function drawMaps() {
     stage.classList.add('placing');
     stage.onpointerdown = (e) => {
       const r = stage.getBoundingClientRect();
-      addAt(offset + ((e.clientX - r.left) / r.width) * 100, 82 - ((e.clientY - r.top) / r.height) * 100);
+      addAt(offset + ((e.clientX - r.left) / r.width) * 100, offsetY + 82 - ((e.clientY - r.top) / r.height) * 100);
     };
   }
   const nodes = new Map();
   for (const o of s.objects) {
     const margin = o.width || 5;
-    if (o.x + margin < offset || o.x - margin > offset + 100) continue;
+    if (o.x + margin < offset || o.x - margin > offset + 100 || o.y > bottom + 84 || o.y + (o.height || 24) < bottom - 18) continue;
     const n = actorNode(o, c);
-    placeWorld(n, o, offset);
+    placeWorld(n, o, offset, offsetY);
     n.classList.toggle('selected', o.id === mapObject);
     stage.append(n);
     nodes.set(o.id, n);
@@ -96,8 +102,8 @@ function drawMaps() {
       () => ({ ox: o.x, oy: o.y, x: o.x, y: o.y, r: stage.getBoundingClientRect() }),
       (dx, dy, p) => {
         p.x = clamp(Math.round(p.ox + (dx * 100) / p.r.width), 1, s.width - 1);
-        p.y = clamp(Math.round(p.oy - (dy * 100) / p.r.height), 0, 65);
-        placeWorld(n, p, offset);
+        p.y = clamp(Math.round(p.oy - (dy * 100) / p.r.height), 0, s.height - 18);
+        placeWorld(n, p, offset, offsetY);
       },
       (p, cancel) => {
         mapObject = o.id;
@@ -124,6 +130,9 @@ function drawMaps() {
         i === mapPage ? 'on' : '',
       ),
     );
+  if (floorCount > 1)
+    nav.append(selectField('편집 높이 구간', String(mapFloor), Object.fromEntries(
+      Array.from({ length: floorCount }, (_, i) => [i, (i + 1) + '층'])), (v) => { mapFloor = Number(v); draw(); }));
   a.append(
     nav,
     el(
@@ -137,26 +146,19 @@ function drawMaps() {
   mapObject = o.id;
   const attrs = box('control-grid', bindText('맵 이름', s, 'name'), bindSelect('시간대', s, 'theme', THEMES));
   attrs.append(
-    (() => {
+    ...[['width', '가로 길이', 3200], ['height', '세로 높이', 1600]].map(([key, label, max]) => {
       const size = el('input');
-      Object.assign(size, { type: 'number', min: 100, max: 3200, step: 1, value: s.width });
+      Object.assign(size, { type: 'number', min: 100, max, step: 1, value: s[key] });
       size.onchange = () => {
-        const width = size.valueAsNumber;
-        if (!integer(width, 100, 3200)) {
-          size.value = s.width;
-          return note('맵 길이는 100~3200 사이 정수예요.');
-        }
-        if (s.objects.some((o) => o.x >= width) && !confirm('범위 밖 개체를 오른쪽 끝으로 옮길까요?')) {
-          size.value = s.width;
-          return;
-        }
-        edit(() => {
-          s.width = width;
-          s.objects.forEach((o) => (o.x = Math.min(o.x, width - 1)));
-        });
+        const value = size.valueAsNumber;
+        const axis = key === 'width' ? 'x' : 'y';
+        const edge = value - (axis === 'x' ? 1 : 18);
+        if (!integer(value, 100, max)) { size.value = s[key]; return note(label + ' 범위는 100~' + max + '예요.'); }
+        if (s.objects.some(o => o[axis] > edge) && !confirm('범위 밖 개체를 새 맵 경계로 옮길까요?')) { size.value = s[key]; return; }
+        edit(() => { s[key] = value; for (const o of s.objects) o[axis] = Math.min(o[axis], edge); });
       };
-      return titled('가로 길이 (100 = 한 화면)', size);
-    })(),
+      return titled(label + ' (100 = 한 화면)', size);
+    }),
     bindSelect('시작 캐릭터', s, 'characterId', optionMap(project.characters)),
   );
   const links = el('details'),
@@ -205,7 +207,14 @@ function drawMaps() {
       'danger',
     ),
   );
-  a.append(heading('맵 설정'), attrs, links);
+  const cameraPanel = el('details');
+  cameraPanel.append(el('summary', '카메라 · 배경 움직임'),
+    bindNumber('추적 반응 (0 = 즉시)', s.camera, 'follow', 0, 30, 0.1),
+    bindNumber('좌우 여유 폭', s.camera, 'deadX', 0, 35, 1),
+    bindNumber('상하 여유 폭', s.camera, 'deadY', 0, 35, 1),
+    bindNumber('배경 시차 강도', s.camera, 'parallax', 0, 1, 0.01),
+    bindNumber('바람에 흔들리는 배경 폭 (%)', s.camera, 'drift', 0, 5, 0.1));
+  a.append(heading('맵 설정'), attrs, cameraPanel, links);
   b.append(
     heading('개체 속성'),
     selectField(
@@ -215,6 +224,7 @@ function drawMaps() {
       (v) => {
         mapObject = v;
         mapPage = Math.min(pageCount - 1, Math.floor(named(s.objects, v).x / 100));
+        mapFloor = Math.min(floorCount - 1, Math.floor(named(s.objects, v).y / 100));
         mapTool = '';
         draw();
       },
@@ -223,7 +233,7 @@ function drawMaps() {
   const refresh = () => {
     const n = nodes.get(o.id);
     if (n) {
-      placeWorld(n, o, offset);
+      placeWorld(n, o, offset, offsetY);
       if (o.width) n.style.width = o.width + '%';
       if (o.height) n.style.height = o.height + '%';
     }
@@ -232,7 +242,7 @@ function drawMaps() {
     box(
       'control-grid',
       bindNumber('가로 위치', o, 'x', 1, s.width - 1, 1, refresh),
-      bindNumber('높이', o, 'y', 0, 65, 1, refresh),
+      bindNumber('높이', o, 'y', 0, s.height - 18, 1, refresh),
     ),
   );
   if (o.type === 'enemy') {
@@ -251,7 +261,14 @@ function drawMaps() {
       ),
     );
   }
-  if (o.type === 'platform') b.append(bindNumber('발판 너비', o, 'width', 3, 60, 1, refresh));
+  if (o.type === 'platform') {
+    b.append(bindNumber('발판 너비', o, 'width', 3, 60, 1, refresh));
+    if (!o.motion) b.append(action('이동 발판으로 설정', () => edit(() => { o.motion = motionDefaults(); o.motion.dx = 12; })));
+    else b.append(bindNumber('발판 가로 왕복 거리', o.motion, 'dx', -200, 200, 1),
+      bindNumber('발판 세로 왕복 거리', o.motion, 'dy', -150, 150, 1),
+      bindNumber('왕복 주기 (초)', o.motion, 'period', 0.5, 90, 0.1),
+      action('고정 발판으로 변경', () => edit(() => delete o.motion)));
+  }
   if (o.type === 'trigger')
     b.append(
       bindSelect('재생할 스토리', o, 'storyId', stories),

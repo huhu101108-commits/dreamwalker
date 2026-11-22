@@ -183,7 +183,7 @@ nav button {
 .stage:before {
   content: "";
   position: absolute;
-  inset: 82% 0 0;
+  inset: var(--ground-y, 82%) 0 0;
   background: linear-gradient(#dae9ec 2%, #8199a7 9%, #344d62 15%, #29374b 55%);
 }
 .stage.night {
@@ -987,3 +987,7 @@ button.episode-card.detached {
 .game-only .source-player iframe {
   height: 100dvh;
 }
+
+.perf-readout { position: absolute; top: 13%; left: 2%; color: #fff; background: #152234eb; border-radius: .4em; padding: .35em .65em; pointer-events: none; z-index: 5; font-variant-numeric: tabular-nums; }
+#game .bar .actions { display: flex; flex-wrap: wrap; gap: .3rem; }
+#game .bar .actions button { min-height: 36px; }

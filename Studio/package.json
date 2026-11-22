@@ -5,6 +5,6 @@
   "scripts": {
     "build": "bash scripts/build.sh",
     "validate": "node scripts/validate-artifact.mjs",
-    "test": "npm run build && npm run validate && node scripts/test-content.mjs && node scripts/test-server.mjs && node scripts/test-export.mjs && node scripts/test-authoring.mjs"
+    "test": "npm run build && npm run validate && node scripts/test-content.mjs && node scripts/test-server.mjs && node scripts/test-export.mjs && node scripts/test-authoring.mjs && node scripts/test-production.mjs"
   }
 }

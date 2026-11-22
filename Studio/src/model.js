@@ -1,4 +1,7 @@
 const FIELDS = {
+  startupTicks: ['기본 공격 준비 틱', 1, 90, 1, 6],
+  activeTicks: ['기본 공격 판정 틱', 1, 90, 1, 7],
+  recoveryTicks: ['기본 공격 회복 틱', 1, 180, 1, 13],
   runSpeed: ['이동 속도', 1, 16, 0.1, 6.8],
   jumpSpeed: ['점프 속도', 2, 22, 0.1, 11.5],
   dashSpeed: ['돌진 속도', 3, 40, 0.1, 14.5],
@@ -30,6 +33,9 @@ const FIELDS = {
 };
 
 const SCHEMA = 4;
+const cameraDefaults = () => ({ follow: 5, deadX: 6, deadY: 8, parallax: 0.18, drift: 0 });
+const motionDefaults = () => ({ dx: 0, dy: 0, period: 4 });
+const attackPhases = (t) => [t.startupTicks ?? 6, t.activeTicks ?? 7, t.recoveryTicks ?? 13];
 const maxEpisodes = 80;
 const maxPaths = 8;
 const emptyRoadmap = () => ({ entry: '', episodes: [] });
@@ -336,6 +342,8 @@ function newMap(id, name, characterId = 'baekseol', screens = defaultScreens()) 
     name,
     theme: 'snow',
     width: 100,
+    height: 100,
+    camera: cameraDefaults(),
     backdrop: '',
     characterId,
     hudId: first('hud'),
@@ -387,6 +395,17 @@ function seed() {
   };
 }
 // Upgrade stored content without assigning a speaker's dialogue to an invented storyline.
+function withProductionDefaults(doc) {
+  if (doc?.schema !== SCHEMA || !Array.isArray(doc.scenes) || !doc.tuning) return doc;
+  const d = structuredClone(doc);
+  for (const key of ['startupTicks', 'activeTicks', 'recoveryTicks'])
+    if (!(key in d.tuning)) d.tuning[key] = FIELDS[key][4];
+  for (const m of d.scenes) if (m) {
+    if (m.height === undefined) m.height = 100;
+    if (m.camera === undefined) m.camera = cameraDefaults();
+  }
+  return d;
+}
 function migrateProject(input) {
   if (!input || typeof input !== 'object') return input;
   if (input.schema === 3) {
@@ -407,9 +426,9 @@ function migrateProject(input) {
         if (Array.isArray(m?.objects))
           for (const o of m.objects)
             if (o?.type === 'enemy') Object.assign(o, { enemy: enemyDefaults(), label: '', image: '' });
-    return d;
+    return withProductionDefaults(d);
   }
-  if (input.schema !== undefined) return input;
+  if (input.schema !== undefined) return withProductionDefaults(input);
   if (!Array.isArray(input.scenes) || !input.scenes.length) return input;
   const d = structuredClone(input),
     defaults = seed();
@@ -434,7 +453,7 @@ function migrateProject(input) {
       },
   );
   delete d.art;
-  return d;
+  return withProductionDefaults(d);
 }
 const textValue = (v, max, required = false) =>
   typeof v === 'string' && v.length <= max && (!required || v.trim().length > 0);
@@ -641,6 +660,10 @@ function problem(d) {
       !title(s.name) ||
       !has(THEMES, s.theme) ||
       !integer(s.width, 100, 3200) ||
+      !integer(s.height ?? 100, 100, 1600) ||
+      (s.camera !== undefined && (!s.camera || !num(s.camera.follow, 0, 30) ||
+        !num(s.camera.deadX, 0, 35) || !num(s.camera.deadY, 0, 35) ||
+        !num(s.camera.parallax, 0, 1) || !num(s.camera.drift, 0, 5))) ||
       !imageRef(s.backdrop) ||
       !character(s.characterId) ||
       !screen(s.hudId, 'hud') ||
@@ -658,7 +681,7 @@ function problem(d) {
       if (
         !has(OBJECTS, o.type) ||
         !num(o.x, 1, s.width - 1) ||
-        !num(o.y, 0, 65) ||
+        !num(o.y, 0, (s.height ?? 100) - 18) ||
         (o.type === 'enemy' &&
           (!o.enemy ||
             !integer(o.enemy.health, 0, 9999) ||
@@ -671,7 +694,8 @@ function problem(d) {
             !imageRef(o.image))) ||
         (o.type === 'exit' && !['next', 'end-of-game'].includes(o.to) && !named(d.scenes, o.to)) ||
         (o.type === 'trigger' && (!story(o.storyId) || !signalKey(o.eventKey ?? '', true))) ||
-        (o.type === 'platform' && !num(o.width, 3, 60)) ||
+        (o.type === 'platform' && (!num(o.width, 3, 60) || (o.motion !== undefined &&
+          (!o.motion || !num(o.motion.dx, -200, 200) || !num(o.motion.dy, -150, 150) || !num(o.motion.period, 0.5, 90))))) ||
         (o.type === 'prop' &&
           (!num(o.width, 2, 55) || !num(o.height, 2, 65) || !textValue(o.label, 50) || !imageRef(o.image)))
       )
@@ -745,4 +769,49 @@ function removeEpisode(arc, id) {
 }
 function detachEpisodeReference(world, key, id) {
   for (const c of world.characters) for (const e of c.roadmap.episodes) if (e[key] === id) e[key] = '';
+}
+
+// A paused screen must have a touch route out even when optional flags are false.
+function inspectScreens(doc) {
+  const errors = [], warnings = [], writers = new Set(), destinations = new Set();
+  for (const scene of doc.scenes) for (const id of [scene.hudId, scene.menuId, scene.dialogueId]) destinations.add(id);
+  const transitions = (w) => [{ action: w.action, target: w.target }, ...w.steps];
+  for (const l of doc.layouts) {
+    if (l.rules.length) destinations.add(l.id);
+    for (const w of l.elements) if (w.type === 'button' && w.visible) {
+      for (const s of transitions(w)) if (s.action === 'flagOn') writers.add(s.target);
+    }
+  }
+  const reachable = new Set(destinations);
+  for (let changed = true; changed;) {
+    changed = false;
+    for (const l of doc.layouts) if (reachable.has(l.id))
+      for (const w of l.elements) if (w.type === 'button' && w.visible)
+        for (const s of transitions(w)) if (s.action === 'open' && !reachable.has(s.target)) {
+          reachable.add(s.target); changed = true;
+        }
+  }
+  const safe = new Set(doc.layouts.filter(l => !l.pauseGame).map(l => l.id));
+  const exit = new Set(['back','resume','restart','newRun','gotoMap','startStory','skip','nextLine']);
+  for (let changed = true; changed;) {
+    changed = false;
+    for (const l of doc.layouts) {
+      if (safe.has(l.id)) continue;
+      if (l.elements.some(w => w.visible && (!w.showFlag || (!w.showValue && !writers.has(w.showFlag))) &&
+        (w.type === 'dialogue' && l.kind === 'dialogue' || (w.type === 'button' &&
+          (!w.enableFlag || (!w.enableValue && !writers.has(w.enableFlag))) && transitions(w).some(s =>
+            !s.flag && ((exit.has(s.action) && (!['skip','nextLine'].includes(s.action) || l.kind === 'dialogue')) ||
+              (s.action === 'open' && safe.has(s.target)))))))) {
+        safe.add(l.id); changed = true;
+      }
+    }
+  }
+  for (const l of doc.layouts) {
+    if (!reachable.has(l.id)) warnings.push(l.name + ' 화면을 여는 버튼이나 이벤트가 없어요.');
+    if (reachable.has(l.id) && l.pauseGame && !safe.has(l.id))
+      errors.push(l.name + '에 조건 없이 사용할 수 있는 복귀·진행 버튼을 연결하세요.');
+    for (const w of l.elements) for (const f of [w.showFlag, w.enableFlag]) if (f && !writers.has(f))
+      warnings.push(l.name + '의 상태 «' + f + '»를 켜는 버튼이 없어요.');
+  }
+  return { errors, warnings: [...new Set(warnings)] };
 }

@@ -20,6 +20,58 @@ class DialogueCursor {
     return !this.node;
   }
 }
+class MapViewport {
+  constructor(map, hero) {
+    this.map = map;
+    this.options = map.camera || cameraDefaults();
+    this.x = clamp(hero.x - 46, 0, map.width - 100);
+    this.y = clamp(hero.y - 36, 0, (map.height || 100) - 100);
+  }
+  follow(hero, dt) {
+    const c = this.options;
+    const blend = c.follow === 0 ? 1 : -Math.expm1(-c.follow * dt);
+    const axis = (value, goal, dead, max) => {
+      const target = clamp(value + (goal - value) - clamp(goal - value, -dead, dead), 0, max);
+      return Math.abs(target - value) < 0.001 ? target : value + (target - value) * blend;
+    };
+    this.x = axis(this.x, hero.x - 46, c.deadX, this.map.width - 100);
+    this.y = axis(this.y, hero.y - 36, c.deadY, (this.map.height || 100) - 100);
+  }
+}
+// Stationary objects can span several cells. Querying a camera rectangle only visits intersecting cells.
+class MapGrid {
+  constructor(objects) {
+    this.cells = new Map();
+    for (const o of objects) {
+      const radius = (o.width || 12) / 2;
+      const low = Math.floor((o.x - radius) / 50), high = Math.floor((o.x + radius) / 50);
+      for (let x = low; x <= high; x++)
+        for (let y = Math.floor(o.y / 50); y <= Math.floor((o.y + (o.height || 24)) / 50); y++) {
+          const key = x + ',' + y;
+          if (!this.cells.has(key)) this.cells.set(key, []);
+          this.cells.get(key).push(o);
+        }
+    }
+  }
+  query(left, bottom, right, top, output) {
+    output.clear();
+    for (let x = Math.floor(left / 50); x <= Math.floor(right / 50); x++)
+      for (let y = Math.floor(bottom / 50); y <= Math.floor(top / 50); y++) {
+        const cell = this.cells.get(x + ',' + y);
+        if (cell) for (const o of cell) output.add(o);
+      }
+    return output;
+  }
+}
+function slashTouches(hero, target, reach, from, to) {
+  const dx = (target.x - hero.x) * hero.face / 3.5 - 0.25;
+  const dy = (target.y - hero.y) * 0.16 + 0.8 - 1.01;
+  let x = dx - clamp(dx, -0.35, 0.35), y = dy - clamp(dy, -0.8, 0.8);
+  if (x*x + y*y < 0.0001) { x = dx; y = dy; }
+  const angle = Math.atan2(y, x) * 180 / Math.PI;
+  return x*x + y*y <= reach*reach && (x*x + y*y < 0.0001 || (angle >= from - 7 && angle <= to + 7));
+}
+
 class FieldRun {
   constructor(world, mapId) {
     this.world = world;
@@ -35,6 +87,8 @@ class FieldRun {
       }
     this.flags = new Set();
     this.runRules = new Set();
+    this.completedStories = new Set();
+    this.mapMemory = new Map();
     this.enter(mapId || world.startMap);
     this.fire('start');
   }
@@ -45,7 +99,7 @@ class FieldRun {
     return this.foes.filter((e) => e.hp > 0).length;
   }
   get camera() {
-    return clamp(this.hero.x - 46, 0, this.map.width - 100);
+    return this.viewport.x;
   }
   get customScreen() {
     return named(this.world.layouts, this.layers.at(-1));
@@ -59,11 +113,51 @@ class FieldRun {
   get paused() {
     return !!(this.dialogue || this.result || this.screen?.pauseGame);
   }
-  enter(id) {
+  rememberMap() {
+    if (!this.map || !this.hero) return;
+    this.mapMemory.set(this.map.id, { seen: [...this.seen], defeated: this.foes.filter(e => e.hp <= 0).map(e => e.id) });
+  }
+  checkpoint() {
+    if (this.result || this.hero.hp <= 0 || this.dialogue || this.sequence || this.pendingTravel || this.layers.length) return null;
+    this.rememberMap();
+    return { version: 1, map: this.map.id, actor: this.characterId, hp: this.hero.hp,
+      x: this.hero.x, y: this.hero.y, face: this.hero.face, flags: [...this.flags], rules: [...this.runRules],
+      stories: [...this.completedStories], maps: [...this.mapMemory], mapRules: [...this.mapRules],
+      enemies: this.foes.map(e => [e.id, e.hp, e.x, e.stacks, Math.max(0, e.ice - this.clock), Math.max(0, e.after - this.clock)]) };
+  }
+  restore(data) {
+    if (!data || data.version !== 1 || !named(this.world.scenes, data.map) || !named(this.world.characters, data.actor) ||
+      ![data.hp, data.x, data.y].every(Number.isFinite) || data.hp <= 0 ||
+      ![data.maps, data.stories, data.flags, data.rules, data.mapRules, data.enemies].every(Array.isArray) ||
+      !data.maps.every(r => Array.isArray(r) && r[1] && Array.isArray(r[1].seen) && Array.isArray(r[1].defeated)) ||
+      !data.enemies.every(r => Array.isArray(r) && r.length === 6 && r.slice(1).every(Number.isFinite))) return false;
+    this.mapMemory = new Map(data.maps);
+    this.flags = new Set(data.flags); this.runRules = new Set(data.rules);
+    this.completedStories = new Set(data.stories);
+    this.enter(data.map, 'restore');
+    this.mapRules = new Set(data.mapRules);
+    this.characterId = data.actor;
+    Object.assign(this.hero, { hp: clamp(data.hp, 1, this.character.health), x: clamp(data.x, 1, this.map.width - 1),
+      y: clamp(data.y, 0, (this.map.height || 100) - 18), face: data.face < 0 ? -1 : 1 });
+    const saved = new Map(data.enemies.map(e => [e[0], e]));
+    for (const e of this.foes) {
+      const v = saved.get(e.id);
+      if (v) Object.assign(e, { hp: clamp(v[1], 0, e.maxHp), x: clamp(v[2], 1, this.map.width - 1),
+        stacks: clamp(v[3], 0, this.t.frostMax), ice: v[4], after: v[5] });
+    }
+    this.lastLiving = this.enemiesLeft;
+    this.viewport = new MapViewport(this.map, this.hero);
+    this.serial++;
+    return true;
+  }
+  enter(id, mode = 'travel') {
+    const fraction = mode === 'travel' && this.hero ? this.hero.hp / this.character.health : 1;
+    if (mode === 'travel') this.rememberMap();
     this.map = named(this.world.scenes, id);
     this.serial++;
     this.characterId = this.map.characterId;
-    this.seen = new Set();
+    const memory = mode === 'restart' ? null : this.mapMemory.get(id);
+    this.seen = new Set(memory?.seen || []);
     this.layers = [];
     this.mapRules = new Set();
     this.keys.clear();
@@ -75,13 +169,14 @@ class FieldRun {
     this.afterStory = null;
     this.pendingTravel = null;
     this.sequence = null;
+    this.stroke = null;
     this.cool = {};
     const spawn = this.map.objects.find((o) => o.type === 'spawn');
     this.hero = {
       ...spawn,
       vy: 0,
       face: 1,
-      hp: this.character.health,
+      hp: clamp(Math.round(this.character.health * fraction), 1, this.character.health),
       lastHit: Number.NEGATIVE_INFINITY,
       ground: false,
     };
@@ -95,12 +190,19 @@ class FieldRun {
         ice: 0,
         after: 0,
       }));
-    this.lastLiving = this.foes.length;
-    this.platforms = this.map.objects.filter((o) => o.type === 'platform');
+    const dead = new Set(memory?.defeated || []);
+    for (const e of this.foes) if (dead.has(e.id)) e.hp = 0;
+    this.lastLiving = this.enemiesLeft;
+    this.viewport = new MapViewport(this.map, this.hero);
+    this.platforms = this.map.objects.filter(o => o.type === 'platform').map(o => ({ ...o, originX: o.x, originY: o.y }));
+    this.lifts = this.platforms.filter(o => o.motion);
+    this.support = null;
     this.triggers = this.map.objects.filter((o) => o.type === 'trigger' && (o.storyId || o.eventKey));
     this.exits = this.map.objects.filter((o) => o.type === 'exit');
-    this.openStory(this.map.entryStory);
-    this.fire('enter');
+    if (mode !== 'restore') {
+      this.openStory(this.map.entryStory);
+      this.fire('enter');
+    }
   }
   openStory(id, after = null) {
     const story = named(this.world.stories, id);
@@ -120,6 +222,7 @@ class FieldRun {
       id = this.dialogue.story.id;
     this.dialogue = null;
     this.afterStory = null;
+    this.completedStories.add(id);
     this.serial++;
     this.layers = [];
     if (this.fire('storyEnd', id) && after) this.pendingTravel = after;
@@ -191,6 +294,7 @@ class FieldRun {
     this.characterId = c.id;
     this.hero.hp = Math.ceil(ratio * c.health);
     this.sequence = null;
+    this.stroke = null;
     this.cool = {};
     this.events = [];
     this.keys.clear();
@@ -207,7 +311,9 @@ class FieldRun {
     if (action === 'newRun') {
       this.flags.clear();
       this.runRules.clear();
-      this.enter(this.world.startMap);
+      this.mapMemory.clear();
+      this.completedStories.clear();
+      this.enter(this.world.startMap, 'restart');
       this.fire('start');
       return;
     }
@@ -262,7 +368,8 @@ class FieldRun {
       return;
     }
     if (action === 'restart') {
-      this.enter(this.map.id);
+      this.mapMemory.delete(this.map.id);
+      this.enter(this.map.id, 'restart');
       return;
     }
     if (action === 'resume') {
@@ -319,11 +426,13 @@ class FieldRun {
       t = this.t,
       reach = t.reach * this.character.reachScale * 3.5;
     if (action === 'attack') {
-      const enemy = this.near(reach).find((e) => (e.x - h.x) * h.face >= -1);
-      this.hit(enemy, t.damage);
-      this.cool.attack = this.clock + 0.25;
+      const [startup, active, recovery] = attackPhases(t);
+      if (this.stroke) {
+        if (this.stroke.tick >= startup + active) this.stroke.buffer = true;
+      } else this.stroke = { tick: 0, startup, active, recovery, hit: new Set(), buffer: false };
       return;
     }
+    if (this.stroke) return;
     const index = skillSlot(action),
       s = this.character.skills[index];
     if (!s || s.mechanic === 'none') return;
@@ -467,6 +576,36 @@ class FieldRun {
       this.sequence = null;
     }
   }
+  stepStroke() {
+    const a = this.stroke;
+    if (!a) return;
+    a.tick++;
+    const frame = a.tick - a.startup;
+    if (frame > 0 && frame <= a.active) {
+      const from = -55 + 110 * (frame - 1) / a.active, to = -55 + 110 * frame / a.active;
+      const reach = this.t.reach * this.character.reachScale;
+      for (const e of this.foes) if (e.hp > 0 && !a.hit.has(e.id) && slashTouches(this.hero, e, reach, from, to)) {
+        this.hit(e, this.t.damage);
+        a.hit.add(e.id);
+      }
+    }
+    if (a.tick >= a.startup + a.active + a.recovery) {
+      this.stroke = null;
+      if (a.buffer) this.press('attack');
+    }
+  }
+  movePlatforms() {
+    for (const p of this.lifts) {
+      const wave = (1 - Math.cos(2 * Math.PI * this.clock / p.motion.period)) / 2;
+      const x = clamp(p.originX + p.motion.dx * wave, 1, this.map.width - 1);
+      const y = clamp(p.originY + p.motion.dy * wave, 0, (this.map.height || 100) - 18);
+      if (this.support === p && this.hero.ground) {
+        this.hero.x = clamp(this.hero.x + x - p.x, 1, this.map.width - 1);
+        this.hero.y += y - p.y;
+      }
+      p.x = x; p.y = y;
+    }
+  }
   tick(dt) {
     if (this.paused) return;
     const priorClock = this.clock;
@@ -479,15 +618,18 @@ class FieldRun {
       if (move) h.face = move;
       h.x = clamp(h.x + move * t.runSpeed * this.character.speedScale * 3.5 * dt, 1, this.map.width - 1);
     }
+    this.movePlatforms();
+    this.support = null;
     const old = h.y;
     h.vy -= 92 * dt;
     h.y += h.vy * dt;
     h.ground = false;
     if (h.vy <= 0) {
-      let floor = 0;
+      let floor = 0, support = null;
       for (const p of this.platforms)
-        if (Math.abs(p.x - h.x) <= p.width / 2 && old >= p.y - 0.01) floor = Math.max(floor, p.y);
+        if (Math.abs(p.x - h.x) <= p.width / 2 && old >= p.y - 0.01 && p.y >= floor) { floor = p.y; support = p; }
       if (h.y <= floor) {
+        this.support = support;
         h.y = floor;
         h.vy = 0;
         h.ground = true;
@@ -495,6 +637,8 @@ class FieldRun {
     }
     const previousHp = (h.hp / this.character.health) * 100;
     this.skill();
+    this.stepStroke();
+    this.viewport.follow(h, dt);
     for (const e of this.foes) {
       if (e.hp <= 0 || e.ice > this.clock) continue;
       const delta = h.x - e.x,

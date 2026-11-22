@@ -37,6 +37,53 @@ namespace Dreamwalker.Combat
         private bool requestAttack;
 
         public event System.Action<CombatTarget> TargetHit;
+        public System.Action<float, float> StudioSweep { get; set; }
+        private int studioTick, startupTicks, activeTicks, recoveryTicks;
+        public void SetStudioTiming(int startup, int activeFrames, int recoveryFrames)
+        {
+            startupTicks = startup > 0 ? startup : 6;
+            activeTicks = activeFrames > 0 ? activeFrames : 7;
+            recoveryTicks = recoveryFrames > 0 ? recoveryFrames : 13;
+            ResetStudioAttack();
+        }
+        public void ResetStudioAttack()
+        {
+            studioTick = 0;
+            attacking = bufferedAttack = requestAttack = false;
+            if (vfx != null) vfx.Hide();
+        }
+        public void AdvanceStudioAttack()
+        {
+            if (!attacking) return;
+            studioTick++;
+            int frame = studioTick - startupTicks;
+            if (frame <= 0)
+            {
+                SetBladeAngle(Mathf.Lerp(-78f, -arcHalfAngle, (float)studioTick / startupTicks));
+                if (vfx != null) vfx.ShowAnticipation(centerOffset, reach, arcHalfAngle);
+            }
+            else if (frame <= activeTicks)
+            {
+                float from = Mathf.Lerp(-arcHalfAngle, arcHalfAngle, (float)(frame - 1) / activeTicks);
+                float to = Mathf.Lerp(-arcHalfAngle, arcHalfAngle, (float)frame / activeTicks);
+                SetBladeAngle(to);
+                StudioSweep?.Invoke(from, to);
+                if (vfx != null) vfx.ShowStrike(centerOffset, reach, arcHalfAngle, to);
+            }
+            else if (frame < activeTicks + recoveryTicks)
+            {
+                float t = (float)(frame - activeTicks) / recoveryTicks;
+                SetBladeAngle(Mathf.Lerp(arcHalfAngle, -70f, t));
+                if (vfx != null) vfx.ShowRecovery(t);
+            }
+            else
+            {
+                bool repeat = bufferedAttack;
+                ResetStudioAttack();
+                SetBladeAngle(-70f);
+                if (repeat) RequestAttack();
+            }
+        }
 
         public bool IsAttacking => attacking;
         public Vector2 Offset => centerOffset;
@@ -58,10 +105,20 @@ namespace Dreamwalker.Combat
             reach = distance;
         }
 
-        public void RequestAttack() => requestAttack = true;
+        public void RequestAttack()
+        {
+            if (StudioSweep == null) { requestAttack = true; return; }
+            if (!attacking) { studioTick = 0; StartSlash(); }
+            else if (studioTick >= startupTicks + activeTicks) bufferedAttack = true;
+        }
 
         private void Update()
         {
+            if (StudioSweep != null)
+            {
+                if (DreamwalkerInput.AttackPressed()) RequestAttack();
+                return;
+            }
             bool pressed = DreamwalkerInput.AttackPressed() || requestAttack;
             requestAttack = false;
             if (pressed)

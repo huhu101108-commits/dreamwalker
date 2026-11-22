@@ -4,6 +4,28 @@ function launchGame(mapId, screenId = '') {
     stage = $('#arena'),
     layer = $('#overlay'),
     actors = $('#actors');
+  const saveKey = 'dreamwalker-progress-v1:' + (typeof GAME_DATA === 'undefined' && location.pathname !== '/play' ? 'preview:' : 'game:') + run.world.startMap;
+  let saveStore, lastSaved = '', savedAt = 0;
+  try { saveStore = window.localStorage; } catch {}
+  function saveProgress(show = false) {
+    const data = run.checkpoint();
+    if (!data || !saveStore) { if (show) say('대화나 전투 동작이 끝난 뒤 저장할 수 있어요.'); return; }
+    try {
+      const text = JSON.stringify(data);
+      if (text !== lastSaved) saveStore.setItem(saveKey, text);
+      lastSaved = text;
+      if (show) say('이 기기에 진행 상황을 저장했어요.');
+    } catch { if (show) say('기기 저장 공간을 사용할 수 없어요.'); }
+  }
+  function continueProgress(show = false) {
+    try {
+      const text = saveStore?.getItem(saveKey);
+      if (text && run.restore(JSON.parse(text))) { lastSaved = text; return true; }
+    } catch {}
+    if (show) say('이 기기에 호환되는 저장 기록이 없어요.');
+    return false;
+  }
+  if (!screenId && (location.pathname === '/play' || typeof GAME_DATA !== 'undefined')) continueProgress();
   if (screenId) run.openScreen(screenId);
   let frame,
     last = performance.now(),
@@ -13,6 +35,23 @@ function launchGame(mapId, screenId = '') {
     markers = new Map(),
     effects = [],
     lastNotice = '';
+  let mapSerial = null, prevCharacter = null, grid, movable = [], visibleSet = new Set();
+  let drawnFrames = 0, measuredFrames = 0, frameTime = 0, previousSample = performance.now(), slowFrames = 0, enabledStats = false;
+  const diagnostics = el('output');
+  diagnostics.className = 'perf-readout';
+  stage.append(diagnostics);
+  const extra = [];
+  function barButton(label, fn) {
+    const n = action(label, fn);
+    $('#assist').parentNode.insertBefore(n, $('#assist'));
+    extra.push(n);
+    return n;
+  }
+  const exitOverlay = barButton('화면 닫기', () => { run.press(run.dialogue && !run.customScreen ? 'skip' : 'back'); render(); });
+  barButton('진행 저장', () => saveProgress(true));
+  barButton('이어하기', () => { if (continueProgress(true)) render(); });
+  barButton('성능', () => { enabledStats = !enabledStats; diagnostics.hidden = !enabledStats; });
+  diagnostics.hidden = true;
   const controls = () => [
     'left',
     'right',
@@ -69,22 +108,20 @@ function launchGame(mapId, screenId = '') {
     serial = run.serial;
     paintStage(stage, run.map);
     $('#level').textContent = run.map.name + ' · ' + run.character.name;
-    actors.replaceChildren();
+    if (mapSerial !== run.hero || prevCharacter !== run.character) {
+      actors.replaceChildren();
+      markers.clear();
+      effects = [];
+      mapSerial = run.hero;
+      prevCharacter = run.character;
+      const scenery = run.map.objects.filter(o => ['prop','exit','trigger'].includes(o.type) &&
+        (o.type !== 'trigger' || o.storyId || o.eventKey));
+      grid = new MapGrid([...scenery, ...run.platforms.filter(o => !o.motion)]);
+      movable = [...run.lifts, ...run.foes, run.hero];
+    }
     layer.replaceChildren();
     widgets = [];
-    markers = new Map();
-    effects = [];
-    const objects = [
-      ...run.map.objects.filter((o) => ['prop', 'platform', 'exit', 'trigger'].includes(o.type)),
-      ...run.foes,
-      run.hero,
-    ];
-    for (const o of objects) {
-      const n = actorNode(o, run.character);
-      if (o.type === 'trigger' && !o.storyId && !o.eventKey) continue;
-      markers.set(o.id, { n, o });
-      actors.append(n);
-    }
+    exitOverlay.hidden = !(run.customScreen || run.menu || run.dialogue);
     const screen = run.screen;
     styleScreen(layer, screen);
     layer.className = run.dialogue ? 'reading' : '';
@@ -95,7 +132,7 @@ function launchGame(mapId, screenId = '') {
           'results',
           el('h2', title),
           action('이 맵 다시 시작', () => {
-            run.enter(run.map.id);
+            run.press('restart');
             render();
           }),
           '',
@@ -159,15 +196,24 @@ function launchGame(mapId, screenId = '') {
       hudStamp = '';
     }
     const camera = run.camera;
-    for (const { n, o } of markers.values()) {
-      const margin = o.width || 8;
-      n.hidden =
-        o.x + margin < camera ||
-        o.x - margin > camera + 100 ||
-        (o.type === 'enemy' && o.hp <= 0) ||
-        (o.type === 'trigger' && run.seen.has(o.id));
-      if (n.hidden) continue;
-      placeWorld(n, o, camera);
+    const bottom = run.viewport.y, settings = run.viewport.options;
+    const shift = settings.parallax * (camera / (run.map.width || 100)) * 20;
+    const bob = settings.drift ? Math.sin(run.clock * 0.65) * settings.drift : 0;
+    if (!reduceMotion && (settings.parallax || settings.drift)) {
+      stage.style.backgroundSize = '115% 115%';
+      stage.style.backgroundPosition = (50 - shift + bob) + '% ' + (50 + bottom / (run.map.height || 100) * settings.parallax * 18) + '%';
+    } else { stage.style.backgroundSize = ''; stage.style.backgroundPosition = ''; }
+    stage.style.setProperty('--ground-y', Math.min(101, 82 + bottom) + '%');
+    grid.query(camera - 6, bottom - 20, camera + 106, bottom + 88, visibleSet);
+    for (const o of movable) visibleSet.add(o);
+    for (const o of visibleSet) {
+      const radius = (o.width || 14) / 2;
+      if (o.x + radius < camera - 1 || o.x - radius > camera + 101 || o.y > bottom + 84 ||
+        o.y + (o.height || 25) < bottom - 18 || (o.type === 'enemy' && o.hp <= 0) ||
+        (o.type === 'trigger' && run.seen.has(o.id))) { visibleSet.delete(o); continue; }
+      let n = markers.get(o);
+      if (!n) { n = actorNode(o, run.character); markers.set(o, n); actors.append(n); }
+      placeWorld(n, o, camera, bottom);
       if (o.type === 'enemy') {
         n.textContent = o.ice > run.clock ? '❄' : o.stacks || (o.image ? '' : '◆');
         n.style.opacity = 0.5 + (0.5 * o.hp) / o.maxHp;
@@ -176,6 +222,7 @@ function launchGame(mapId, screenId = '') {
         n.classList.toggle('hurt', run.clock - run.hero.lastHit < 0.12);
       }
     }
+    for (const [o, n] of markers) if (!visibleSet.has(o)) { n.remove(); markers.delete(o); }
     const state = { character: run.character, hp: run.hero.hp, map: run.map, enemies: run.enemiesLeft };
     const stamp = state.hp + '|' + state.enemies;
     if (hudStamp !== stamp) {
@@ -198,11 +245,21 @@ function launchGame(mapId, screenId = '') {
         e.n.remove();
         return false;
       }
-      placeWorld(e.n, { x: e.x, y: e.y + (0.5 - e.until + run.clock) * 8 }, camera);
+      placeWorld(e.n, { x: e.x, y: e.y + (0.5 - e.until + run.clock) * 8 }, camera, bottom);
       return true;
     });
   }
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   function loop(ts) {
+    drawnFrames++;
+    if (ts - last > 25) slowFrames++;
+    frameTime += ts - last;
+    if (ts - previousSample >= 1000) {
+      measuredFrames = Math.round(drawnFrames * 1000 / Math.max(frameTime, 1));
+      if (enabledStats) diagnostics.textContent = measuredFrames + ' FPS · 표시 개체 ' + markers.size + ' · 25ms 초과 ' + slowFrames + '프레임';
+      drawnFrames = slowFrames = frameTime = 0; previousSample = ts;
+    }
+    if (ts - savedAt > 5000) { saveProgress(); savedAt = ts; }
     acc += Math.min(0.1, (ts - last) / 1000);
     last = ts;
     while (acc >= 1 / 60) {
@@ -234,12 +291,12 @@ function launchGame(mapId, screenId = '') {
     }
   };
   const up = (e) => run.keys.delete(codes[e.code]),
-    blur = () => run.keys.clear();
+    blur = () => { run.keys.clear(); saveProgress(); };
   $('#assist').onclick = () => {
     $('#controls').hidden = !$('#controls').hidden;
   };
   $('#restart').onclick = () => {
-    run.enter(run.map.id);
+    run.press('restart');
     render();
   };
   $('#stop').onclick = () => modal.close();
@@ -252,6 +309,9 @@ function launchGame(mapId, screenId = '') {
   window.addEventListener('blur', blur);
   modal.onclose = () => {
     cancelAnimationFrame(frame);
+    saveProgress();
+    diagnostics.remove();
+    extra.forEach(n => n.remove());
     window.removeEventListener('keydown', down);
     window.removeEventListener('keyup', up);
     window.removeEventListener('blur', blur);

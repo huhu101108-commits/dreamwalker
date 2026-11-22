@@ -28,6 +28,7 @@ public class StudioProject
 public class StudioTuning
 {
     public float runSpeed, jumpSpeed, dashSpeed, dashDuration, reach;
+    public int startupTicks, activeTicks, recoveryTicks;
     public int damage, hp, frostMax, flurry, shadow, ultHits;
     public float slow, freeze, afterSlow, radius, bonus, interval, shadowRange;
     public float dashPower, flurryPower, flurryFinal, shadowPower, ultPower, ultFinal;
@@ -81,9 +82,20 @@ public class StudioEnemy
 public class StudioMap
 {
     public string id, name, theme, backdrop, characterId, hudId, menuId, dialogueId, entryStory, exitStory;
-    public int width;
+    public int width, height = 100;
+    public StudioCamera camera;
     public bool requireClear;
     public StudioObject[] objects;
+}
+[Serializable]
+public class StudioCamera
+{
+    public float follow = 5, deadX = 6, deadY = 8, parallax = .18f, drift;
+}
+[Serializable]
+public class StudioMotion
+{
+    public float dx, dy, period = 4;
 }
 [Serializable]
 public class StudioObject
@@ -91,6 +103,7 @@ public class StudioObject
     public string id, type, to, storyId, label, image, eventKey;
     public float x, y, width, height;
     public StudioEnemy enemy;
+    public StudioMotion motion;
 }
 [Serializable]
 public class StudioStory

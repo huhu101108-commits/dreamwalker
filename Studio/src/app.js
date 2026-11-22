@@ -9,6 +9,7 @@ let access,
   layoutId = '';
 let mapObject = '',
   mapPage = 0,
+  mapFloor = 0,
   mapTool = '',
   lineId = '',
   elementId = '',
@@ -135,7 +136,7 @@ function drawBalance() {
   const root = $('#content');
   root.append(heading('공통 전투 수치', '캐릭터별 능력 배율과 스킬 배율은 캐릭터 탭에서 조정해요.'));
   const groups = [
-    ['기본 전투', ['runSpeed', 'jumpSpeed', 'damage', 'reach', 'hp']],
+    ['기본 전투', ['runSpeed', 'jumpSpeed', 'damage', 'reach', 'hp', 'startupTicks', 'activeTicks', 'recoveryTicks']],
     ['서리', ['slow', 'freeze', 'afterSlow', 'frostMax', 'interval']],
     ['설풍보', ['dashSpeed', 'dashDuration', 'dashPower', 'dashCd']],
     ['빙화연격', ['flurry', 'flurryPower', 'flurryFinal', 'flurryCd']],
@@ -266,6 +267,10 @@ function drawVersions() {
       if (!dirty || confirm('현재 초안을 닫고 최신 저장본을 열까요?')) loadRecord(await api('project'));
     }),
   );
+  const diagnostics = inspectScreens(project);
+  a.append(heading('화면 흐름 검사'));
+  for (const issue of [...diagnostics.errors, ...diagnostics.warnings]) a.append(el('p', issue));
+  if (!diagnostics.errors.length && !diagnostics.warnings.length) a.append(el('p', '화면 연결 검사 통과'));
   if (access.owner)
     b.append(
       action('팀 암호 변경', () => {
@@ -368,7 +373,7 @@ $('#undo').onclick = () => travel(past, future);
 $('#redo').onclick = () => travel(future, past);
 $('#save').onclick = async () => {
   try {
-    const issue = problem(project);
+    const issue = problem(project) || inspectScreens(project).errors[0];
     if (issue) throw Error(issue);
     $('#save').disabled = true;
     const rev = record.rev,

@@ -72,6 +72,16 @@ public sealed class StudioWorld : MonoBehaviour
     private Color cameraColor;
     private bool hudEnabled, motorEnabled, slashEnabled, wasSimulated;
     private StudioSkill skill;
+    private Vector2 cameraOffset;
+    private StudioCamera cameraSettings;
+    private sealed class Lift
+    {
+        public Transform surface;
+        public StudioObject data;
+        public Vector2 origin;
+    }
+    private readonly List<Lift> lifts = new List<Lift>();
+    private readonly HashSet<Foe> slashHits = new HashSet<Foe>();
     private Vector2 skillOrigin;
     private int skillFacing, hitIndex, lineIndex;
     private float clock, started, nextHit, lastDamage;
@@ -144,6 +154,8 @@ public sealed class StudioWorld : MonoBehaviour
             Destroy(bodyImage.gameObject);
         }
         foes.Clear();
+        lifts.Clear();
+        slashHits.Clear();
         targets.Clear();
         dashed.Clear();
         parts.Clear();
@@ -153,7 +165,7 @@ public sealed class StudioWorld : MonoBehaviour
         pendingExit = null;
     }
 
-    private void Enter(StudioMap map)
+    private void Enter(StudioMap map, bool preserveHealth = false)
     {
         ClearMap();
         flow.EnterMap();
@@ -187,7 +199,8 @@ public sealed class StudioWorld : MonoBehaviour
                 AddEnemy(pos, o);
                 break;
             case "platform":
-                Solid("Platform", pos - Vector2.up * .1f, new Vector2(o.width * UnitX, .2f), true);
+                var surface = Solid("Platform", pos - Vector2.up * .1f, new Vector2(o.width * UnitX, .2f), true);
+                if (o.motion != null) lifts.Add(new Lift { surface = surface, data = o, origin = surface.position });
                 break;
             case "exit":
                 Piece("Exit", pos + Vector2.up * .65f, new Vector2(.3f, 1.3f), 1, new Color(.44f, .92f, .84f));
@@ -204,7 +217,10 @@ public sealed class StudioWorld : MonoBehaviour
                 break;
             }
         }
-        SetCharacter(Project.Character(map.characterId), false);
+        cameraSettings = map.camera ?? new StudioCamera();
+        cameraOffset = new Vector2(Mathf.Clamp(spawn.x - 46, 0, map.width - 100),
+            Mathf.Clamp(spawn.y - 36, 0, Mathf.Max(0, map.height - 100)));
+        SetCharacter(Project.Character(map.characterId), preserveHealth);
         OpenStory(map.entryStory);
         Fire("enter");
         SyncControls();
@@ -219,6 +235,8 @@ public sealed class StudioWorld : MonoBehaviour
         var t = Project.tuning;
         motor.ApplyStudioMovement(t.runSpeed * Actor.speedScale, t.jumpSpeed * Actor.jumpScale, t.dashSpeed,
                                   t.dashDuration);
+        slash.StudioSweep = SweepStroke;
+        slash.SetStudioTiming(t.startupTicks, t.activeTicks, t.recoveryTicks);
         slash.ApplyStudioAttack(Mathf.Max(1, Mathf.RoundToInt(t.damage * Actor.attackScale)),
                                 t.reach * Actor.reachScale);
         Array.Clear(cooldowns, 0, cooldowns.Length);
@@ -259,7 +277,7 @@ public sealed class StudioWorld : MonoBehaviour
             sx = sy = Mathf.Min(sx, sy);
         renderer.transform.localScale = new Vector3(sx, sy, 1);
     }
-    private void Solid(string name, Vector2 center, Vector2 size, bool oneWay)
+    private Transform Solid(string name, Vector2 center, Vector2 size, bool oneWay)
     {
         var r = Piece(name, center, size, -4, new Color(.58f, .72f, .8f));
         var collider = r.gameObject.AddComponent<BoxCollider2D>();
@@ -269,6 +287,7 @@ public sealed class StudioWorld : MonoBehaviour
             r.gameObject.AddComponent<PlatformEffector2D>().useOneWay = true;
             collider.usedByEffector = true;
         }
+        return r.transform;
     }
     private void AddEnemy(Vector2 pos, StudioObject data)
     {
@@ -381,7 +400,7 @@ public sealed class StudioWorld : MonoBehaviour
             dest = index < Project.scenes.Length ? Project.scenes[index] : null;
         }
         if (dest != null)
-            Enter(dest);
+            Enter(dest, true);
         else
         {
             Result = "맵 탐험 완료";
@@ -495,7 +514,7 @@ public sealed class StudioWorld : MonoBehaviour
         {
             var m = Project.Map(target);
             if (m != null)
-                Enter(m);
+                Enter(m, true);
             return;
         }
         if (action == "startStory")
@@ -758,6 +777,37 @@ public sealed class StudioWorld : MonoBehaviour
             Warp((Vector2)closest.target.transform.position - Vector2.right * skillFacing * step.value * UnitX);
     }
 
+    private void SweepStroke(float from, float to)
+    {
+        if (from <= -slash.HalfAngle + .001f) slashHits.Clear();
+        int face = motor.Facing;
+        Vector2 origin = body.position + new Vector2(.25f * face, 1.01f);
+        foreach (var e in foes)
+        {
+            if (e.target.Health <= 0 || slashHits.Contains(e)) continue;
+            Vector2 delta = (Vector2)e.target.transform.position + Vector2.up * .8f - origin;
+            Vector2 closest = delta - new Vector2(Mathf.Clamp(delta.x, -.35f, .35f), Mathf.Clamp(delta.y, -.8f, .8f));
+            if (closest.sqrMagnitude < .0001f) closest = delta;
+            if (!CombatGeometry.IsInsideSweptArc(origin, origin + closest, face, slash.Reach, from, to)) continue;
+            Hit(e, Project.tuning.damage);
+            slashHits.Add(e);
+        }
+    }
+    private void MovePlatforms()
+    {
+        foreach (var lift in lifts)
+        {
+            var o = lift.data;
+            float phase = (1 - Mathf.Cos(2 * Mathf.PI * clock / Mathf.Max(.5f, o.motion.period))) / 2;
+            Vector2 p = new Vector2(OriginX + Mathf.Clamp(o.x + o.motion.dx * phase, 1, Map.width - 1) * UnitX,
+                Mathf.Clamp(o.y + o.motion.dy * phase, 0, Mathf.Max(82, Map.height - 18)) * UnitY - .1f);
+            Vector2 old = lift.surface.position;
+            if (Mathf.Abs(body.position.x - old.x) <= o.width * UnitX / 2 &&
+                Mathf.Abs(body.position.y - old.y - .1f) < .13f && body.linearVelocity.y <= .01f)
+                body.position += p - old;
+            lift.surface.position = p;
+        }
+    }
     private void FixedUpdate()
     {
         if (!Running || Paused)
@@ -768,7 +818,9 @@ public sealed class StudioWorld : MonoBehaviour
         clock += Time.fixedDeltaTime;
         if (hasTimers && Fire("elapsed", "", priorClock) && Paused)
             return;
+        MovePlatforms();
         StepSkill();
+        slash.AdvanceStudioAttack();
         Vector2 pos = transform.position;
         if (pos.x < OriginX + UnitX || pos.x > OriginX + (Map.width - 1) * UnitX)
             Warp(pos);
@@ -840,11 +892,20 @@ public sealed class StudioWorld : MonoBehaviour
     {
         float width = 100 * UnitX;
         view.orthographicSize = width / (2 * view.aspect);
-        float left = Mathf.Clamp(transform.position.x - OriginX - 46 * UnitX, 0, (Map.width - 100) * UnitX);
-        view.transform.position =
-            new Vector3(OriginX + left + width / 2, .64f * view.orthographicSize, cameraPos.z);
-        sky.transform.position = new Vector3(view.transform.position.x, view.transform.position.y, 0);
-        Fit(sky, new Vector2(width, 2 * view.orthographicSize), false);
+        Vector2 player = new Vector2((transform.position.x - OriginX) / UnitX - 46, transform.position.y / UnitY - 36);
+        Vector2 delta = player - cameraOffset;
+        Vector2 goal = new Vector2(Mathf.Clamp(player.x - Mathf.Clamp(delta.x, -cameraSettings.deadX, cameraSettings.deadX), 0, Map.width - 100),
+            Mathf.Clamp(player.y - Mathf.Clamp(delta.y, -cameraSettings.deadY, cameraSettings.deadY), 0, Mathf.Max(0, Map.height - 100)));
+        float mix = cameraSettings.follow <= 0 ? 1 : 1 - Mathf.Exp(-cameraSettings.follow * Time.deltaTime);
+        cameraOffset = Vector2.Lerp(cameraOffset, goal, mix);
+        view.transform.position = new Vector3(OriginX + cameraOffset.x * UnitX + width / 2,
+            .64f * view.orthographicSize + cameraOffset.y * UnitY, cameraPos.z);
+        float px = -cameraSettings.parallax * cameraOffset.x / Map.width * .15f * width;
+        float py = -cameraSettings.parallax * cameraOffset.y / Mathf.Max(100, Map.height) * .12f * view.orthographicSize;
+        float drift = Mathf.Sin(clock * .65f) * cameraSettings.drift / 100 * width;
+        sky.transform.position = new Vector3(view.transform.position.x + px + drift, view.transform.position.y + py, 0);
+        float pad = 1 + .3f * cameraSettings.parallax + cameraSettings.drift / 50;
+        Fit(sky, new Vector2(width * pad, 2 * view.orthographicSize * pad), false);
     }
     private void Update()
     {
@@ -894,6 +955,8 @@ public sealed class StudioWorld : MonoBehaviour
         }
         if (slash != null)
         {
+            slash.StudioSweep = null;
+            slash.ResetStudioAttack();
             slash.ApplyStudioAttack(originalDamage, originalReach);
             slash.enabled = slashEnabled;
         }

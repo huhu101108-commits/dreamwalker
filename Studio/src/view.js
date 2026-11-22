@@ -109,9 +109,9 @@ function paintStage(stage, map) {
   stage.style.removeProperty('background-image');
   cssImage(stage, imageUrl(map.backdrop));
 }
-function placeWorld(n, o, camera = 0) {
+function placeWorld(n, o, camera = 0, bottom = 0) {
   const x = o.x - camera,
-    y = 82 - o.y;
+    y = 82 - o.y + bottom;
   if (n.worldX !== x) {
     n.style.left = x + '%';
     n.worldX = x;

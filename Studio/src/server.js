@@ -172,7 +172,8 @@ async function api(req, env, path) {
   if (post && path === '/api/save') {
     if (body.rev !== cur.rev)
       err(409, '팀원이 먼저 저장했어요. 내 초안을 내보낸 뒤 서버 버전을 다시 열어 주세요.');
-    const issue = problem(body.project);
+    body.project = migrateProject(body.project);
+    const issue = problem(body.project) || inspectScreens(body.project).errors[0];
     if (issue) err(400, issue);
     const prior = new Set(imageRefs(cur.project)),
       refs = imageRefs(body.project).filter((key) => !prior.has(key));
