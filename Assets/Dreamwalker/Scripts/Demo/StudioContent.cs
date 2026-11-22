@@ -15,6 +15,7 @@ public class StudioProject
     public int schema;
     public string startMap, customJson;
     public StudioTuning tuning;
+    public StudioMix mix;
     public StudioMap[] scenes;
     public StudioCharacter[] characters;
     public StudioStory[] stories;
@@ -26,6 +27,11 @@ public class StudioProject
     public StudioCharacter Character(string id) => Array.Find(characters, v => v.id == id);
     public StudioStory Story(string id) => Array.Find(stories, v => v.id == id);
     public StudioLayout Layout(string id) => Array.Find(layouts, v => v.id == id);
+}
+[Serializable]
+public class StudioMix
+{
+    public float music = 65, voice = 100, fx = 85;
 }
 [Serializable]
 public class StudioFrontScreens
@@ -94,7 +100,7 @@ public class StudioEnemy
 [Serializable]
 public class StudioMap
 {
-    public string id, name, theme, backdrop, characterId, hudId, menuId, dialogueId, entryStory, exitStory, floorMode, sky;
+    public string id, name, theme, backdrop, characterId, hudId, menuId, dialogueId, entryStory, exitStory, floorMode, sky, music;
     public int width, height = 100;
     public StudioCamera camera;
     public bool requireClear;
@@ -115,6 +121,7 @@ public class StudioObject
 {
     public string id, type, to, storyId, label, image, eventKey, tint;
     public float x, y, width, height;
+    public int tileSize;
     public StudioEnemy enemy;
     public StudioMotion motion;
 }
@@ -127,7 +134,7 @@ public class StudioStory
 [Serializable]
 public class StudioLine
 {
-    public string id, speaker, text, speakerName, side, portrait, backdrop, layout, nextLabel;
+    public string id, speaker, text, speakerName, side, portrait, backdrop, layout, nextLabel, voice;
     public StudioChoice[] choices;
 }
 [Serializable]
@@ -192,6 +199,6 @@ internal static class StudioOutline
 }
 [Serializable] public class StudioItem { public string id, name, slot; public int power; }
 [Serializable] public class StudioQuest { public string id, name, kind, target, reward; public int count; }
-[Serializable] public class StudioClip { public string key, fx, cue; public int cueTick; public StudioFrame[] frames; }
+[Serializable] public class StudioClip { public string key, fx, cue, sound; public int cueTick; public StudioFrame[] frames; }
 [Serializable] public class StudioFrame { public string image; public int ticks; }
 }

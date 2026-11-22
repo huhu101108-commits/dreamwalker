@@ -31,12 +31,15 @@ function previewStory(story, map = activeMap(), first = 0) {
     c = named(project.characters, map.characterId);
   const cursor = new DialogueCursor(story);
   cursor.index = first;
+  const audioBus=gameAudio(project,dialog);
+  dialog.addEventListener('close',()=>audioBus.close(),{once:true});
   $('#readerName').textContent = story.name;
   paintStage(area, map);
   area.classList.add('reader-stage');
   function render() {
     area.replaceChildren();
     const backdrop = named(project.scenes, cursor.node.mapId) || map;
+    audioBus.track('voice',cursor.node.voice,cursor.node);
     paintStage(area, backdrop);
     area.classList.add('reader-stage');
     if (cursor.node.backdrop) cssImage(area, imageUrl(cursor.node.backdrop));
@@ -180,6 +183,7 @@ function drawStories() {
     bindSelect('화자', n, 'speaker', { '': '내레이션', ...optionMap(project.characters) }),
     bindText('대사 내용', n, 'text', 1200, true),
     heading('이 줄의 연출'),
+    soundField('이 줄의 음성',n,'voice'),
     bindText('화자 표시 이름', n, 'speakerName'),
     selectField('초상 위치', n.side || 'left', {left:'왼쪽',right:'오른쪽',hidden:'숨기기'}, v => edit(() => { n.side=v; })),
     assetField('이 줄의 배경', n.backdrop, v => edit(() => { n.backdrop=v; }), true),

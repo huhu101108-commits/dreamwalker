@@ -54,7 +54,59 @@ public sealed partial class StudioWorld
     private bool playedCue;
     private SpriteRenderer motionFx;
     private float fxUntil;
-    private AudioSource cuePlayer;
+    private AudioSource cuePlayer, musicPlayer, voicePlayer;
+    private string currentMusic;
+    private StudioLine speakingLine;
+    private bool musicStarted, voiceStarted;
+
+    private AudioSource SoundChannel(ref AudioSource channel)
+    {
+        if (channel == null)
+        {
+            channel = gameObject.AddComponent<AudioSource>();
+            channel.playOnAwake = false;
+            channel.spatialBlend = 0;
+        }
+        return channel;
+    }
+    private void PaintSoundscape()
+    {
+        string music = string.IsNullOrEmpty(front) ? Map?.music : null;
+        var line = !HasOverlay ? Line : null;
+        if (music != currentMusic)
+        {
+            musicPlayer?.Stop();
+            currentMusic = music;
+            musicStarted = false;
+        }
+        if (line != speakingLine)
+        {
+            voicePlayer?.Stop();
+            speakingLine = line;
+            voiceStarted = false;
+        }
+        StartTrack(ref musicPlayer, music, ref musicStarted, true, Project.mix?.music ?? 65);
+        StartTrack(ref voicePlayer, line?.voice, ref voiceStarted, false, Project.mix?.voice ?? 100);
+    }
+    private void StartTrack(ref AudioSource player, string reference, ref bool started, bool loop, float volume)
+    {
+        if (started || string.IsNullOrEmpty(reference)) return;
+        var clip = Connection.Sound(reference);
+        if (clip == null) return;
+        SoundChannel(ref player);
+        player.clip = clip;
+        player.loop = loop;
+        player.volume = Mathf.Clamp01(volume / 100f);
+        player.Play();
+        started = true;
+    }
+    private void ReleaseSound()
+    {
+        foreach (var player in new[]{musicPlayer, voicePlayer, cuePlayer})
+            if (player != null) { player.Stop(); Destroy(player); }
+        foreach (var clip in tones.Values) Destroy(clip);
+        tones.Clear();
+    }
     private readonly Dictionary<string, AudioClip> tones = new Dictionary<string, AudioClip>();
     private readonly Dictionary<string, Vector2> widgetScroll = new Dictionary<string, Vector2>();
     private string SaveKey => "dreamwalker-player-v1:" + Project.startMap;
@@ -321,6 +373,7 @@ public sealed partial class StudioWorld
         }
         int t = Mathf.Max(0, Mathf.RoundToInt((clock - poseStart) * 60));
         var clip = Array.Find(Actor.motionClips, v => v.key == pose);
+        var sound = Connection.Sound(clip?.sound);
         string reference =
             string.IsNullOrEmpty(Actor.sprite) && Actor.id == "baekseol" ? "builtin-player" : Actor.sprite;
         if (clip?.frames != null && clip.frames.Length > 0)
@@ -352,7 +405,10 @@ public sealed partial class StudioWorld
         if (clip != null && !playedCue && t >= clip.cueTick)
         {
             playedCue = true;
-            PlayCue(clip.cue);
+            if (sound != null)
+                SoundChannel(ref cuePlayer).PlayOneShot(sound, Mathf.Clamp01((Project.mix?.fx ?? 85) / 100f));
+            else if (string.IsNullOrEmpty(clip.sound))
+                PlayCue(clip.cue);
             var sprite = GraphicsFor(clip.fx);
             if (sprite != null)
             {
@@ -372,8 +428,7 @@ public sealed partial class StudioWorld
     {
         if (string.IsNullOrEmpty(kind))
             return;
-        if (cuePlayer == null)
-            cuePlayer = gameObject.AddComponent<AudioSource>();
+        SoundChannel(ref cuePlayer);
         if (!tones.TryGetValue(kind, out var clip))
         {
             const int hz = 22050;
@@ -393,7 +448,7 @@ public sealed partial class StudioWorld
             clip.SetData(samples, 0);
             tones[kind] = clip;
         }
-        cuePlayer.PlayOneShot(clip);
+        cuePlayer.PlayOneShot(clip, Mathf.Clamp01((Project.mix?.fx ?? 85) / 100f));
     }
 }
 }

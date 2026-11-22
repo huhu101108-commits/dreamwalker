@@ -5,6 +5,7 @@ import { createServer } from 'node:http';
 import { once } from 'node:events';
 import { createRequire } from 'node:module';
 import { BUCKET, ownerDigest, previewOwnerHeaders, worker } from './worker-fixture.mjs';
+import { testDeskBrowser } from './test-desk-browser.mjs';
 import { testTouchAuthoring } from './test-touch-authoring.mjs';
 const { chromium } = createRequire(import.meta.url)('playwright-core');
 
@@ -72,6 +73,7 @@ try {
   await host.getByRole('button', { name: '종료', exact: true }).click();
   await host.getByText('연결을 종료했어요.').waitFor();
   await testTouchAuthoring(host);
+  await testDeskBrowser(host);
   assert.deepEqual(errors, []);
 } finally {
   await Promise.allSettled(browsers.map(browser => browser.close()));

@@ -49,15 +49,19 @@ export async function executeAndroidJob(job, editor, token) {
     );
     for (const builtin of ['player.png', 'stage.jpg'])
       await cp(path.join(root, 'Studio/art', builtin), path.join(images, 'builtin-' + builtin));
-    for (const hash of job.release.images) {
+    const audio = path.join(resources, 'Audio');
+    await mkdir(audio, {recursive:true});
+    const assets = [...job.release.images.map(hash => ({hash,kind:'image'})),
+      ...(job.release.sounds || []).map(hash => ({hash,kind:'sound'}))];
+    const extensions = {'image/png':'.png','image/jpeg':'.jpg','audio/wav':'.wav','audio/ogg':'.ogg','audio/mpeg':'.mp3'};
+    for (const {hash,kind} of assets) {
       if (!/^[0-9a-f]{64}$/.test(hash)) throw Error('Invalid asset id');
-      const r = await api(token, 'image/' + hash, { job }),
+      const r = await api(token, kind + '/' + hash, { job }),
         bytes = Buffer.from(await r.arrayBuffer());
-      if (createHash('sha256').update(bytes).digest('hex') !== hash) throw Error('Image checksum mismatch');
-      await writeFile(
-        path.join(images, hash + (r.headers.get('content-type') === 'image/jpeg' ? '.jpg' : '.png')),
-        bytes,
-      );
+      if (createHash('sha256').update(bytes).digest('hex') !== hash) throw Error('Asset checksum mismatch');
+      const extension = extensions[r.headers.get('content-type')];
+      if (!extension) throw Error('Unsupported release asset');
+      await writeFile(path.join(kind === 'sound' ? audio : images, hash + extension), bytes);
     }
     const env = { ...process.env };
     for (const name of Object.keys(env)) {

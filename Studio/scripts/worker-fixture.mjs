@@ -24,7 +24,7 @@ export const BUCKET = {
       ((cond.etagMatches && cond.etagMatches !== old?.etag) || (cond.etagDoesNotMatch === '*' && old))
     )
       return null;
-    const item = { body, etag: String(++revision), httpMetadata: opts.httpMetadata };
+    const item = { body, etag: String(++revision), httpMetadata: opts.httpMetadata, customMetadata: opts.customMetadata };
     store.set(k, item);
     return item;
   },

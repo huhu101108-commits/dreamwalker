@@ -417,6 +417,50 @@ function terrainStroke(map, ax, bx, y, tint) {
   }
   return result;
 }
+// A painted row is ordinary scene geometry and uses one collider for adjacent cells.
+function paintTileRow(map,cells,size,layer,image,tint,erase=false) {
+  const key=(x,y)=>x+','+y, points=new Map();
+  for(const cell of cells) {
+    const x=cell.x*size,y=(cell.y+(layer==='platform'?1:0))*size;
+    if(Number.isInteger(cell.x)&&Number.isInteger(cell.y)&&cell.y>=0&&x>=0&&x+size<=map.width&&y<=map.height-18)
+      points.set(key(x,cell.y),cell);
+  }
+  const next=[], fresh=[];
+  const append=(source,left,right,makeId)=>{
+    const width=right-left;
+    if(width<=0) return;
+    next.push({...source,id:makeId?uid():source.id,x:left+width/2,width});
+  };
+  for(const o of map.objects) {
+    if(o.type!==layer || o.tileSize!==size){next.push(o);continue;}
+    const left=o.x-o.width/2, row=o.y/size-(layer==='platform'?1:0), right=left+o.width;
+    let start=left,cut=false,used=false;
+    for(let x=left;x<right;x+=size){
+      if(!points.has(key(x,row))) continue;
+      if(o.locked || o.prefab || o.motion || (!erase && o.image===image && o.tint===tint)){
+        points.delete(key(x,row));continue;
+      }
+      cut=true;
+      if(x>start){append(o,start,x,used);used=true;}
+      start=x+size;
+    }
+    if(cut) append(o,start,right,used);else next.push(o);
+  }
+  if(!erase) fresh.push(...points.values());
+  fresh.sort((a,b)=>a.y-b.y||a.x-b.x);
+  const max=Math.floor((layer==='platform'?60:55)/size);
+  for(let i=0;i<fresh.length;) {
+    const start=fresh[i++];
+    let count=1;
+    while(i<fresh.length && count<max && fresh[i].y===start.y && fresh[i].x===start.x+count){i++;count++;}
+    const width=count*size, x=start.x*size+width/2, y=(start.y+(layer==='platform'?1:0))*size;
+    const o={...makeObject(layer,uid(),x,y),width,tileSize:size,image,tint};
+    if(layer==='prop'){o.height=size;o.label='타일';}
+    next.push(o);
+  }
+  if(next.length>LIMIT.objects) throw Error('씬의 개체 한도에 도달했어요. 더 짧은 구간을 선택하세요.');
+  return next;
+}
 function makeObject(type, id, x, y) {
   const o = { id, type, x, y };
   if (type === 'enemy') Object.assign(o, { enemy: enemyDefaults(), label: '', image: '' });
@@ -648,7 +692,7 @@ function problem(d) {
         (n.speaker !== '' && !character(n.speaker)) ||
         !textValue(n.text, 1200) ||
         !textValue(n.speakerName ?? '', 50) || !textValue(n.nextLabel ?? '', 80) ||
-        !imageRef(n.backdrop ?? '') || !imageRef(n.portrait ?? '') ||
+        !soundRef(n.voice ?? '') || !imageRef(n.backdrop ?? '') || !imageRef(n.portrait ?? '') ||
         !['left','right','hidden'].includes(n.side ?? 'left') ||
         (!!n.layout && !screen(n.layout, 'dialogue')) ||
         !Array.isArray(n.choices) ||
@@ -746,7 +790,7 @@ function problem(d) {
           !num(s.camera.deadY, 0, 35) ||
           !num(s.camera.parallax, 0, 1) ||
           !num(s.camera.drift, 0, 5))) ||
-      !imageRef(s.backdrop) ||
+      !soundRef(s.music ?? '') || !imageRef(s.backdrop) ||
       !character(s.characterId) ||
       !screen(s.hudId, 'hud') ||
       !screen(s.menuId, 'menu') ||
@@ -759,9 +803,16 @@ function problem(d) {
       return (s.name || '맵') + '의 시작 캐릭터·스토리·UI 연결을 확인하세요.';
     if (s.objects.filter((o) => o.type === 'spawn').length !== 1 || !s.objects.some((o) => o.type === 'exit'))
       return s.name + '에 시작점 하나와 출구가 필요해요.';
-    for (const o of s.objects)
-      if (
-        !has(OBJECTS, o.type) ||
+    for (const o of s.objects) if (!sceneObjectOK(d,s,o))
+        return s.name + '의 개체 좌표 또는 연결을 확인하세요.';
+  }
+  return productionProblem(d) || workProblem(d);
+}
+function sceneObjectOK(d,s,o) {
+  return !!o && !(
+    (o.tileSize !== undefined && (!['platform','prop'].includes(o.type) || ![5,10,20].includes(o.tileSize) || !imageRef(o.image) || !color(o.tint))) ||
+    !textValue(o.editorName ?? '',60) || (o.locked !== undefined && typeof o.locked !== 'boolean') ||
+    (o.prefab !== undefined && !validId(o.prefab)) || !has(OBJECTS, o.type) ||
         !num(o.x, 1, s.width - 1) ||
         !num(o.y, 0, (s.height ?? 100) - 18) ||
         (o.type === 'enemy' &&
@@ -781,7 +832,7 @@ function problem(d) {
             !textValue(o.label, 50) ||
             !imageRef(o.image))) ||
         (o.type === 'exit' && !['next', 'end-of-game'].includes(o.to) && !named(d.scenes, o.to)) ||
-        (o.type === 'trigger' && (!story(o.storyId) || !signalKey(o.eventKey ?? '', true))) ||
+        (o.type === 'trigger' && ((o.storyId !== '' && !named(d.stories, o.storyId)) || !signalKey(o.eventKey ?? '', true))) ||
         (o.type === 'platform' &&
           (!num(o.width, 3, 60) || (o.tint !== undefined && !color(o.tint)) ||
             (o.motion !== undefined &&
@@ -791,10 +842,7 @@ function problem(d) {
                 !num(o.motion.period, 0.5, 90))))) ||
         (o.type === 'prop' &&
           (!num(o.width, 2, 55) || !num(o.height, 2, 65) || !textValue(o.label, 50) || !imageRef(o.image)))
-      )
-        return s.name + '의 개체 좌표 또는 연결을 확인하세요.';
-  }
-  return productionProblem(d);
+  );
 }
 const valid = (d) => problem(d) === '';
 function imageRefs(d) {
@@ -802,6 +850,8 @@ function imageRefs(d) {
     add = (v) => {
       if (typeof v === 'string' && v.startsWith('asset:')) refs.add(v.slice(6));
     };
+  for (const a of d.work?.assets || []) if (a.kind === 'image') add(a.ref);
+  for (const p of d.work?.prefabs || []) add(p.object.image);
   d.characters.forEach((c) => {
     add(c.sprite);
     add(c.portrait);
@@ -997,7 +1047,7 @@ function productionProblem(d) {
         !Array.isArray(v.frames) ||
         v.frames.length > 64 ||
         !v.frames.every((f) => f && f.image && imageRef(f.image) && integer(f.ticks, 1, 120)) ||
-        !imageRef(v.fx) ||
+        !soundRef(v.sound ?? '') || !imageRef(v.fx) ||
         !['', 'slash', 'ice', 'bell'].includes(v.cue) ||
         !integer(v.cueTick, 0, 600)
       )
@@ -1054,10 +1104,85 @@ function mergeProject(base, mine, live) {
   return { project: merge(base, mine, live, ''), conflicts };
 }
 function packNativeWorld(project) {
-  const world = { ...project, sourceFiles: [] };
+  const {work, ...content} = project;
+  const world = { ...content, sourceFiles: [] };
   world.characters = project.characters.map(({ clips, ...c }) => ({
     ...c,
     motionClips: Object.entries(clips || {}).map(([key, clip]) => ({ key, ...clip })),
   }));
   return world;
+}
+
+const WORK_STATES = { plan:'기획', doing:'제작 중', review:'검수', done:'완료' };
+const WORK_KINDS = { feature:'기능', art:'아트', story:'연출', bug:'버그' };
+const WORK_TARGETS = {scene:'scenes', characters:'characters', stories:'stories', interface:'layouts'};
+const emptyWork = () => ({ brief:'', milestone:'', tasks:[], assets:[], prefabs:[], runs:[] });
+const soundRef = v => v === '' || (typeof v==='string' && /^asset:[0-9a-f]{64}$/.test(v));
+function soundRefs(d) {
+  const refs = new Set();
+  const add = v => { if (v && soundRef(v)) refs.add(v.slice(6)); };
+  for (const a of d.work?.assets || []) if (a.kind === 'audio') add(a.ref);
+  for (const m of d.scenes) add(m.music);
+  for (const c of d.characters) for (const clip of Object.values(c.clips || {})) add(clip.sound);
+  for (const s of d.stories) for (const n of s.nodes) add(n.voice);
+  return [...refs];
+}
+function workProblem(d) {
+  if (d.mix && !['music','voice','fx'].every(k => num(d.mix[k],0,100))) return '오디오 믹서 음량을 확인하세요.';
+  const w = d.work;
+  if (w === undefined) return '';
+  if (!w || !textValue(w.brief,3000) || !textValue(w.milestone,120) ||
+      !rows(w.tasks,0,240) || !rows(w.assets,0,400) || !rows(w.prefabs,0,160) || !rows(w.runs,0,60))
+    return '제작 보드의 항목 수와 프로젝트 기획을 확인하세요.';
+  if (w.tasks.some(t => !textValue(t.title,100,true) || !textValue(t.owner,60) || !textValue(t.criteria,1500) ||
+      !has(WORK_STATES,t.state) || !has(WORK_KINDS,t.kind) || (!has(WORK_TARGETS,t.tool) && t.tool!=='') ||
+      (t.target!=='' && !validId(t.target)))) return '작업 카드의 이름과 제작 대상을 확인하세요.';
+  if (w.assets.some(a => !textValue(a.name,120,true) || !textValue(a.folder,60) ||
+      !['image','audio'].includes(a.kind) || !a.ref || !soundRef(a.ref))) return '에셋 이름과 파일을 확인하세요.';
+  if (w.prefabs.some(p => !textValue(p.name,80,true) || !p.object || !['platform','prop','enemy'].includes(p.object.type) ||
+      !sceneObjectOK(d,{width:100,height:100},{...p.object,x:50,y:0}))) return '프리팹의 구성 요소를 확인하세요.';
+  if (w.runs.some(r=>!['checks','play'].includes(r.kind) || typeof r.passed!=='boolean' || !textValue(r.note,2000) ||
+      !Number.isSafeInteger(r.when) || !integer(r.rev,0,1e9) || !/^[0-9a-f]{64}$/.test(r.digest) ||
+      !textValue(r.target,100) || !textValue(r.owner,60))) return '검수 기록 형식을 확인하세요.';
+  return '';
+}
+function prefabFields(o) {
+  const copy={};
+  for (const key of ['type','to','storyId','label','image','eventKey','tint','width','height','enemy','motion','tileSize'])
+    if (Object.hasOwn(o,key)) copy[key]=structuredClone(o[key]);
+  return copy;
+}
+// Inherit changes to each unmodified component property, retaining per-instance edits.
+function inheritPrefab(old,next,value) {
+  if (JSON.stringify(old)===JSON.stringify(value)) return next===undefined ? undefined : structuredClone(next);
+  if (!old || !next || !value || [old,next,value].some(v=>typeof v!=='object'||Array.isArray(v))) return value;
+  const result={...value};
+  for (const k of new Set([...Object.keys(old),...Object.keys(next)])) {
+    if (['__proto__','constructor','prototype'].includes(k)) continue;
+    const updated=inheritPrefab(old[k],next[k],value[k]);
+    if (updated===undefined) delete result[k]; else result[k]=updated;
+  }
+  return result;
+}
+function publishPrefab(doc,template,source) {
+  const next=prefabFields(source), prior=template.object;
+  for (const m of doc.scenes) for (const o of m.objects) {
+    if (o.prefab!==template.id || o===source) continue;
+    const fields=inheritPrefab(prior,next,prefabFields(o));
+    for (const k of Object.keys(prior)) if (!(k in fields)) delete o[k];
+    Object.assign(o,fields);
+  }
+  template.object=next;
+}
+function spriteCells(width,height,cols,rowsCount,first,last) {
+  if (!integer(cols,1,64) || !integer(rowsCount,1,64) || cols>width || rowsCount>height ||
+      !integer(first,1,cols*rowsCount) || !integer(last,first,cols*rowsCount) || last-first>=64)
+    throw Error('격자와 프레임 범위를 확인하세요. 한 번에 64장까지 잘라낼 수 있어요.');
+  const cells=[];
+  for (let i=first-1;i<last;i++) {
+    const x=i%cols, y=Math.floor(i/cols);
+    const left=Math.floor(x*width/cols), top=Math.floor(y*height/rowsCount);
+    cells.push({x:left,y:top,w:Math.floor((x+1)*width/cols)-left,h:Math.floor((y+1)*height/rowsCount)-top});
+  }
+  return cells;
 }

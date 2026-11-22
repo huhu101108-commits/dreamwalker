@@ -65,6 +65,7 @@ function drawMaps() {
     '': '선택',
     brush: '지형 그리기',
     erase: '지형 지우기',
+    tiles: '타일 브러시',
     enemy: '적',
     platform: '발판',
     exit: '출구',
@@ -84,22 +85,24 @@ function drawMaps() {
   }
   a.append(palette);
   if (mapTool === 'brush') a.append(colorField('그릴 지형 색', terrainTint, value => { terrainTint = value; }));
-  a.append(stage);
+  if(mapTool==='tiles') tileControls(a);
+  const scroll=box('scene-scroll',stage);
+  addSceneViewTools(a,scroll,stage,s,offset,bottom);
+  a.append(scroll);
   function addAt(x, y) {
     if (s.objects.length >= LIMIT.objects) return note('맵의 개체 한도에 도달했어요.');
-    const o = makeObject(
-      mapTool,
-      uid(),
-      clamp(Math.round(x), 1, s.width - 1),
-      clamp(Math.round(y), 0, s.height - 18),
-    );
+    const px=clamp(snapped(x),1,s.width-1), py=clamp(snapped(y),0,s.height-18);
+    const template=mapTool==='prefab' && named(workData().prefabs,selectedPrefab);
+    if(mapTool==='prefab' && !template) return note('배치할 프리팹을 선택하세요.');
+    const o=template ? {...structuredClone(template.object),id:uid(),x:px,y:py,prefab:template.id} : makeObject(mapTool,uid(),px,py);
     edit(() => {
       s.objects.push(o);
       mapObject = o.id;
-      mapTool = '';
+      if (!template) mapTool = '';
     });
   }
-  if (mapTool === 'brush' || mapTool === 'erase') {
+  if(mapTool==='tiles') bindTileCanvas(stage,s,offset,bottom);
+  else if (mapTool === 'brush' || mapTool === 'erase') {
     stage.classList.add('placing');
     const point = (x, y, r) => ({ x: offset + (x-r.left) * 100 / r.width, y: bottom + 82 - (y-r.top) * 100 / r.height });
     let stroke = null;
@@ -109,7 +112,7 @@ function drawMaps() {
       if (!stroke || e.pointerId !== stroke.pointer) return;
       const p = point(e.clientX, e.clientY, stroke.rect);
       if (mapTool === 'erase') {
-        const hit = [...s.objects].reverse().find(o => o.type === 'platform' && Math.abs(o.x-p.x) <= o.width/2 + 1 && Math.abs(o.y-p.y) <= 4);
+        const hit = [...s.objects].reverse().find(o => !o.locked && o.type === 'platform' && Math.abs(o.x-p.x) <= o.width/2 + 1 && Math.abs(o.y-p.y) <= 4);
         if (hit) { stroke.remove.add(hit); nodes.get(hit.id)?.classList.add('erasing'); }
       } else {
         stroke.end = p.x;
@@ -143,7 +146,7 @@ function drawMaps() {
       }
       stroke = null;
     };
-  } else if (mapTool) {
+  } else if (mapTool && mapTool !== 'pan') {
     stage.classList.add('placing');
     stage.onpointerdown = (e) => {
       const r = stage.getBoundingClientRect();
@@ -168,14 +171,20 @@ function drawMaps() {
     n.classList.toggle('selected', o.id === mapObject);
     stage.append(n);
     nodes.set(o.id, n);
-    if (mapTool) continue;
+    if (selectionFor(s).has(o.id)) n.classList.add('group-selected');
+    if (mapTool || o.locked) continue;
     pointerDrag(
       n,
-      () => ({ ox: o.x, oy: o.y, x: o.x, y: o.y, r: stage.getBoundingClientRect() }),
+      () => {
+        const group=selectionFor(s);
+        const objects=group.has(o.id)?s.objects.filter(v=>group.has(v.id)&&!v.locked):[o];
+        return {objects,dx:0,dy:0,r:stage.getBoundingClientRect()};
+      },
       (dx, dy, p) => {
-        p.x = clamp(Math.round(p.ox + (dx * 100) / p.r.width), 1, s.width - 1);
-        p.y = clamp(Math.round(p.oy - (dy * 100) / p.r.height), 0, s.height - 18);
-        placeWorld(n, p, offset, offsetY);
+        const shift=groupDelta(p.objects,s,snapped(dx*100/p.r.width),snapped(-dy*100/p.r.height));
+        Object.assign(p,shift);
+        for(const member of p.objects) if(nodes.has(member.id))
+          placeWorld(nodes.get(member.id),{x:member.x+p.dx,y:member.y+p.dy},offset,offsetY);
       },
       (p, cancel) => {
         mapObject = o.id;
@@ -184,8 +193,7 @@ function drawMaps() {
           return;
         }
         edit(() => {
-          o.x = p.x;
-          o.y = p.y;
+          for(const member of p.objects){member.x+=p.dx;member.y+=p.dy;}
         });
       },
     );
@@ -218,7 +226,7 @@ function drawMaps() {
     nav,
     el(
       'p',
-      mapTool === 'brush' ? '손가락으로 가로로 그어 걸을 수 있는 지형을 만드세요. 시작한 높이에 지형이 생겨요.' :
+      mapTool === 'tiles' ? '격자에 그려 타일을 배치하세요. 지우개는 선택한 레이어와 크기에 적용돼요.' : mapTool === 'pan' ? '확대된 씬을 손가락으로 끌어 이동하세요.' : mapTool === 'prefab' ? '프리팹을 놓을 위치를 누르세요.' : mapTool === 'brush' ? '손가락으로 가로로 그어 걸을 수 있는 지형을 만드세요. 시작한 높이에 지형이 생겨요.' :
       mapTool === 'erase' ? '지울 지형을 손가락으로 쓸어 주세요.' : mapTool
         ? OBJECTS[mapTool] + '을 놓을 위치를 누르세요.'
         : '배치 도구를 고른 뒤 맵을 누르세요. 선택 도구에서는 개체를 끌어 옮길 수 있어요.',
@@ -226,6 +234,7 @@ function drawMaps() {
   );
   const o = named(s.objects, mapObject) || s.objects[0];
   mapObject = o.id;
+  sceneHierarchy(b,s,o);
   const attrs = box('control-grid', bindText('맵 이름', s, 'name'), bindSelect('시간대', s, 'theme', THEMES));
   attrs.append(
     ...[
@@ -262,6 +271,7 @@ function drawMaps() {
   links.append(
     summary,
     assetField('이 맵의 배경 이미지', s.backdrop, (v) => edit(() => (s.backdrop = v)), true),
+    soundField('맵 배경음',s,'music'),
     bindSelect('입장 시 대화', s, 'entryStory', stories),
     bindSelect('출구에서 재생할 대화', s, 'exitStory', stories),
     checkField('적을 모두 처치해야 출구 활성화', s.requireClear, (v) =>

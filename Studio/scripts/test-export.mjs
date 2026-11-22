@@ -10,6 +10,8 @@ const png = new Uint8Array(await readFile('art/player.png')),
 const hash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', png)), (b) =>
   b.toString(16).padStart(2, '0'),
 ).join('');
+const audio=Buffer.from('RIFF0000WAVEdata-isolated-zip-fixture');
+const soundHash=Buffer.from(await crypto.subtle.digest('SHA-256',audio)).toString('hex');
 let archive, downloaded, release;
 const ctx = vm.createContext({
   crypto,
@@ -36,6 +38,7 @@ const ctx = vm.createContext({
   },
   api: async (path) => (path === 'source-base' ? nativeBase : structuredClone(release)),
   fetch: async (url) => {
+    if (url.endsWith(soundHash)) return new Response(audio,{headers:{'content-type':'audio/wav'}});
     const jpgFile = url.endsWith('.jpg');
     return new Response(jpgFile ? jpg : png, {
       headers: { 'Content-Type': jpgFile ? 'image/jpeg' : 'image/png' },
@@ -52,6 +55,9 @@ vm.runInContext(
 );
 release = { rev: 17, project: vm.runInContext('seed()', ctx) };
 release.project.characters[0].portrait = 'asset:' + hash;
+release.project.scenes[0].music='asset:'+soundHash;
+release.project.work=vm.runInContext('emptyWork()',ctx);
+release.project.work.brief='internal milestone';
 await vm.runInContext('exportUnityPack()', ctx);
 assert.equal(downloaded, 'Dreamwalker-Unity-v17.zip');
 const dir = await mkdtemp(join(tmpdir(), 'dw-zip-'));
@@ -63,9 +69,12 @@ try {
   const data = JSON.parse(execFileSync('unzip', ['-p', path, root + 'release.json']));
   assert.equal(data.project.characters[0].portrait, 'asset:' + hash);
   assert.equal(data.rev, 17);
+  assert.equal(data.project.work,undefined);
+  assert.equal(data.project.scenes[0].music,'asset:'+soundHash);
+  assert.deepEqual(execFileSync('unzip',['-p',path,root+'Audio/'+soundHash+'.wav']),audio);
   assert.deepEqual(execFileSync('unzip', ['-p', path, root + 'Images/' + hash + '.png']), Buffer.from(png));
   assert.deepEqual(execFileSync('unzip', ['-p', path, root + 'Images/builtin-stage.jpg']), Buffer.from(jpg));
-  console.log('PASS Unity ZIP CRC, release manifest and texture bytes');
+  console.log('PASS Unity ZIP CRC, release manifest, texture and sound bytes');
   release.project.sourceFiles = [
     { path: 'Assets/Tests/Example.cs', text: 'class Example {}' },
     { path: 'Web/scratch.js', text: '// web' },

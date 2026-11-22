@@ -227,6 +227,11 @@ public sealed partial class StudioWorld : MonoBehaviour
         foreach (var o in map.objects)
         {
             var pos = Point(o);
+            if (o.tileSize > 0 && (o.type == "platform" || o.type == "prop"))
+            {
+                PaintTileRow(o, pos);
+                continue;
+            }
             switch (o.type)
             {
             case "enemy":
@@ -262,6 +267,33 @@ public sealed partial class StudioWorld : MonoBehaviour
         if (preserveHealth && !restoring && !string.IsNullOrEmpty(Project.frontScreens?.loading)) Present(Project.frontScreens.loading);
         SyncControls();
         UpdateCamera();
+    }
+
+    private void PaintTileRow(StudioObject tile, Vector2 origin)
+    {
+        bool solid = tile.type == "platform";
+        var row = new GameObject(solid ? "Collision tiles" : "Scenery tiles").transform;
+        row.SetParent(sceneRoot.transform, false);
+        row.position = origin;
+        if (solid)
+        {
+            var collider = row.gameObject.AddComponent<BoxCollider2D>();
+            collider.size = new Vector2(tile.width * UnitX, .2f);
+            collider.offset = Vector2.down * .1f;
+            var effector = row.gameObject.AddComponent<PlatformEffector2D>();
+            effector.useOneWay = true;
+            collider.usedByEffector = true;
+            if (tile.motion != null) lifts.Add(new Lift { surface = row, data = tile, origin = origin });
+        }
+        float height = (solid ? tile.tileSize : tile.height) * UnitY;
+        for (float left = 0; left < tile.width; left += tile.tileSize)
+        {
+            float width = Mathf.Min(tile.tileSize, tile.width - left);
+            var center = origin + new Vector2((left + width / 2 - tile.width / 2) * UnitX, (solid ? -1 : 1) * height / 2);
+            var art = Piece("Tile", center, new Vector2(width * UnitX, height), solid ? -4 : -5,
+                string.IsNullOrEmpty(tile.image) ? Tint(tile.tint, Color.gray) : Color.white, tile.image);
+            art.transform.SetParent(row, true);
+        }
     }
 
     private void SetCharacter(StudioCharacter character, bool preserveHealth)
@@ -1015,6 +1047,7 @@ public sealed partial class StudioWorld : MonoBehaviour
             LoadParts();
             bodyImage.flipX = motor.Facing < 0;
             UpdateCamera();
+            PaintSoundscape();
             PaintMotion();
             RecordFrame();
             if (Time.unscaledTime >= nextProgressSave) { SaveProgress(); nextProgressSave = Time.unscaledTime + 5; }
@@ -1079,6 +1112,7 @@ public sealed partial class StudioWorld : MonoBehaviour
         }
         if (demoHud != null)
             demoHud.enabled = hudEnabled;
+        ReleaseSound();
         screenView.Dispose();
         foreach (var sprite in sprites.Values)
             Destroy(sprite);

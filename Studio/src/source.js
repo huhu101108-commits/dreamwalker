@@ -142,7 +142,7 @@ function drawSource() {
   };
   b.append(
     titled('새 경로', name),
-    filePicker('기기에서 소스 파일 가져오기', '', false, async ([file],active) => {
+    filePicker('기기에서 소스 파일 가져오기', false, async ([file],active) => {
       const p = name.value.trim() || (sourceFilter === 'Web/' ? 'Web/' : 'Assets/') + file.name;
       if (!editablePath(p) || (sourceFilter === 'Web/') !== p.startsWith('Web/'))
         throw Error('실행 환경에 맞는 소스 파일과 경로를 선택하세요.');
@@ -253,6 +253,7 @@ async function packWeb(d, mapId, base, screenId = '', checkpoint = null) {
   if (!files['Web/index.html']) throw Error('실행하려면 Web/index.html이 필요해요.');
   const world = structuredClone(d);
   world.sourceFiles = [];
+  delete world.work;
   const images = {};
   await Promise.all(
     ['/stage.webp', '/player.webp'].map(async (path) => {
@@ -261,7 +262,7 @@ async function packWeb(d, mapId, base, screenId = '', checkpoint = null) {
       images[path] = await toDataUrl(await r.blob());
     }),
   );
-  for (const hash of imageRefs(d)) {
+  for (const hash of new Set([...imageRefs(world),...soundRefs(world)])) {
     const r = await fetch('/api/assets/' + hash);
     if (!r.ok) throw Error('연결 이미지를 읽지 못했어요.');
     images['asset:' + hash] = await toDataUrl(await r.blob());
@@ -348,7 +349,9 @@ async function playCustom(d, mapId, screenId = '') {
     frame.focus();
   } catch (e) {
     state.textContent = e.message;
+    return null;
   }
+  return modal;
 }
 function playProject(mapId, screenId = '') {
   return project.sourceFiles.some((f) => f.path.startsWith('Web/'))

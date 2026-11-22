@@ -4,6 +4,7 @@ function launchGame(mapId, screenId = '') {
     stage = $('#arena'),
     layer = $('#overlay'),
     actors = $('#actors');
+  const audioBus=gameAudio(run.world,modal);
   const saveKey =
     'dreamwalker-progress-v1:' +
     (typeof GAME_DATA === 'undefined' && location.pathname !== '/play' ? 'preview:' : 'game:') +
@@ -172,6 +173,9 @@ function launchGame(mapId, screenId = '') {
   }
   function rebuild() {
     serial = run.serial;
+    audioBus.track('music',run.presentation ? '' : run.map.music);
+    const speaking=run.dialogue && !run.customScreen ? run.dialogue.node : null;
+    audioBus.track('voice',speaking?.voice,speaking);
     for (const release of releaseSticks) release();
     releaseSticks = [];
     paintStage(stage, run.map);
@@ -373,7 +377,7 @@ function launchGame(mapId, screenId = '') {
         }
         if (clip && !clipState.heard && t >= clip.cueTick) {
           clipState.heard = true;
-          playCue(clip.cue);
+          audioBus.fx(clip.sound,clip.cue);
           if (clip.fx) {
             const fx = el('div');
             fx.className = 'motion-fx';
@@ -487,6 +491,7 @@ function launchGame(mapId, screenId = '') {
   window.addEventListener('blur', blur);
   modal.onclose = () => {
     cancelAnimationFrame(frame);
+    audioBus.close();
     for (const release of releaseSticks) release();
     saveProgress();
     diagnostics.remove();
@@ -499,4 +504,5 @@ function launchGame(mapId, screenId = '') {
     layer.replaceChildren();
     if (location.pathname === '/play') document.body.classList.remove('game-only');
   };
+  return modal;
 }

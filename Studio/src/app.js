@@ -2,7 +2,7 @@ let access,
   project,
   record,
   dirty = false,
-  tab = 'scene',
+  tab = 'desk',
   sceneId = '',
   actorId = '',
   storyId = '',
@@ -122,17 +122,20 @@ function bindColor(label, obj, key, update) {
   });
 }
 function draw() {
+  if(motionPreviewSound){motionPreviewSound.pause();motionPreviewSound=null;}
   if (!project) return;
   for (const section of document.querySelectorAll('#content details'))
     if (section.dataset.key) expandedSections.set(section.dataset.key, section.open);
   $('#title').textContent = project.title;
   $('#content').replaceChildren();
   lastGroup = null;
-  for (const b of $('#tabs').children) {
+  for (const b of $('#tabs').querySelectorAll('[data-tab]')) {
+    if(b.dataset.tab===tab) $('#current-area').textContent=b.textContent;
     b.classList.toggle('on', b.dataset.tab === tab);
     b.setAttribute('aria-current', b.dataset.tab === tab ? 'page' : 'false');
   }
   ({
+    desk: drawDesk, assets: drawAssets, quality: drawQuality,
     scene: drawMaps,
     characters: drawCharacters,
     stories: drawStories,
@@ -145,6 +148,9 @@ function draw() {
     balance: drawBalance,
     versions: drawVersions,
   })[tab]();
+  const hasInspector=!!$('#content .inspector');
+  $('#inspector-switch').hidden=!hasInspector;
+  if (!hasInspector) $('#editor').classList.remove('inspect-mode');
   for (const section of document.querySelectorAll('#content details')) {
     const key = tab + '|' + (section.dataset.persist || section.querySelector('summary').textContent);
     section.dataset.key = key;
@@ -221,16 +227,16 @@ async function exportProject() {
   const snapshot = structuredClone(project),
     assets = {};
   note('백업 파일을 만들고 있어요…');
-  for (const hash of imageRefs(snapshot)) {
+  for (const hash of new Set([...imageRefs(snapshot),...soundRefs(snapshot)])) {
     const r = await fetch('/api/assets/' + hash);
-    if (!r.ok) throw Error('이미지를 가져오지 못해 백업을 중단했어요.');
+    if (!r.ok) throw Error('에셋을 가져오지 못해 백업을 중단했어요.');
     assets[hash] = await toDataUrl(await r.blob());
   }
   download(
     { format: 'dreamwalker-studio', project: snapshot, assets },
     'Dreamwalker-v' + record.rev + '.json',
   );
-  note('프로젝트와 연결 이미지를 내보냈어요.');
+  note('프로젝트와 연결된 에셋을 내보냈어요.');
 }
 async function importProject(file) {
   if (!file) return;
@@ -242,19 +248,19 @@ async function importProject(file) {
   if (!confirm('이 파일의 프로젝트를 편집 초안으로 열까요? 공유 버전은 저장할 때 변경돼요.')) return;
   const baseProject = project,
     base = JSON.stringify(project);
-  for (const hash of imageRefs(d)) {
+  for (const hash of new Set([...imageRefs(d),...soundRefs(d)])) {
     const data = bundle && value.assets?.[hash];
     if (data) {
       if (
         typeof data !== 'string' ||
-        data.length > 2800000 ||
-        !/^data:image\/(png|jpeg);base64,[A-Za-z0-9+/]+=*$/.test(data)
+        data.length > (data.startsWith('data:audio/') ? 10700000 : 2800000) ||
+        !/^data:(image\/(png|jpeg)|audio\/(wav|mpeg|ogg));base64,[A-Za-z0-9+/]+=*$/.test(data)
       )
-        throw Error('백업 이미지 형식을 확인하세요.');
+        throw Error('백업 에셋 형식을 확인하세요.');
       const blob = await (await fetch(data)).blob();
       const ref = await uploadAsset(blob);
-      if (ref !== 'asset:' + hash) throw Error('백업 이미지의 내용이 원본과 달라요.');
-    } else if (!(await fetch('/api/assets/' + hash)).ok) throw Error('파일에 필요한 이미지가 빠져 있어요.');
+      if (ref !== 'asset:' + hash) throw Error('백업 에셋의 내용이 원본과 달라요.');
+    } else if (!(await fetch('/api/assets/' + hash)).ok) throw Error('파일에 필요한 에셋이 빠져 있어요.');
   }
   if (baseProject !== project || base !== JSON.stringify(project))
     throw Error('가져오는 동안 초안이 변경됐어요. 다시 시도하세요.');
@@ -291,7 +297,7 @@ function drawVersions() {
     action('이미지 포함 백업 내보내기', exportProject),
     action('저장본 → Unity 콘텐츠 팩', exportUnityPack),
     action('저장본 → 전체 Unity 프로젝트', () => exportUnityPack(true)),
-    filePicker('백업 JSON 가져오기', '.json,application/json,text/plain', false, ([file]) => importProject(file)),
+    filePicker('백업 JSON 가져오기', false, ([file]) => importProject(file)),
     pasteBackup,
     action('최신 버전 다시 열기', async () => {
       if (!dirty || confirm('현재 초안을 닫고 최신 저장본을 열까요?')) loadRecord(await api('project'));
@@ -448,7 +454,7 @@ async function openEditor() {
   if (access.ok) {
     const r = await api('project');
     const section = new URLSearchParams(location.search).get('tool');
-    if ([...$('#tabs').children].some((n) => n.dataset.tab === section)) tab = section;
+    if ([...$('#tabs').querySelectorAll('[data-tab]')].some((n) => n.dataset.tab === section)) tab = section;
     loadRecord(r);
     if (access.reviewRequired && !access.owner) $('#save').textContent = '소유자 검토 요청';
     if (location.pathname !== '/play')
@@ -501,13 +507,16 @@ $('#login').onsubmit = async (e) => {
     $('#enter').disabled = false;
   }
 };
-$('#tabs').onclick = (e) => {
-  if (e.target.dataset.tab) {
-    tab = e.target.dataset.tab;
-    if (location.pathname === '/') history.replaceState(null, '', '?tool=' + tab);
-    note('');
-    draw();
-  }
+$('#project-import').append(filePicker('프로젝트 파일 선택',true,bringProjectFiles));
+$('#tabs').onclick=e=>{const b=e.target.closest('[data-tab]');if(b)goTool(b.dataset.tab);};
+$('#tool-menu').onclick=()=>{
+  const open=$('#editor').classList.toggle('rail-open');
+  $('#tool-menu').setAttribute('aria-expanded',String(open));
+};
+$('#inspector-switch').onclick=()=>{
+  const open=$('#editor').classList.toggle('inspect-mode');
+  $('#inspector-switch').textContent=open?'작업 화면 보기':'속성 보기';
+  $('#inspector-switch').setAttribute('aria-pressed',String(open));
 };
 $('#undo').onclick = () => travel(past, future);
 $('#redo').onclick = () => travel(future, past);

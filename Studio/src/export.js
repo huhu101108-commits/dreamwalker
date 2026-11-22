@@ -70,9 +70,16 @@ async function exportUnityPack(fullProject = false) {
   async function add(name, blob) {
     items.push([root + 'Images/' + name, new Uint8Array(await blob.arrayBuffer())]);
   }
-  for (const hash of imageRefs(d)) {
+  const releaseContent = { ...d, work: undefined };
+  for (const hash of imageRefs(releaseContent)) {
     const blob = await read('/api/assets/' + hash);
     await add(hash + (blob.type.startsWith('image/jpeg') ? '.jpg' : '.png'), blob);
+  }
+  for (const hash of soundRefs(releaseContent)) {
+    const audio = await read('/api/assets/'+hash);
+    const ext = {'audio/wav':'wav','audio/ogg':'ogg','audio/mpeg':'mp3'}[audio.type.split(';')[0]];
+    if (!ext) throw Error('사운드 에셋 형식을 확인하세요.');
+    items.push([root+'Audio/'+hash+'.'+ext,new Uint8Array(await audio.arrayBuffer())]);
   }
   // Old studio backups can still contain embedded WebP. Convert them at export time.
   const converted = new Map();

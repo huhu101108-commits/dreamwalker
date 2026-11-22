@@ -29,6 +29,10 @@ public sealed class StudioConnection : MonoBehaviour
     private StudioRelease latest, bundled;
     private readonly Dictionary<string, Texture2D> localImages = new Dictionary<string, Texture2D>();
     private StudioWorld world;
+    private readonly Dictionary<string, AudioClip> bundledSounds = new Dictionary<string, AudioClip>();
+    private readonly Dictionary<string, AudioClip> remoteSounds = new Dictionary<string, AudioClip>();
+    private readonly HashSet<string> fetchingSound = new HashSet<string>();
+    private readonly Dictionary<string, float> retrySound = new Dictionary<string, float>();
     private readonly Dictionary<string, Texture2D> textures = new Dictionary<string, Texture2D>();
     private readonly HashSet<string> loading = new HashSet<string>();
     private readonly Dictionary<string, float> retryAfter = new Dictionary<string, float>();
@@ -152,10 +156,19 @@ public sealed class StudioConnection : MonoBehaviour
         foreach (var tex in textures.Values)
             Destroy(tex);
         textures.Clear();
+        ClearRemoteSounds();
     }
 
+    private void ClearRemoteSounds()
+    {
+        foreach (var sound in remoteSounds.Values) Destroy(sound);
+        remoteSounds.Clear();
+        fetchingSound.Clear();
+        retrySound.Clear();
+    }
     private void OnDestroy()
     {
+        ClearRemoteSounds();
         foreach (var tex in textures.Values)
             Destroy(tex);
     }
@@ -261,6 +274,62 @@ public sealed class StudioConnection : MonoBehaviour
         if (loading.Add(reference))
             StartCoroutine(LoadTexture(reference, path));
         return null;
+    }
+
+    internal AudioClip Sound(string reference)
+    {
+        if (string.IsNullOrEmpty(reference) || reference.Length != 70 ||
+            !reference.StartsWith("asset:", StringComparison.Ordinal)) return null;
+        if (remoteSounds.TryGetValue(reference, out var cached)) return cached;
+        string id = reference.Substring(6);
+        if (bundled != null)
+        {
+            if (!bundledSounds.TryGetValue(id, out var local))
+            {
+                local = Resources.Load<AudioClip>("DreamwalkerStudio/Audio/" + id);
+                bundledSounds[id] = local;
+            }
+            if (local != null) return local;
+        }
+        if (token == null || (retrySound.TryGetValue(reference, out float retry) && retry > Time.unscaledTime))
+            return null;
+        for (int i = 0; i < id.Length; i++) if (!Uri.IsHexDigit(id[i])) return null;
+        if (fetchingSound.Add(reference)) StartCoroutine(LoadSound(reference, Origin + "/api/assets/" + id));
+        return null;
+    }
+    private IEnumerator LoadSound(string reference, string url)
+    {
+        string session = token;
+        AudioType codec = AudioType.UNKNOWN;
+        using (var meta = UnityWebRequest.Head(url))
+        {
+            meta.SetRequestHeader("Authorization", "Bearer " + session);
+            meta.timeout = 10;
+            yield return meta.SendWebRequest();
+            if (meta.result == UnityWebRequest.Result.Success)
+                switch (meta.GetResponseHeader("Content-Type"))
+                {
+                    case "audio/wav": codec = AudioType.WAV; break;
+                    case "audio/ogg": codec = AudioType.OGGVORBIS; break;
+                    case "audio/mpeg": codec = AudioType.MPEG; break;
+                }
+        }
+        if (session == token && codec != AudioType.UNKNOWN)
+        {
+            using (var request = UnityWebRequestMultimedia.GetAudioClip(url, codec))
+            {
+                request.SetRequestHeader("Authorization", "Bearer " + session);
+                request.timeout = 20;
+                yield return request.SendWebRequest();
+                if (session == token && request.result == UnityWebRequest.Result.Success)
+                    remoteSounds[reference] = DownloadHandlerAudioClip.GetContent(request);
+            }
+        }
+        if (session == token)
+        {
+            fetchingSound.Remove(reference);
+            if (!remoteSounds.ContainsKey(reference)) retrySound[reference] = Time.unscaledTime + 30;
+        }
     }
 
     private IEnumerator LoadTexture(string reference, string path)

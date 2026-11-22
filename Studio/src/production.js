@@ -1,3 +1,4 @@
+let motionPreviewSound = null;
 let motionKey = 'idle',
   previewTick = 0;
 function drawProduction() {
@@ -75,7 +76,12 @@ function drawProduction() {
       scrub.value = t;
       paint();
       if (!heard && t >= clip.cueTick) {
-        playCue(clip.cue);
+        if(clip.sound) {
+          motionPreviewSound?.pause();
+          motionPreviewSound=new Audio(imageUrl(clip.sound));
+          motionPreviewSound.volume=(project.mix?.fx ?? 85)/100;
+          motionPreviewSound.play().catch(()=>{});
+        } else playCue(clip.cue,(project.mix?.fx ?? 85)/100);
         heard = true;
       }
       if (t < duration - 1) requestAnimationFrame(next);
@@ -85,7 +91,7 @@ function drawProduction() {
   });
   main.append(preview, titled('프레임 탐색', scrub), row(play, caption));
   paint();
-  main.append(filePicker('프레임 여러 장 가져오기 · 파일명 순서', 'image/*', true, async (files, active) => {
+  main.append(filePicker('프레임 여러 장 가져오기 · 파일명 순서', true, async (files, active) => {
     files.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ko', { numeric: true }));
     if (clip.frames.length + files.length > 64) throw Error('한 동작에 최대 64장을 연결할 수 있어요.');
     const frames = [];
@@ -110,6 +116,7 @@ function drawProduction() {
   });
   side.append(
     heading('타격 효과'),
+    selectField('동작 효과음',clip.sound||'',{'':'기본 효과음',...Object.fromEntries(workData().assets.filter(a=>a.kind==='audio').map(a=>[a.ref,a.name]))},v=>edit(()=>{ensure().sound=v;})),
     assetField('효과 이미지', clip.fx, (v) => edit(() => (ensure().fx = v))),
     selectField('효과음', clip.cue, { '': '없음', slash: '단검', ice: '서리', bell: '종' }, (v) =>
       edit(() => (ensure().cue = v)),

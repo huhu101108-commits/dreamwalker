@@ -70,11 +70,12 @@ async function androidJob(req, env, path, ctx) {
     !equal(await hash(lease), job.lease)
   )
     err(403, '빌드 실행기 연결을 확인하세요.');
-  if (path.startsWith('image/') && !post) {
+  if ((path.startsWith('image/') || path.startsWith('sound/')) && !post) {
     const key = path.slice(6);
     if (!/^[a-f0-9]{64}$/.test(key)) err(400, '이미지를 확인하세요.');
     const release = await get(b, 'android/release/' + job.id);
-    if (!release.data.images.includes(key)) err(404, '해당 빌드의 이미지가 아니에요.');
+    const refs = path.startsWith('sound/') ? release.data.sounds || [] : release.data.images;
+    if (!refs.includes(key)) err(404, '해당 빌드에 포함된 에셋을 선택하세요.');
     const file = await b.get('asset/' + key);
     if (!file) err(404, '이미지를 찾을 수 없어요.');
     return new Response(file.body, {
@@ -118,7 +119,8 @@ async function queueAndroidRelease(b, latest, current) {
       rev: snapshot.rev,
       project: packNativeWorld(world),
       patches: world.sourceFiles.filter((f) => !f.path.startsWith('Web/')),
-      images: imageRefs(world),
+      images: imageRefs({...world,work:undefined}),
+      sounds: soundRefs({...world,work:undefined}),
     }),
   );
   const data = { id, rev: snapshot.rev, state: 'queued', when: Date.now(), message: '' };

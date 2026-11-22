@@ -156,6 +156,14 @@ function actorNode(o, character) {
       cssImage(n, imageUrl(o.image));
     }
   }
+  if(o.tileSize) {
+    n.classList.add('painted-tile');
+    n.style.height=(o.type==='prop'?o.height:o.tileSize)+'%';
+    n.style.backgroundColor=o.tint;
+    n.style.backgroundSize=(100*o.tileSize/o.width)+'% 100%';
+    n.textContent='';
+    cssImage(n,imageUrl(o.image));
+  }
   placeWorld(n, o);
   return n;
 }
@@ -261,9 +269,34 @@ function updateWidget(n, w, state) {
   else if (w.type === 'text') n.textContent = w.text;
   else if (w.type === 'button') n.textContent = w.text || getActionLabel(w.action, c);
 }
+const defaultMix = () => ({music:65,fx:85,voice:100});
+function gameAudio(world,host) {
+  const mix=world.mix || defaultMix(), tracks=new Map();
+  function tryPlay(track) {
+    if(!document.hidden && !track.player.ended) track.player.play().catch(()=>{});
+  }
+  function stop(kind) {
+    const t=tracks.get(kind);
+    if(t){ t.player.pause();t.player.removeAttribute('src');t.player.load();tracks.delete(kind); }
+  }
+  function track(kind,ref,token=ref) {
+    if (!ref) {stop(kind);return;}
+    if(tracks.get(kind)?.token===token) return;
+    stop(kind);
+    const player=new Audio(imageUrl(ref));player.loop=kind==='music';player.volume=(mix[kind]??100)/100;
+    const t={player,token}; tracks.set(kind,t); tryPlay(t);
+  }
+  const resume=()=>{for(const t of tracks.values()) if(t.player.paused) tryPlay(t);};
+  const visibility=()=>{if(document.hidden) for(const t of tracks.values()) t.player.pause();else resume();};
+  host.addEventListener('pointerdown',resume,true);host.addEventListener('keydown',resume,true);
+  document.addEventListener('visibilitychange',visibility);
+  return { track, fx(ref,cue){if(ref)track('fx',ref,{});else playCue(cue,mix.fx/100);},
+    close(){ for(const kind of [...tracks.keys()]) stop(kind); host.removeEventListener('pointerdown',resume,true);
+      host.removeEventListener('keydown',resume,true);document.removeEventListener('visibilitychange',visibility); } };
+}
 let cueContext;
-function playCue(kind) {
-  if (!kind) return;
+function playCue(kind, volume = 1) {
+  if (!kind || volume <= 0) return;
   try {
     cueContext ||= new (window.AudioContext || window.webkitAudioContext)();
     if (cueContext.state === 'suspended') cueContext.resume().catch(() => {});
@@ -273,7 +306,7 @@ function playCue(kind) {
     osc.type = kind === 'slash' ? 'triangle' : 'sine';
     osc.frequency.setValueAtTime(kind === 'ice' ? 1100 : kind === 'bell' ? 620 : 460, t);
     osc.frequency.exponentialRampToValueAtTime(kind === 'ice' ? 350 : kind === 'bell' ? 600 : 120, t + 0.12);
-    gain.gain.setValueAtTime(0.035, t);
+    gain.gain.setValueAtTime(0.035 * volume, t);
     gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.17);
     osc.connect(gain);
     gain.connect(cueContext.destination);
@@ -418,25 +451,28 @@ async function uploadAsset(blob) {
   if (!r.ok) throw Error(d.error || '이미지 저장 실패');
   return d.ref;
 }
-function filePicker(label, accept, multiple, consume, imageFiles = false) {
+function filePicker(label, multiple, consume, imageFiles = false) {
   const input = el('input'), area = box('file-picker');
   input.type = 'file';
-  input.accept = accept;
+  // Leave the native chooser unfiltered so Android can offer Documents and Downloads.
+  // Each importer validates the selected contents before changing the draft.
   input.multiple = multiple;
   const status = el('output');
   status.setAttribute('aria-live', 'polite');
   let busy = false;
   async function receive(items) {
     const files = [...items];
-    if (busy || !files.length) return;
+    if (busy || !files.length) return false;
     busy = input.disabled = true;
     status.textContent = '파일을 읽고 있어요…';
     try {
       await consume(multiple ? files : files.slice(0, 1), () => area.isConnected);
-      status.textContent = '가져왔어요.';
+      status.textContent = files.map(f => f.name || '파일').join(', ') + ' 가져옴';
+      return true;
     } catch (error) {
       status.textContent = error.message;
       note(error.message);
+      return false;
     } finally {
       busy = input.disabled = false;
       input.value = '';
@@ -445,7 +481,28 @@ function filePicker(label, accept, multiple, consume, imageFiles = false) {
   input.onchange = () => receive(input.files);
   area.ondragover = e => e.preventDefault();
   area.ondrop = e => { e.preventDefault(); receive(e.dataTransfer.files); };
-  area.append(titled(label, input));
+  const native = el('label','파일 선택');
+  native.className = 'disk-button';
+  input.setAttribute('aria-label',label);
+  native.append(input);
+  const openLink=()=>openDeviceLink(label,multiple,receive,area);
+  const handoff = action('브라우저에서 내 파일 열기',openLink,'file-external');
+  if (/Android/i.test(navigator.userAgent) && (window.self!==window.top || /\bwv\b/i.test(navigator.userAgent))) {
+    input.addEventListener('click',()=>{
+      let left=false;
+      const stop=()=>{left=true;};
+      window.addEventListener('blur',stop,{once:true});
+      document.addEventListener('visibilitychange',stop,{once:true});
+      input.addEventListener('change',stop,{once:true});
+      input.addEventListener('cancel',stop,{once:true});
+      setTimeout(()=>{
+        window.removeEventListener('blur',stop);document.removeEventListener('visibilitychange',stop);
+        input.removeEventListener('change',stop);input.removeEventListener('cancel',stop);
+        if (!left && area.isConnected && !document.hidden && document.hasFocus()) openLink().catch(error=>note(error.message));
+      },1800);
+    });
+  }
+  area.append(el('span',label),row(native,handoff));
   if (imageFiles) {
     const other = el('details'), paste = el('textarea');
     paste.rows = 1;
@@ -469,7 +526,7 @@ function filePicker(label, accept, multiple, consume, imageFiles = false) {
   area.append(status);
   return area;
 }
-async function convertArtwork(file, background = false) {
+async function convertArtwork(file, background = false, max = background ? 1800 : 900) {
   if (!file.size || file.size > 20000000) throw Error('20MB 이하의 이미지 파일을 선택하세요.');
   let source, url;
   try {
@@ -485,7 +542,7 @@ async function convertArtwork(file, background = false) {
         img.src = url;
       });
     }
-    const canvas = el('canvas'), max = background ? 1800 : 900;
+    const canvas = el('canvas');
     const scale = Math.min(1, max / Math.max(source.width, source.height));
     canvas.width = Math.max(1, Math.round(source.width * scale));
     canvas.height = Math.max(1, Math.round(source.height * scale));
@@ -499,7 +556,7 @@ async function convertArtwork(file, background = false) {
   }
 }
 function assetField(label, value, onReady, background = false) {
-  const result = box('asset-field', filePicker(label, 'image/*', false, async ([file], active) => {
+  const result = box('asset-field', filePicker(label, false, async ([file], active) => {
     const ref = await uploadAsset(await convertArtwork(file, background));
     if (!active()) throw Error('편집 항목이 바뀌었어요. 새 항목에서 이미지를 선택하세요.');
     onReady(ref);
@@ -514,7 +571,8 @@ function assetField(label, value, onReady, background = false) {
       const grid = box('asset-gallery');
       for (const [i, hash] of refs.entries()) {
         const ref = 'asset:' + hash, img = el('img'), b = action('', () => onReady(ref));
-        img.loading = 'lazy'; img.alt = label + '에 이미지 ' + (i + 1) + ' 사용'; img.src = imageUrl(ref);
+        const name = project.work?.assets?.find(a=>a.ref===ref)?.name || '이미지 ' + (i + 1);
+        img.loading = 'lazy'; img.alt = label + '에 ' + name + ' 사용'; img.src = imageUrl(ref);
         b.append(img); grid.append(b);
       }
       gallery.append(grid);
@@ -544,6 +602,7 @@ async function upgradeInlineArt(d) {
       for (const frame of clip.frames) await convert(frame, 'image');
     }
   }
+  for (const p of d.work?.prefabs || []) await convert(p.object,'image');
   for (const s of d.scenes) {
     await convert(s, 'backdrop', true);
     for (const o of s.objects) await convert(o, 'image');

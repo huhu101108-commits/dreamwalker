@@ -57,6 +57,8 @@ async function api(req, env, path) {
   const session = sk && (await get(b, sk));
   const ok = !!(session && auth && session.data.gen === auth.data.gen && session.data.exp > Date.now()
     && (!session.data.ownerOnly || owner));
+  if (path.startsWith('/api/file-relay/'))
+    return fileRelay(req, path.slice('/api/file-relay/'.length), b, ok && session.data.scope === 'edit' ? sk : '', auth?.data.gen);
   if (path.startsWith('/api/android/'))
     return androidJob(req, env, path.slice(13), { b, ok, owner, auth, session });
   if (req.method === 'GET' && path === '/api/status')
@@ -68,7 +70,8 @@ async function api(req, env, path) {
     err(401, '스튜디오 암호로 입장하세요.');
   if (path === '/api/password' && !owner) err(403, '프로젝트 소유자만 설정할 수 있어요.');
   const post = req.method === 'POST';
-  if (!['GET', 'POST'].includes(req.method)) err(405, '지원하지 않는 요청이에요.');
+  const assetHead = req.method === 'HEAD' && /^\/api\/assets\/[a-f0-9]{64}$/.test(path);
+  if (!assetHead && !['GET', 'POST'].includes(req.method)) err(405, '지원하지 않는 요청이에요.');
   if (post && req.headers.get('origin') && req.headers.get('origin') !== origin)
     err(403, '허용되지 않은 출처');
   if (path === '/api/owner-session') {
@@ -87,12 +90,17 @@ async function api(req, env, path) {
     if (post && path === '/api/assets') {
       if (session.data.scope !== 'edit') err(403, '편집 권한이 필요해요.');
       const mime = req.headers.get('content-type');
-      if (!['image/png', 'image/jpeg'].includes(mime)) err(415, 'PNG 또는 JPG를 사용하세요.');
-      if (Number(req.headers.get('content-length')) > 2000000) err(413, '이미지는 2MB까지 지원해요.');
-      const bytes = new Uint8Array(await req.arrayBuffer());
-      if (!bytes.length || bytes.length > 2000000) err(413, '이미지는 2MB까지 지원해요.');
-      const signature = mime === 'image/png' ? [137, 80, 78, 71, 13, 10, 26, 10] : [255, 216, 255];
-      if (!signature.every((v, i) => bytes[i] === v)) err(400, '이미지 파일 형식을 확인하세요.');
+      const audio = ['audio/wav','audio/mpeg','audio/ogg'].includes(mime);
+      if (!audio && !['image/png','image/jpeg'].includes(mime)) err(415,'지원하지 않는 에셋 형식이에요.');
+      const max = audio ? 8000000 : 2000000;
+      if (Number(req.headers.get('content-length')) > max) err(413,'에셋 파일이 너무 커요.');
+      const bytes = new Uint8Array(await limitedFileBody(req,max));
+      const starts = (sig,at=0) => sig.every((v,i)=>bytes[at+i]===v);
+      const ascii = s => Array.from(s,c=>c.charCodeAt(0));
+      const matches = mime==='image/png' ? starts([137,80,78,71,13,10,26,10]) : mime==='image/jpeg' ? starts([255,216,255]) :
+        mime==='audio/wav' ? starts(ascii('RIFF')) && starts(ascii('WAVE'),8) : mime==='audio/ogg' ? starts(ascii('OggS')) :
+        starts(ascii('ID3')) || (bytes[0]===255 && (bytes[1]&224)===224);
+      if (!matches) err(400,'선택한 에셋의 파일 형식을 확인하세요.');
       const digest = hex(await crypto.subtle.digest('SHA-256', bytes));
       await b.put('asset/' + digest, bytes, {
         httpMetadata: { contentType: mime },
@@ -105,9 +113,9 @@ async function api(req, env, path) {
       const cacheHeaders = { 'cache-control': 'private, no-cache', etag: '"' + match[1] + '"' };
       if (req.headers.get('if-none-match') === cacheHeaders.etag && (await b.head('asset/' + match[1])))
         return new Response(null, { status: 304, headers: { ...headers, ...cacheHeaders } });
-      const item = await b.get('asset/' + match[1]);
-      if (!item) err(404, '이미지를 찾을 수 없어요.');
-      return new Response(item.body, {
+      const item = assetHead ? await b.head('asset/' + match[1]) : await b.get('asset/' + match[1]);
+      if (!item) err(404, '에셋을 찾을 수 없어요.');
+      return new Response(assetHead ? null : item.body, {
         headers: {
           ...headers,
           ...cacheHeaders,
@@ -278,12 +286,14 @@ async function api(req, env, path) {
     body.project = migrateProject(body.project);
     const issue = problem(body.project) || inspectScreens(body.project).errors[0];
     if (issue) err(400, issue);
-    const prior = new Set(imageRefs(cur.project)),
-      refs = imageRefs(body.project).filter((key) => !prior.has(key));
-    for (let n = 0; n < refs.length; n += 12) {
-      const results = await Promise.all(refs.slice(n, n + 12).map((key) => b.head('asset/' + key)));
-      if (results.some((item) => !item))
-        err(400, '참조된 이미지가 서버에 없어요. 이미지가 포함된 백업을 가져오세요.');
+    for (const [refsFor,kind] of [[imageRefs,'image/'],[soundRefs,'audio/']]) {
+      const prior = new Set(refsFor(cur.project));
+      const refs = refsFor(body.project).filter(key => !prior.has(key));
+      for (let i=0; i<refs.length; i+=12) {
+        const items=await Promise.all(refs.slice(i,i+12).map(key=>b.head('asset/'+key)));
+        if (items.some(item=>!item || !(item.httpMetadata?.contentType || 'image/png').startsWith(kind)))
+          err(400,'필요한 에셋이 없거나 형식이 달라요. 파일이 포함된 백업을 가져오세요.');
+      }
     }
     const next = {
       rev: cur.rev + 1,
