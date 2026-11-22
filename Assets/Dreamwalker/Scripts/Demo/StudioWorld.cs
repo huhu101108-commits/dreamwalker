@@ -39,12 +39,18 @@ public sealed partial class StudioWorld : MonoBehaviour
     public int Remaining { get; private set; }
     private bool hasTimers, deferExit;
     private StudioScreenFlow flow = new StudioScreenFlow();
-    public bool HasOverlay => !string.IsNullOrEmpty(flow.Top);
-    public StudioLayout CurrentLayout => Project.Layout(HasOverlay                   ? flow.Top
-                                                        : Story != null              ? Map.dialogueId
+    private string front;
+    private int frontDepth, loadingAssets;
+    private float frontAge;
+    internal bool ShowingFront => !string.IsNullOrEmpty(front) && flow.Depth <= frontDepth;
+    internal float LoadingFraction => Mathf.Min(Mathf.Clamp01(frontAge / Mathf.Max(.2f, Project.frontScreens?.seconds ?? .8f)),
+        loadingAssets == 0 ? 1 : Mathf.Clamp01(1f - (float)Connection.PendingTextures / loadingAssets));
+    public bool HasOverlay => ShowingFront || !string.IsNullOrEmpty(flow.Top);
+    public StudioLayout CurrentLayout => Project.Layout(ShowingFront ? front : HasOverlay ? flow.Top
+                                                        : Story != null ? (string.IsNullOrEmpty(Line.layout) ? Map.dialogueId : Line.layout)
                                                         : string.IsNullOrEmpty(Menu) ? Map.hudId
                                                                                      : Menu);
-    public bool Paused => Story != null || !string.IsNullOrEmpty(Result) ||
+    public bool Paused => !string.IsNullOrEmpty(front) || Story != null || !string.IsNullOrEmpty(Result) ||
                           (Project.schema < 4 ? !string.IsNullOrEmpty(Menu) : CurrentLayout.pauseGame);
     public bool Running { get; private set; }
     public StudioConnection Connection { get; private set; }
@@ -132,6 +138,31 @@ public sealed partial class StudioWorld : MonoBehaviour
                                  l => l.rules != null && Array.Exists(l.rules, r => r.@event == "elapsed"));
         ResetProgress();
         if (!RestoreProgress()) { Enter(project.Map(project.startMap)); Fire("start"); }
+        StartPresentation();
+    }
+    private void StartPresentation()
+    {
+        var f = Project.frontScreens;
+        if (f != null) Present(!string.IsNullOrEmpty(f.title) ? f.title : !string.IsNullOrEmpty(f.roster) ? f.roster : f.loading);
+    }
+    private void Present(string id)
+    {
+        if (!string.IsNullOrEmpty(front)) while (flow.Depth > frontDepth) flow.Back();
+        front = !string.IsNullOrEmpty(id) && Project.Layout(id) != null ? id : null;
+        frontDepth = flow.Depth;
+        frontAge = 0;
+        if (front != null && front == Project.frontScreens?.loading)
+        {
+            foreach (var part in parts) Connection.Texture(part.reference);
+            foreach (var screen in new[] { Map.hudId, Map.menuId, Map.dialogueId })
+            {
+                var layout = Project.Layout(screen);
+                Connection.Texture(layout.skin);
+                foreach (var w in layout.elements) Connection.Texture(w.image);
+            }
+            loadingAssets = Connection.PendingTextures;
+        }
+        SyncControls();
     }
 
     private static Sprite MakeSprite(Texture2D texture) =>
@@ -169,6 +200,7 @@ public sealed partial class StudioWorld : MonoBehaviour
 
     private void Enter(StudioMap map, bool preserveHealth = false, bool restoring = false)
     {
+        front = null;
         if (preserveHealth) RememberMap();
         ClearMap();
         flow.EnterMap();
@@ -187,11 +219,12 @@ public sealed partial class StudioWorld : MonoBehaviour
         if (body.simulated)
             body.linearVelocity = Vector2.zero;
         sky = Piece("Backdrop", Vector2.zero, new Vector2(100 * UnitX, 20), -25, Color.white,
-                    string.IsNullOrEmpty(map.backdrop) ? "builtin-stage" : map.backdrop, false);
+                    string.IsNullOrEmpty(map.backdrop) && map.floorMode != "drawn" ? "builtin-stage" : map.backdrop, false);
         sky.color = map.theme == "night"  ? new Color(.37f, .44f, .62f)
                     : map.theme == "dusk" ? new Color(.99f, .76f, .68f)
                                           : Color.white;
-        Solid("Ground", new Vector2(OriginX + map.width * UnitX / 2, -2), new Vector2(map.width * UnitX + 1, 4),
+        sky.color = Tint(map.sky, sky.color);
+        if (map.floorMode != "drawn") Solid("Ground", new Vector2(OriginX + map.width * UnitX / 2, -2), new Vector2(map.width * UnitX + 1, 4),
               false);
         foreach (var o in map.objects)
         {
@@ -203,6 +236,8 @@ public sealed partial class StudioWorld : MonoBehaviour
                 break;
             case "platform":
                 var surface = Solid("Platform", pos - Vector2.up * .1f, new Vector2(o.width * UnitX, .2f), true);
+                var groundArt = surface.GetComponent<SpriteRenderer>();
+                groundArt.color = Tint(o.tint, groundArt.color);
                 if (o.motion != null) lifts.Add(new Lift { surface = surface, data = o, origin = surface.position });
                 break;
             case "exit":
@@ -226,6 +261,7 @@ public sealed partial class StudioWorld : MonoBehaviour
         SetCharacter(Project.Character(map.characterId), preserveHealth);
         ApplyMapMemory();
         if (!restoring) { OpenStory(map.entryStory); Fire("enter"); }
+        if (preserveHealth && !restoring && !string.IsNullOrEmpty(Project.frontScreens?.loading)) Present(Project.frontScreens.loading);
         SyncControls();
         UpdateCamera();
     }
@@ -482,6 +518,23 @@ public sealed partial class StudioWorld : MonoBehaviour
     {
         if (!Running)
             return;
+        var f = Project.frontScreens;
+        if (action == "beginGame" || action == "confirmActor")
+        {
+            Present(action == "beginGame" && !string.IsNullOrEmpty(f?.roster) ? f.roster : f?.loading);
+            return;
+        }
+        if (action == "previousActor" || (action == "switch" && ShowingFront))
+        {
+            int count = Project.characters.Length, at = Array.IndexOf(Project.characters, Actor);
+            Press("selectActor", Project.characters[(at + count + (action == "previousActor" ? -1 : 1)) % count].id);
+            return;
+        }
+        if (ShowingFront && (action == "back" || action == "resume"))
+        {
+            Present(action == "back" && front == f?.roster ? f?.title : null);
+            return;
+        }
         if (action == "newRun")
         {
             PlayerPrefs.DeleteKey(SaveKey);
@@ -490,12 +543,15 @@ public sealed partial class StudioWorld : MonoBehaviour
             flow = new StudioScreenFlow();
             Enter(Project.Map(Project.startMap));
             Fire("start");
+            StartPresentation();
             return;
         }
         if (action == "open")
         {
-            if (Project.Layout(target) != null)
-                flow.Open(target);
+            if (Project.Layout(target) != null) {
+                if (target == f?.title || target == f?.roster || target == f?.loading) Present(target);
+                else flow.Open(target);
+            }
             SyncControls();
             return;
         }
@@ -530,6 +586,7 @@ public sealed partial class StudioWorld : MonoBehaviour
         {
             if (Project.Story(target) != null)
             {
+                front = null;
                 flow.CloseAll();
                 Menu = "";
                 pendingExit = null;
@@ -833,6 +890,14 @@ public sealed partial class StudioWorld : MonoBehaviour
         StepSkill();
         slash.AdvanceStudioAttack();
         Vector2 pos = transform.position;
+        if (Map.floorMode == "drawn" && pos.y < -20 * UnitY)
+        {
+            pos = Point(Array.Find(Map.objects, item => item.type == "spawn"));
+            skill = null;
+            Warp(pos);
+            SyncControls();
+            body.linearVelocity = Vector2.zero;
+        }
         if (pos.x < OriginX + UnitX || pos.x > OriginX + (Map.width - 1) * UnitX)
             Warp(pos);
         Remaining = 0;
@@ -937,8 +1002,13 @@ public sealed partial class StudioWorld : MonoBehaviour
     }
     private void Update()
     {
-        if (Running)
-            screenView.ReadInput(motor);
+        if (!Running) return;
+        if (ShowingFront && front == Project.frontScreens?.loading)
+        {
+            frontAge += Time.unscaledDeltaTime;
+            if (LoadingFraction >= 1 || frontAge >= Mathf.Max(8, Project.frontScreens.seconds)) Present(null);
+        }
+        screenView.ReadInput(motor);
     }
     private void LateUpdate()
     {
@@ -956,10 +1026,11 @@ public sealed partial class StudioWorld : MonoBehaviour
     {
         if (!Running) return;
         screenView.Draw(); DrawDiagnostics();
-        if (!Paused || CurrentLayout == null) return;
+        if (!Paused || CurrentLayout == null || (ShowingFront && front == Project.frontScreens?.loading)) return;
         bool recovery = Array.Exists(CurrentLayout.elements, w => Visible(w) && Enabled(w) &&
             (w.type == "dialogue" && Story != null || w.type == "button" && (w.action == "back" || w.action == "resume" ||
              w.action == "restart" || w.action == "newRun" || w.action == "gotoMap" || w.action == "open" ||
+             w.action == "beginGame" || w.action == "confirmActor" ||
              (Story != null && (w.action == "skip" || w.action == "nextLine")))));
         if (!recovery && GUI.Button(new Rect(Screen.width-104,4,100,38),"화면 닫기"))
             Press(HasOverlay || Story == null ? "back" : "skip");

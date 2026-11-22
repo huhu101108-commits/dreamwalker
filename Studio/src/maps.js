@@ -1,3 +1,4 @@
+let terrainTint = '#638b82';
 function drawMaps() {
   const [a, b] = panels(),
     s = activeMap(),
@@ -19,12 +20,19 @@ function drawMaps() {
     mapFloor = 0;
     mapTool = '';
   }
-  function addMap(copy = false) {
+  function addMap(copy = false, blank = false) {
     if (project.scenes.length >= LIMIT.scenes) return note('맵은 최대 ' + LIMIT.scenes + '개예요.');
     const id = uid(),
       next = copy
         ? structuredClone(s)
         : newMap(id, '새 맵 ' + (project.scenes.length + 1), c.id, project.layouts);
+    if (blank) {
+      next.name = '직접 만든 맵 ' + (project.scenes.length + 1);
+      next.floorMode = 'drawn';
+      next.sky = '#243c55';
+      next.requireClear = false;
+      next.objects.push(...terrainStroke(next, 0, 22, 0, terrainTint), ...terrainStroke(next, 84, 100, 0, terrainTint));
+    }
     if (copy) {
       next.id = id;
       next.name = s.name.slice(0, 45) + ' 사본';
@@ -33,6 +41,7 @@ function drawMaps() {
     edit(() => {
       project.scenes.splice(project.scenes.indexOf(s) + 1, 0, next);
       pick(id);
+      if (blank) mapTool = 'brush';
     });
   }
   a.append(
@@ -41,6 +50,7 @@ function drawMaps() {
         pick(v);
         draw();
       }),
+      action('빈 맵 만들기', () => addMap(false, true), 'accent'),
       action('＋ 새 맵', () => addMap()),
       action('맵 복제', () => addMap(true)),
     ),
@@ -53,6 +63,8 @@ function drawMaps() {
   const palette = box('palette');
   for (const [type, name] of Object.entries({
     '': '선택',
+    brush: '지형 그리기',
+    erase: '지형 지우기',
     enemy: '적',
     platform: '발판',
     exit: '출구',
@@ -70,7 +82,9 @@ function drawMaps() {
     tool.setAttribute('aria-pressed', type === mapTool);
     palette.append(tool);
   }
-  a.append(palette, stage);
+  a.append(palette);
+  if (mapTool === 'brush') a.append(colorField('그릴 지형 색', terrainTint, value => { terrainTint = value; }));
+  a.append(stage);
   function addAt(x, y) {
     if (s.objects.length >= LIMIT.objects) return note('맵의 개체 한도에 도달했어요.');
     const o = makeObject(
@@ -85,7 +99,51 @@ function drawMaps() {
       mapTool = '';
     });
   }
-  if (mapTool) {
+  if (mapTool === 'brush' || mapTool === 'erase') {
+    stage.classList.add('placing');
+    const point = (x, y, r) => ({ x: offset + (x-r.left) * 100 / r.width, y: bottom + 82 - (y-r.top) * 100 / r.height });
+    let stroke = null;
+    const marks = box('terrain-marks');
+    stage.append(marks);
+    function trace(e) {
+      if (!stroke || e.pointerId !== stroke.pointer) return;
+      const p = point(e.clientX, e.clientY, stroke.rect);
+      if (mapTool === 'erase') {
+        const hit = [...s.objects].reverse().find(o => o.type === 'platform' && Math.abs(o.x-p.x) <= o.width/2 + 1 && Math.abs(o.y-p.y) <= 4);
+        if (hit) { stroke.remove.add(hit); nodes.get(hit.id)?.classList.add('erasing'); }
+      } else {
+        stroke.end = p.x;
+        const start = stroke.start;
+        marks.style.left = (Math.min(start.x,p.x)-offset) + '%';
+        marks.style.width = Math.max(3,Math.abs(p.x-start.x)) + '%';
+        marks.style.top = (82 + bottom - clamp(Math.round(start.y),0,s.height-18)) + '%';
+        marks.style.background = terrainTint;
+        marks.hidden = false;
+      }
+    }
+    marks.hidden = true;
+    stage.onpointerdown = e => {
+      if (e.button !== 0 || stroke) return;
+      const rect = stage.getBoundingClientRect();
+      e.preventDefault();
+      stage.setPointerCapture(e.pointerId);
+      stroke = { rect, pointer:e.pointerId, start:point(e.clientX,e.clientY,rect), remove:new Set() };
+      trace(e);
+    };
+    stage.onpointermove = trace;
+    stage.onpointercancel = e => { if (stroke?.pointer === e.pointerId) draw(); };
+    stage.onpointerup = e => {
+      if (!stroke || e.pointerId !== stroke.pointer) return;
+      trace(e);
+      if (mapTool === 'erase') edit(() => { s.objects = s.objects.filter(o => !stroke.remove.has(o)); });
+      else {
+        const pieces = terrainStroke(s, stroke.start.x, stroke.end, stroke.start.y, terrainTint);
+        if (s.objects.length + pieces.length > LIMIT.objects) { draw(); return note('맵의 개체 한도에 도달했어요.'); }
+        edit(() => { s.objects.push(...pieces); mapObject = pieces[0].id; });
+      }
+      stroke = null;
+    };
+  } else if (mapTool) {
     stage.classList.add('placing');
     stage.onpointerdown = (e) => {
       const r = stage.getBoundingClientRect();
@@ -160,7 +218,8 @@ function drawMaps() {
     nav,
     el(
       'p',
-      mapTool
+      mapTool === 'brush' ? '손가락으로 가로로 그어 걸을 수 있는 지형을 만드세요. 시작한 높이에 지형이 생겨요.' :
+      mapTool === 'erase' ? '지울 지형을 손가락으로 쓸어 주세요.' : mapTool
         ? OBJECTS[mapTool] + '을 놓을 위치를 누르세요.'
         : '배치 도구를 고른 뒤 맵을 누르세요. 선택 도구에서는 개체를 끌어 옮길 수 있어요.',
     ),
@@ -194,6 +253,8 @@ function drawMaps() {
       };
       return titled(label + ' (100 = 한 화면)', size);
     }),
+    selectField('바닥 방식', s.floorMode || 'solid', {solid:'맵 전체 바닥',drawn:'직접 그린 지형만'}, v => edit(() => { s.floorMode = v; })),
+    colorField('맵 바탕색', s.sky || '#66879a', v => edit(() => { s.sky = v; stage.style.backgroundColor = v; }, false)),
     bindSelect('시작 캐릭터', s, 'characterId', optionMap(project.characters)),
   );
   const links = el('details'),
@@ -326,7 +387,8 @@ function drawMaps() {
     if (o.enemy.style === 'boss') b.append(bindNumber('2단계 진입 체력 (%)', o.enemy, 'phase', 1, 99, 1));
   }
   if (o.type === 'platform') {
-    b.append(bindNumber('발판 너비', o, 'width', 3, 60, 1, refresh));
+    b.append(bindNumber('발판 너비', o, 'width', 3, 60, 1, refresh),
+      colorField('지형 색', o.tint || '#92bbc9', v => edit(() => { o.tint = v; if (nodes.get(o.id)) nodes.get(o.id).style.backgroundColor = v; }, false)));
     if (!o.motion)
       b.append(
         action('이동 발판으로 설정', () =>

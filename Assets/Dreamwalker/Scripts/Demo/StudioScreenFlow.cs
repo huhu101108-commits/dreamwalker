@@ -24,6 +24,7 @@ internal sealed class StudioScreenFlow
     private readonly HashSet<string> flags = new HashSet<string>();
     private readonly HashSet<string> onceGame = new HashSet<string>();
     private readonly HashSet<string> onceMap = new HashSet<string>();
+    public int Depth => layers.Count;
     public string Top => layers.Count == 0 ? "" : layers[layers.Count - 1];
 
     public string[] Flags => new List<string>(flags).ToArray();

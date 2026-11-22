@@ -15,7 +15,12 @@ internal sealed class StudioScreenView
     private readonly Dictionary<int, GUIStyle> textStyles = new Dictionary<int, GUIStyle>();
     private Font font;
     private bool triedFont;
-    private int mouseDirection;
+    private float mouseDirection;
+    private int stickOwner = -1;
+    private bool sawStick;
+    private Vector2 stickOffset;
+    private StudioWidget heldStick;
+    private StudioLayout touchLayout;
     private float mouseHeldAt = -1;
     private Vector2 dialogueScroll;
     private StudioLine drawnLine;
@@ -37,6 +42,8 @@ internal sealed class StudioScreenView
     }
     internal void Dispose()
     {
+        foreach (var shape in shapes.Values) shape.Release();
+        shapes.Clear();
         if (font != null)
             UnityEngine.Object.Destroy(font);
     }
@@ -44,15 +51,43 @@ internal sealed class StudioScreenView
     private static Rect Bounds(StudioWidget w) => new Rect(w.x * Screen.width / 100, w.y *Screen.height / 100,
                                                            w.w *Screen.width / 100, w.h *Screen.height / 100);
 
-    private void Touch(Vector2 position, bool began, ref int horizontal)
+    private static Rect Ring(Rect rect)
+    {
+        float size = Mathf.Min(rect.width, rect.height);
+        return new Rect(rect.center.x-size/2, rect.center.y-size/2, size, size);
+    }
+    private float StickAt(Rect rect, Vector2 pos)
+    {
+        stickOffset = Vector2.ClampMagnitude((pos - rect.center) / Mathf.Max(1, rect.width * .38f), 1);
+        float x = stickOffset.x;
+        return Mathf.Abs(x) < .14f ? 0 : Mathf.Sign(x) * (Mathf.Abs(x) - .14f) / .86f;
+    }
+    private static bool Hit(StudioWidget w, Rect r, Vector2 pos) =>
+        r.Contains(pos) && StudioOutline.Contains(w,(pos.x-r.x)/r.width,(pos.y-r.y)/r.height,r.width/r.height);
+    private void Touch(int finger, Vector2 position, bool began, ref float horizontal)
     {
         position.y = Screen.height - position.y;
+        if (finger == stickOwner && heldStick != null)
+        {
+            sawStick = true;
+            horizontal += StickAt(Ring(Bounds(heldStick)),position);
+            return;
+        }
         var widgets = Layout.elements;
         for (int i = widgets.Length - 1; i >= 0; i--)
         {
             var w = widgets[i];
-            if (!world.Visible(w) || !world.Enabled(w) || w.type != "button" || !Bounds(w).Contains(position))
-                continue;
+            var r = Bounds(w);
+            if (!world.Visible(w) || !world.Enabled(w) || !r.Contains(position)) continue;
+            if (w.type == "joystick" && began && stickOwner < 0 && !world.Paused)
+            {
+                stickOwner = finger;
+                heldStick = w;
+                sawStick = true;
+                horizontal += StickAt(Ring(r),position);
+                return;
+            }
+            if (w.type != "button" || !Hit(w,r,position)) continue;
             if (w.action == "left")
                 horizontal--;
             else if (w.action == "right")
@@ -69,13 +104,16 @@ internal sealed class StudioScreenView
 
     internal void ReadInput(BaekseolMotor motor)
     {
-        int horizontal = 0;
+        float horizontal = 0;
+        sawStick = false;
+        if (touchLayout != Layout || world.Paused) { stickOwner = -1; heldStick = null; stickOffset = Vector2.zero; }
+        touchLayout = Layout;
 #if ENABLE_INPUT_SYSTEM
         var screen = Touchscreen.current;
         if (screen != null)
             foreach (var touch in screen.touches)
                 if (touch.press.isPressed)
-                    Touch(touch.position.ReadValue(), touch.press.wasPressedThisFrame, ref horizontal);
+                    Touch(touch.touchId.ReadValue(), touch.position.ReadValue(), touch.press.wasPressedThisFrame, ref horizontal);
         var k = Keyboard.current;
         if (k != null)
         {
@@ -100,7 +138,7 @@ internal sealed class StudioScreenView
         {
             var touch = UnityEngine.Input.GetTouch(i);
             if (touch.phase != TouchPhase.Ended && touch.phase != TouchPhase.Canceled)
-                Touch(touch.position, touch.phase == TouchPhase.Began, ref horizontal);
+                Touch(touch.fingerId, touch.position, touch.phase == TouchPhase.Began, ref horizontal);
         }
         for (int i = 0; i < world.Actor.skills.Length && i < SlotKeys.Length; i++)
             if (UnityEngine.Input.GetKeyDown(SlotKeys[i]))
@@ -119,11 +157,89 @@ internal sealed class StudioScreenView
             world.Line.choices.Length == 0)
             world.Answer();
 #endif
+        if (!sawStick && stickOwner >= 0) { stickOwner = -1; heldStick = null; stickOffset = Vector2.zero; }
         if (!Application.isMobilePlatform && Time.unscaledTime - mouseHeldAt < .06f)
             horizontal += mouseDirection;
         motor.SetVirtualHorizontal(world.Paused ? 0 : Mathf.Clamp(horizontal, -1, 1));
     }
 
+    private sealed class ShapeTexture
+    {
+        public Texture2D mask, artwork, edge, source;
+        public Vector2 size;
+        public void Release()
+        {
+            foreach (var t in new[] {mask,artwork,edge}) if (t != null) UnityEngine.Object.Destroy(t);
+        }
+    }
+    private readonly Dictionary<StudioWidget,ShapeTexture> shapes = new Dictionary<StudioWidget,ShapeTexture>();
+    private static Texture2D Pixels(int width, int height, Color32[] pixels)
+    {
+        var t = new Texture2D(width,height,TextureFormat.RGBA32,false);
+        t.wrapMode = TextureWrapMode.Clamp; t.SetPixels32(pixels); t.Apply(false,true);
+        return t;
+    }
+    private static Texture2D Readable(Texture2D source)
+    {
+        if (source == null || source.isReadable) return source;
+        var prior = RenderTexture.active;
+        float scale = Mathf.Min(1,512f/Mathf.Max(source.width,source.height));
+        var rt = RenderTexture.GetTemporary(Mathf.Max(1,Mathf.RoundToInt(source.width*scale)),Mathf.Max(1,Mathf.RoundToInt(source.height*scale)));
+        try
+        {
+            Graphics.Blit(source,rt); RenderTexture.active = rt;
+            var copy = new Texture2D(rt.width,rt.height,TextureFormat.RGBA32,false);
+            copy.ReadPixels(new Rect(0,0,rt.width,rt.height),0,0); copy.Apply(); return copy;
+        }
+        finally { RenderTexture.active = prior; RenderTexture.ReleaseTemporary(rt); }
+    }
+    private ShapeTexture MakeShape(StudioWidget w, Rect r, Texture2D art)
+    {
+        var result = new ShapeTexture {source=art,size=r.size};
+        float scale = Mathf.Min(1,256f/Mathf.Max(r.width,r.height)), aspect = r.width/r.height;
+        int width = Mathf.Max(2,Mathf.RoundToInt(r.width*scale)), height = Mathf.Max(2,Mathf.RoundToInt(r.height*scale));
+        var mask = new Color32[width*height]; var edge = new Color32[mask.Length];
+        var img = art == null ? null : new Color32[mask.Length];
+        var readable = Readable(art);
+        float artWidth = 1, artHeight = 1, bx = w.borderWidth/r.width, by = w.borderWidth/r.height;
+        if (readable != null && w.imageFit != "stretch")
+        {
+            float ratio = ((float)art.width/art.height)/aspect;
+            if ((w.imageFit == "cover") == (ratio > 1)) artWidth = ratio; else artHeight = 1/ratio;
+        }
+        for (int j=0; j<height; j++) for (int i=0; i<width; i++)
+        {
+            float x = (i+.5f)/width, y = 1-(j+.5f)/height;
+            if (!StudioOutline.Contains(w,x,y,aspect)) continue;
+            int at = i+j*width; mask[at] = Color.white;
+            if (bx > 0 && (!StudioOutline.Contains(w,x-bx,y,aspect) || !StudioOutline.Contains(w,x+bx,y,aspect)
+                || !StudioOutline.Contains(w,x,y-by,aspect) || !StudioOutline.Contains(w,x,y+by,aspect))) edge[at] = Color.white;
+            if (readable != null)
+            {
+                float u = .5f + (x-.5f)/artWidth, v = .5f + (.5f-y)/artHeight;
+                if (u >= 0 && u <= 1 && v >= 0 && v <= 1) img[at] = readable.GetPixelBilinear(u,v);
+            }
+        }
+        if (readable != art && readable != null) UnityEngine.Object.Destroy(readable);
+        result.mask = Pixels(width,height,mask);
+        if (w.borderWidth > 0) result.edge = Pixels(width,height,edge);
+        if (img != null) result.artwork = Pixels(width,height,img);
+        return result;
+    }
+    private void DrawShape(StudioWidget w, Rect r, Color color)
+    {
+        if (Event.current.type != EventType.Repaint) return;
+        var art = world.Connection.Texture(w.image);
+        if (!shapes.TryGetValue(w,out var shape) || shape.size != r.size || shape.source != art)
+        {
+            shape?.Release(); shapes[w] = shape = MakeShape(w,r,art);
+        }
+        var prior = GUI.color;
+        GUI.color = color; GUI.DrawTexture(r,shape.mask);
+        GUI.color = Color.white; if (shape.artwork != null) GUI.DrawTexture(r,shape.artwork);
+        GUI.color = StudioWorld.Tint(w.borderColor,Color.white); if (shape.edge != null) GUI.DrawTexture(r,shape.edge);
+        GUI.color = prior;
+    }
     private GUIStyle Style(int size, string align, Color color)
     {
         if (!triedFont)
@@ -161,6 +277,7 @@ internal sealed class StudioScreenView
         if (w.type == "hp")
             return (string.IsNullOrEmpty(value) ? world.Actor.name : value) + "   " + world.Health + " / " +
                    world.Actor.health;
+        if (w.type == "loading") return (string.IsNullOrEmpty(value) ? "로딩" : value) + " " + Mathf.RoundToInt(100 * world.LoadingFraction) + "%";
         if (w.type == "enemies")
             return (string.IsNullOrEmpty(value) ? "남은 적" : value) + " " + world.Remaining;
         if (!string.IsNullOrEmpty(value))
@@ -192,6 +309,9 @@ internal sealed class StudioScreenView
             return "계속하기";
         case "switch":
             return "캐릭터 교대";
+        case "previousActor": return "이전 캐릭터";
+        case "beginGame": return "게임 시작";
+        case "confirmActor": return "선택 확정";
         case "roadmap":
             return "캐릭터 스토리";
         case "newRun":
@@ -232,21 +352,21 @@ internal sealed class StudioScreenView
             dialogueScroll = Vector2.zero;
         }
         var speaker = world.Project.Character(node.speaker);
-        if (speaker != null)
+        if (node.side != "hidden")
         {
-            var path = !string.IsNullOrEmpty(speaker.portrait) ? speaker.portrait : speaker.sprite;
-            if (string.IsNullOrEmpty(path) && speaker.id == "baekseol")
+            var path = !string.IsNullOrEmpty(node.portrait) ? node.portrait : !string.IsNullOrEmpty(speaker?.portrait) ? speaker.portrait : speaker?.sprite;
+            if (string.IsNullOrEmpty(path) && speaker?.id == "baekseol")
                 path = "builtin-player";
             var texture = world.Connection.Texture(path);
             if (texture != null)
             {
                 float width = rect.width * .16f;
-                GUI.DrawTexture(new Rect(rect.x, rect.y, width, rect.height), texture, ScaleMode.ScaleToFit);
-                rect.x += width;
+                GUI.DrawTexture(new Rect(node.side == "right" ? rect.xMax - width : rect.x, rect.y, width, rect.height), texture, ScaleMode.ScaleToFit);
+                if (node.side != "right") rect.x += width;
                 rect.width -= width;
             }
         }
-        string text = (speaker != null ? speaker.name : "내레이션") + "\n" + node.text;
+        string text = (!string.IsNullOrEmpty(node.speakerName) ? node.speakerName : speaker != null ? speaker.name : "내레이션") + "\n" + node.text;
         float contentWidth = Mathf.Max(16, rect.width - 22),
               textHeight = style.CalcHeight(new GUIContent(text), contentWidth) + 8;
         float buttonHeight = Mathf.Max(34, style.fontSize * 2.2f);
@@ -256,7 +376,7 @@ internal sealed class StudioScreenView
         int clicked = -2;
         if (node.choices.Length == 0)
         {
-            if (GUI.Button(new Rect(0, textHeight, contentWidth, buttonHeight), "다음 →", style))
+            if (GUI.Button(new Rect(0, textHeight, contentWidth, buttonHeight), string.IsNullOrEmpty(node.nextLabel) ? "다음 →" : node.nextLabel, style))
                 clicked = -1;
         }
         else
@@ -286,6 +406,8 @@ internal sealed class StudioScreenView
             return;
         }
         var full = new Rect(0, 0, Screen.width, Screen.height);
+        var sceneArt = world.HasOverlay ? null : world.Connection.Texture(world.Line?.backdrop);
+        if (sceneArt != null) GUI.DrawTexture(full, sceneArt, ScaleMode.ScaleAndCrop);
         Color tint = StudioWorld.Tint(Layout.tint, new Color(.04f, .08f, .14f));
         tint.a = world.Project.schema < 4 && !string.IsNullOrEmpty(world.Menu) ? .7f : Layout.shade / 100;
         if (tint.a > 0)
@@ -300,7 +422,26 @@ internal sealed class StudioScreenView
             var r = Bounds(w);
             var background = StudioWorld.Tint(w.background, Color.black);
             background.a = w.opacity / 100;
-            if (w.type == "button" && world.Project.schema >= 4)
+            if (w.type == "joystick")
+            {
+                var ring = Ring(r);
+                GUI.DrawTexture(ring, Texture2D.whiteTexture, ScaleMode.StretchToFill, true, 0, background, 0, ring.width/2);
+                var color = StudioWorld.Tint(w.color,Color.white);
+                GUI.DrawTexture(ring, Texture2D.whiteTexture, ScaleMode.StretchToFill, true, 0, color, 2, ring.width/2);
+                var offset = heldStick == w || (!Application.isMobilePlatform && Time.unscaledTime-mouseHeldAt < .06f) ? stickOffset : Vector2.zero;
+                var center = ring.center + offset*ring.width*.32f;
+                float radius = ring.width*.19f;
+                GUI.DrawTexture(new Rect(center.x-radius,center.y-radius,radius*2,radius*2),Texture2D.whiteTexture,ScaleMode.StretchToFill,true,0,color,0,radius);
+                if (!Application.isMobilePlatform && GUI.RepeatButton(r, "", GUIStyle.none))
+                { mouseDirection = StickAt(ring, Event.current.mousePosition); mouseHeldAt = Time.unscaledTime; }
+                continue;
+            }
+            if (w.type == "button" && !string.IsNullOrEmpty(w.shape) && w.shape != "rect")
+            {
+                if (w.id == pressedId && Time.unscaledTime < pressUntil) background = StudioWorld.Tint(w.pressedColor, background);
+                DrawShape(w, r, background);
+            }
+            else if (w.type == "button" && world.Project.schema >= 4)
             {
                 float radius = Mathf.Min(r.width, r.height) * w.radius / 100;
                 if (w.id == pressedId && Time.unscaledTime < pressUntil)
@@ -332,13 +473,18 @@ internal sealed class StudioScreenView
                 DrawLine(r, style);
                 continue;
             }
-            if (w.type == "image")
+            if (w.type == "image" || w.type == "portrait")
             {
-                var texture = world.Connection.Texture(w.image);
+                var actor = world.Actor;
+                var path = w.type == "image" ? w.image : !string.IsNullOrEmpty(actor.portrait) ? actor.portrait : actor.sprite;
+                if (w.type == "portrait" && string.IsNullOrEmpty(path) && actor.id == "baekseol") path = "builtin-player";
+                var texture = world.Connection.Texture(path);
+                if (texture == null && w.type == "portrait") GUI.Label(r, actor.name, style);
                 if (texture != null)
                     GUI.DrawTexture(r, texture, ScaleMode.ScaleToFit);
                 continue;
             }
+            if (w.type == "loading") Fill(new Rect(r.x,r.y,r.width*world.LoadingFraction,r.height), new Color(.12f,.5f,.56f));
             if (w.type == "hp")
                 Fill(new Rect(r.x, r.y, r.width * world.Health / world.Actor.health, r.height),
                      new Color(.12f, .5f, .56f));
@@ -360,7 +506,7 @@ internal sealed class StudioScreenView
                         mouseHeldAt = Time.unscaledTime;
                     }
                 }
-                else if (GUI.Button(r, Label(w), style))
+                else if (GUI.Button(r, Label(w), style) && Hit(w,r,Event.current.mousePosition))
                 {
                     pressedId = w.id;
                     pressUntil = Time.unscaledTime + .18f;

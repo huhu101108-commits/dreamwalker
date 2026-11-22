@@ -1,3 +1,74 @@
+function drawScreenShortcuts(a, layout) {
+  const m = activeMap(), fronts = project.frontScreens || {};
+  function select(id) { layoutId = id; elementId = ''; draw(); }
+  function make(roles) {
+    const missing = roles.filter(role => !fronts[role]);
+    if (project.layouts.length + missing.length > LIMIT.layouts) return note('UI 화면 한도에 도달했어요.');
+    edit(() => {
+      const config = project.frontScreens ||= { seconds: 0.8 };
+      for (const role of missing) {
+        const screen = frontScreen(uid(), role, project.title);
+        project.layouts.push(screen);
+        config[role] = screen.id;
+      }
+      layoutId = config[roles[0]]; elementId = '';
+    });
+  }
+  const shortcuts = box('screen-shortcuts');
+  for (const [role, name] of Object.entries(FRONT_SCREENS))
+    shortcuts.append(action(name, () => fronts[role] ? select(fronts[role]) : make([role]), layout.id === fronts[role] ? 'on' : ''));
+  for (const [name,id] of [['전투 HUD',m.hudId],['게임 메뉴',m.menuId],['대화창',m.dialogueId]])
+    shortcuts.append(action(name, () => select(id), layout.id === id ? 'on' : ''));
+  a.append(heading('게임 화면'), shortcuts);
+  if (Object.keys(FRONT_SCREENS).some(role => !fronts[role]))
+    a.append(action('시작 화면 세트 만들기', () => make(['title','roster','loading'])));
+  const setup = el('details');
+  setup.append(el('summary','게임 시작 순서 · 화면 연결'));
+  for (const [role, name] of Object.entries(FRONT_SCREENS)) {
+    const options = project.layouts.filter(l => l.kind === 'custom' &&
+      !Object.keys(FRONT_SCREENS).some(k => k !== role && fronts[k] === l.id));
+    setup.append(selectField(name + ' 연결', fronts[role] || '', { '':'건너뛰기', ...optionMap(options) },
+      id => edit(() => { (project.frontScreens ||= {})[role] = id; })));
+  }
+  setup.append(numberField('최소 로딩 시간 (초)', fronts.seconds ?? 0.8, 0.2, 10, 0.1,
+    v => edit(() => { (project.frontScreens ||= {}).seconds = v; }, false)));
+  a.append(setup);
+  const makeMenu = action('이 맵에 새 메뉴 만들기', () => {
+    if (project.layouts.length >= LIMIT.layouts) return note('UI 화면 한도에 도달했어요.');
+    const s = newScreen(uid(), (m.name + ' 메뉴').slice(0, 50), 'menu');
+    s.elements = [widget('continue','button',34,72,32,14,{text:'계속하기',action:'resume'})];
+    edit(() => { project.layouts.push(s); m.menuId = layoutId = s.id; elementId = ''; });
+  });
+  a.append(makeMenu);
+}
+function polygonEditor(w, parent) {
+  const draft = w.shape === 'custom' ? structuredClone(w.points) : [];
+  const editor = box('outline-editor'), canvas = el('canvas'), count = el('output');
+  canvas.width = 400; canvas.height = 200; canvas.setAttribute('aria-label','버튼 외곽선 편집판');
+  const ctx = canvas.getContext('2d');
+  function paint() {
+    ctx.clearRect(0,0,400,200);
+    ctx.strokeStyle = '#83bfc9'; ctx.fillStyle = '#275969'; ctx.lineWidth = 3;
+    ctx.beginPath();
+    draft.forEach(({x,y},i) => { if (i) ctx.lineTo(x*4,y*2); else ctx.moveTo(x*4,y*2); });
+    ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.fillStyle = '#daf2ee';
+    for (const {x,y} of draft) { ctx.beginPath(); ctx.arc(x*4,y*2,4,0,Math.PI*2); ctx.fill(); }
+    count.textContent = draft.length + ' / 24점';
+  }
+  canvas.onpointerdown = e => {
+    if (e.button !== 0 || draft.length >= 24) return;
+    const r = canvas.getBoundingClientRect();
+    draft.push({x:clamp(Math.round(100*(e.clientX-r.left)/r.width),0,100),y:clamp(Math.round(100*(e.clientY-r.top)/r.height),0,100)});
+    paint();
+  };
+  editor.append(el('p','테두리를 따라 순서대로 점을 찍으세요. 마지막 점은 첫 점과 이어져요.'), canvas, count, row(
+    action('마지막 점 취소', () => { draft.pop(); paint(); }), action('점 다시 찍기', () => { draft.length=0; paint(); }),
+    action('그린 모양 적용', () => {
+      if (!polygonOK(draft)) return note('면적이 생기도록 서로 다른 점을 세 개 이상 찍으세요.');
+      edit(() => { w.shape='custom'; w.points=structuredClone(draft); });
+    })));
+  paint(); parent.append(editor);
+}
 function drawInterface() {
   const [a, b] = panels(),
     l = activeLayout();
@@ -19,6 +90,7 @@ function drawInterface() {
       elementId = '';
     });
   };
+  drawScreenShortcuts(a, l);
   a.append(
     row(
       selectField('작업 화면', l.id, optionMap(project.layouts), (v) => {
@@ -39,6 +111,13 @@ function drawInterface() {
       action('화면 복제', () => add(true)),
     ),
   );
+  if (l.kind === 'hud') a.append(action('조이스틱 추가', () => {
+    const existing = l.elements.find(w => w.type === 'joystick');
+    if (existing) { elementId = existing.id; draw(); return; }
+    if (l.elements.length >= LIMIT.widgets) return note('화면 요소 한도에 도달했어요.');
+    const n = joystickWidget(uid());
+    edit(() => { l.elements.push(n); elementId = n.id; });
+  }));
   a.append(row(action('▶ 이 화면 테스트', () => playProject(activeMap().id, l.id))));
   const w = named(l.elements, elementId) || l.elements[0];
   elementId = w?.id || '';
@@ -234,6 +313,10 @@ function drawInterface() {
     b.append(vis);
     b.append(
       heading('버튼 모양'),
+      selectField('버튼 외곽선', w.shape || 'rect', BUTTON_SHAPES, v => edit(() => {
+        w.shape = v;
+        if (v === 'custom' && !polygonOK(w.points)) w.points = structuredClone(shapePoints.hex);
+      })),
       assetField('버튼 그림', w.image, (v) => edit(() => (w.image = v))),
       bindSelect('그림 맞춤', w, 'imageFit', {
         contain: '전체 표시',
@@ -249,7 +332,11 @@ function drawInterface() {
       ),
     );
   }
-  if (!['image', 'panel', 'dialogue'].includes(w.type)) {
+  if (w.type === 'button') {
+    const outline = el('details'); outline.append(el('summary','버튼 모양 직접 그리기'));
+    polygonEditor(w, outline); b.append(outline);
+  }
+  if (!['image', 'panel', 'dialogue','joystick','portrait'].includes(w.type)) {
     const token = {};
     b.append(
       textField(

@@ -37,7 +37,7 @@ function selectField(label, value, options, change) {
 function textField(label, value, change, max = 50, multi = false) {
   const i = el(multi ? 'textarea' : 'input');
   i.maxLength = max;
-  i.value = value;
+  i.value = value ?? '';
   i.oninput = () => change(i.value);
   if (multi) i.rows = 3;
   return titled(label, i);
@@ -106,6 +106,8 @@ function characterUrl(c, portrait = false) {
 }
 function paintStage(stage, map) {
   stage.className = 'stage ' + map.theme;
+  stage.classList.toggle('drawn-floor', map.floorMode === 'drawn');
+  stage.style.backgroundColor = map.sky || '';
   stage.style.removeProperty('background-image');
   cssImage(stage, imageUrl(map.backdrop));
 }
@@ -140,7 +142,10 @@ function actorNode(o, character) {
       n.classList.add('enemy-art');
       cssImage(n, imageUrl(o.image));
     }
-  } else if (o.type === 'platform') n.style.width = o.width + '%';
+  } else if (o.type === 'platform') {
+    n.style.width = o.width + '%';
+    if (o.tint) n.style.backgroundColor = o.tint;
+  }
   else if (o.type === 'prop') {
     n.style.width = o.width + '%';
     n.style.height = o.height + '%';
@@ -181,7 +186,10 @@ function styleScreen(n, s) {
   cssImage(n, imageUrl(s.skin));
 }
 function styleButton(n, w) {
-  n.style.borderRadius = w.radius + '%';
+  const shape = w.shape || 'rect', points = shape === 'custom' ? w.points : shapePoints[shape];
+  n.style.borderRadius = shape === 'pill' ? '999px' : shape === 'round' ? '50%' : w.radius + '%';
+  n.style.clipPath = points ? 'polygon(' + points.map(p => p.x + '% ' + p.y + '%').join(',') + ')' :
+    shape === 'round' ? 'ellipse(50% 50%)' : '';
   n.style.border = w.borderWidth + 'px solid ' + w.borderColor;
   n.style.setProperty('--press-color', w.pressedColor);
   n.style.backgroundRepeat = 'no-repeat';
@@ -213,7 +221,14 @@ function newWidgetView(w) {
     cssImage(node, imageUrl(w.image));
     if (!w.image) node.textContent = '이미지';
   }
-  if (w.type === 'hp') {
+  if (w.type === 'joystick') {
+    const ring = box('stick-ring', box('stick-thumb'));
+    node.setAttribute('aria-label', w.text || '이동 조이스틱');
+    ring.style.backgroundColor = node.style.backgroundColor;
+    node.style.backgroundColor = 'transparent';
+    node.append(ring);
+  }
+  if (w.type === 'hp' || w.type === 'loading') {
     const fill = el('span'),
       label = el('span');
     fill.className = 'hp-fill';
@@ -227,6 +242,16 @@ function updateWidget(n, w, state) {
   if (w.type === 'hp') {
     n.firstChild.style.width = clamp((state.hp / c.health) * 100, 0, 100) + '%';
     n.lastChild.textContent = (w.text || c.name) + '　' + Math.ceil(state.hp) + ' / ' + c.health;
+  } else if (w.type === 'loading') {
+    const percent = Math.round(100 * (state.loading ?? 0.6));
+    n.firstChild.style.width = percent + '%';
+    n.lastChild.textContent = (w.text || '로딩') + ' ' + percent + '%';
+  } else if (w.type === 'portrait') {
+    const url = characterUrl(c, true);
+    n.style.backgroundImage = '';
+    cssImage(n, url);
+    n.textContent = url ? '' : c.name;
+    n.setAttribute('aria-label', c.name);
   } else if (w.type === 'enemies') n.textContent = (w.text || '남은 적') + ' ' + state.enemies;
   else if (w.type === 'character') n.textContent = w.text || c.name;
   else if (w.type === 'map') n.textContent = w.text || state.map.name;
@@ -327,6 +352,36 @@ function paintCombatOverlay(canvas, run) {
   ctx.fill();
   ctx.restore();
 }
+function bindJoystick(node, setAxis) {
+  const ring = node.querySelector('.stick-ring'), thumb = ring.firstChild;
+  let owner = null;
+  function move(e) {
+    if (e.pointerId !== owner) return;
+    const r = ring.getBoundingClientRect();
+    const dx = (e.clientX - r.left - r.width / 2) / Math.max(1, r.width * .38);
+    const dy = (e.clientY - r.top - r.height / 2) / Math.max(1, r.height * .38);
+    const length = Math.max(1, Math.hypot(dx, dy)), x = dx / length, y = dy / length;
+    thumb.style.left = (50 + x * 32) + '%';
+    thumb.style.top = (50 + y * 32) + '%';
+    setAxis(Math.abs(x) < .14 ? 0 : Math.sign(x) * (Math.abs(x) - .14) / .86);
+  }
+  function release(e) {
+    if (e && e.pointerId !== owner) return;
+    owner = null;
+    thumb.style.left = thumb.style.top = '50%';
+    setAxis(0);
+  }
+  node.onpointerdown = e => {
+    if (owner !== null || e.button !== 0) return;
+    e.preventDefault();
+    node.setPointerCapture(e.pointerId);
+    owner = e.pointerId;
+    move(e);
+  };
+  node.onpointermove = move;
+  node.onpointerup = node.onpointercancel = node.onlostpointercapture = release;
+  return release;
+}
 function pointerDrag(n, onStart, onMove, onEnd) {
   n.onpointerdown = (e) => {
     if (e.button !== 0) return;
@@ -362,44 +417,109 @@ async function uploadAsset(blob) {
   if (!r.ok) throw Error(d.error || '이미지 저장 실패');
   return d.ref;
 }
-function assetField(label, value, onReady, background = false) {
-  const f = el('input');
-  f.type = 'file';
-  f.accept = 'image/png,image/jpeg,image/webp';
-  f.onchange = async () => {
-    const file = f.files[0];
-    if (!file) return;
+function filePicker(label, accept, multiple, consume, imageFiles = false) {
+  const input = el('input'), area = box('file-picker');
+  input.type = 'file';
+  input.accept = accept;
+  input.multiple = multiple;
+  const status = el('output');
+  status.setAttribute('aria-live', 'polite');
+  let busy = false;
+  async function receive(items) {
+    const files = [...items];
+    if (busy || !files.length) return;
+    busy = input.disabled = true;
+    status.textContent = '파일을 읽고 있어요…';
     try {
-      if (file.size > 20000000) throw Error('원본 이미지는 20MB 이하로 선택하세요.');
-      f.disabled = true;
-      note('이미지를 준비하고 있어요…');
-      const bitmap = await createImageBitmap(file);
-      const canvas = el('canvas'),
-        max = background ? 1800 : 900;
-      const scale = Math.min(1, max / Math.max(bitmap.width, bitmap.height));
-      canvas.width = Math.max(1, Math.round(bitmap.width * scale));
-      canvas.height = Math.max(1, Math.round(bitmap.height * scale));
-      canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-      bitmap.close();
-      const blob = await new Promise((resolve) =>
-        canvas.toBlob(resolve, background ? 'image/jpeg' : 'image/png', 0.85),
-      );
-      if (!blob || blob.size > 2000000) throw Error('변환 이미지가 2MB를 넘었어요. 해상도를 줄여 주세요.');
-      const ref = await uploadAsset(blob);
-      if (!f.isConnected) {
-        note('편집 항목이 바뀌었어요. 이미지를 다시 선택하세요.');
-        return;
-      }
-      onReady(ref);
-      note('이미지를 연결했어요. 저장하면 팀 버전에 반영돼요.');
-    } catch (e) {
-      note(e.message);
+      await consume(multiple ? files : files.slice(0, 1), () => area.isConnected);
+      status.textContent = '가져왔어요.';
+    } catch (error) {
+      status.textContent = error.message;
+      note(error.message);
     } finally {
-      f.disabled = false;
-      f.value = '';
+      busy = input.disabled = false;
+      input.value = '';
     }
-  };
-  const result = box('asset-field', titled(label, f));
+  }
+  input.onchange = () => receive(input.files);
+  area.ondragover = e => e.preventDefault();
+  area.ondrop = e => { e.preventDefault(); receive(e.dataTransfer.files); };
+  area.append(titled(label, input));
+  if (imageFiles) {
+    const other = el('details'), paste = el('textarea');
+    paste.rows = 1;
+    paste.placeholder = '복사한 이미지를 여기에 붙여넣으세요';
+    paste.onpaste = e => {
+      const files = [...e.clipboardData.items].filter(i => i.kind === 'file').map(i => i.getAsFile()).filter(Boolean);
+      if (files.length) { e.preventDefault(); receive(files); }
+    };
+    other.append(el('summary', '이미지 붙여넣기 · 파일 놓기'), titled(label + ' 붙여넣기', paste));
+    if (navigator.clipboard?.read) other.append(action('클립보드 이미지 가져오기', async () => {
+      const files = [];
+      for (const item of await navigator.clipboard.read()) {
+        const type = item.types.find(t => t.startsWith('image/'));
+        if (type) files.push(await item.getType(type));
+      }
+      if (!files.length) throw Error('클립보드에 복사된 이미지가 없어요.');
+      await receive(files);
+    }));
+    area.append(other);
+  }
+  area.append(status);
+  return area;
+}
+async function convertArtwork(file, background = false) {
+  if (!file.size || file.size > 20000000) throw Error('20MB 이하의 이미지 파일을 선택하세요.');
+  let source, url;
+  try {
+    if (typeof createImageBitmap === 'function') {
+      try { source = await createImageBitmap(file); } catch {}
+    }
+    if (!source) {
+      url = URL.createObjectURL(file);
+      source = await new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(Error('이 이미지 형식을 읽을 수 없어요. PNG, JPG 또는 WebP 파일을 선택하세요.'));
+        img.src = url;
+      });
+    }
+    const canvas = el('canvas'), max = background ? 1800 : 900;
+    const scale = Math.min(1, max / Math.max(source.width, source.height));
+    canvas.width = Math.max(1, Math.round(source.width * scale));
+    canvas.height = Math.max(1, Math.round(source.height * scale));
+    canvas.getContext('2d').drawImage(source, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, background ? 'image/jpeg' : 'image/png', .85));
+    if (!blob || blob.size > 2000000) throw Error('변환 이미지가 2MB를 넘었어요. 해상도를 줄여 주세요.');
+    return blob;
+  } finally {
+    source?.close?.();
+    if (url) URL.revokeObjectURL(url);
+  }
+}
+function assetField(label, value, onReady, background = false) {
+  const result = box('asset-field', filePicker(label, 'image/*', false, async ([file], active) => {
+    const ref = await uploadAsset(await convertArtwork(file, background));
+    if (!active()) throw Error('편집 항목이 바뀌었어요. 새 항목에서 이미지를 선택하세요.');
+    onReady(ref);
+    note('이미지를 연결했어요. 저장하면 팀 버전에 반영돼요.');
+  }, true));
+  const refs = imageRefs(project);
+  if (refs.length) {
+    const gallery = el('details');
+    gallery.append(el('summary', '프로젝트 이미지에서 선택'));
+    gallery.ontoggle = () => {
+      if (!gallery.open || gallery.children.length > 1) return;
+      const grid = box('asset-gallery');
+      for (const [i, hash] of refs.entries()) {
+        const ref = 'asset:' + hash, img = el('img'), b = action('', () => onReady(ref));
+        img.loading = 'lazy'; img.alt = label + '에 이미지 ' + (i + 1) + ' 사용'; img.src = imageUrl(ref);
+        b.append(img); grid.append(b);
+      }
+      gallery.append(grid);
+    };
+    result.append(gallery);
+  }
   if (value) result.append(action('이미지 연결 해제', () => onReady(''), 'quiet'));
   return result;
 }
@@ -410,18 +530,7 @@ async function upgradeInlineArt(d) {
     if (typeof value !== 'string' || !value.startsWith('data:')) return;
     const k = (background ? 'background:' : 'sprite:') + value;
     if (!seen.has(k)) {
-      const bitmap = await createImageBitmap(await (await fetch(value)).blob()),
-        canvas = el('canvas');
-      const scale = Math.min(1, (background ? 1800 : 900) / Math.max(bitmap.width, bitmap.height));
-      canvas.width = Math.max(1, Math.round(bitmap.width * scale));
-      canvas.height = Math.max(1, Math.round(bitmap.height * scale));
-      canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-      bitmap.close();
-      const blob = await new Promise((resolve) =>
-        canvas.toBlob(resolve, background ? 'image/jpeg' : 'image/png', 0.85),
-      );
-      if (!blob || blob.size > 2000000)
-        throw Error('기존 이미지가 너무 커서 변환할 수 없어요. 작은 이미지를 연결해 주세요.');
+      const blob = await convertArtwork(await (await fetch(value)).blob(), background);
       seen.set(k, await uploadAsset(blob));
     }
     item[key] = seen.get(k);
@@ -437,6 +546,10 @@ async function upgradeInlineArt(d) {
   for (const s of d.scenes) {
     await convert(s, 'backdrop', true);
     for (const o of s.objects) await convert(o, 'image');
+  }
+  for (const story of d.stories) for (const n of story.nodes) {
+    await convert(n, 'backdrop', true);
+    await convert(n, 'portrait');
   }
   for (const l of d.layouts) {
     await convert(l, 'skin', true);

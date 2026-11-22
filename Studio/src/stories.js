@@ -2,15 +2,16 @@ function dialogueContent(world, cursor, advance) {
   const n = cursor.node,
     c = named(world.characters, n.speaker),
     wrap = box('dialogue-content');
-  const face = c && characterUrl(c, true);
-  if (face) {
+  const face = imageUrl(n.portrait) || (c && characterUrl(c, true));
+  if (n.side === 'right') wrap.classList.add('face-right');
+  if (face && n.side !== 'hidden') {
     const img = el('img');
     img.src = face;
-    img.alt = c.name;
+    img.alt = n.speakerName || c?.name || '장면 초상';
     wrap.append(img);
   }
   const body = box('dialogue-copy'),
-    speaker = el('strong', c?.name || '내레이션');
+    speaker = el('strong', n.speakerName || c?.name || '내레이션');
   speaker.style.color = c?.color || '#cbe6ef';
   body.append(speaker, el('p', n.text || '…'));
   const answers = box('answers');
@@ -18,17 +19,18 @@ function dialogueContent(world, cursor, advance) {
     n.choices.forEach((choice, i) => answers.append(action(choice.label || '선택', () => advance(i))));
   else
     answers.append(
-      action(cursor.index === cursor.story.nodes.length - 1 ? '대화 마치기' : '다음 대사 →', () => advance()),
+      action(n.nextLabel || (cursor.index === cursor.story.nodes.length - 1 ? '대화 마치기' : '다음 대사 →'), () => advance()),
     );
   body.append(answers);
   wrap.append(body);
   return wrap;
 }
-function previewStory(story, map = activeMap()) {
+function previewStory(story, map = activeMap(), first = 0) {
   const dialog = $('#reader'),
     area = $('#readerArea'),
     c = named(project.characters, map.characterId);
   const cursor = new DialogueCursor(story);
+  cursor.index = first;
   $('#readerName').textContent = story.name;
   paintStage(area, map);
   area.classList.add('reader-stage');
@@ -37,7 +39,8 @@ function previewStory(story, map = activeMap()) {
     const backdrop = named(project.scenes, cursor.node.mapId) || map;
     paintStage(area, backdrop);
     area.classList.add('reader-stage');
-    const screen = named(project.layouts, backdrop.dialogueId);
+    if (cursor.node.backdrop) cssImage(area, imageUrl(cursor.node.backdrop));
+    const screen = named(project.layouts, cursor.node.layout || backdrop.dialogueId);
     const skin = box('ui-backdrop');
     styleScreen(skin, screen);
     area.append(skin);
@@ -130,7 +133,7 @@ function drawStories() {
     b.append(
       el(
         'small',
-        String(i + 1).padStart(2, '0') + ' / ' + (named(project.characters, v.speaker)?.name || '내레이션'),
+        String(i + 1).padStart(2, '0') + ' / ' + (v.speakerName || named(project.characters, v.speaker)?.name || '내레이션'),
       ),
       el('span', v.text || '대사를 입력하세요.'),
       el(
@@ -176,6 +179,20 @@ function drawStories() {
     heading('대사 속성'),
     bindSelect('화자', n, 'speaker', { '': '내레이션', ...optionMap(project.characters) }),
     bindText('대사 내용', n, 'text', 1200, true),
+    heading('이 줄의 연출'),
+    bindText('화자 표시 이름', n, 'speakerName'),
+    selectField('초상 위치', n.side || 'left', {left:'왼쪽',right:'오른쪽',hidden:'숨기기'}, v => edit(() => { n.side=v; })),
+    assetField('이 줄의 배경', n.backdrop, v => edit(() => { n.backdrop=v; }), true),
+    assetField('이 줄의 초상', n.portrait, v => edit(() => { n.portrait=v; })),
+    selectField('이 줄의 대화창', n.layout || '', {'':'맵 기본 대화창',...optionMap(project.layouts.filter(l => l.kind === 'dialogue'))},
+      v => edit(() => { n.layout=v; })),
+    bindText('다음 버튼 문구', n, 'nextLabel', 80),
+    row(action('이 줄부터 미리보기', () => previewStory(s, activeMap(), s.nodes.indexOf(n))),
+      action('이 줄 복제', () => {
+        if (s.nodes.length >= LIMIT.nodes) return note('대사 한도에 도달했어요.');
+        const copy = { ...structuredClone(n), id:uid() };
+        edit(() => { s.nodes.splice(s.nodes.indexOf(n)+1,0,copy); lineId=copy.id; });
+      })),
     row(
       action('한 줄 위로', () => edit(() => moveIn(s.nodes, n, -1))),
       action('한 줄 아래로', () => edit(() => moveIn(s.nodes, n, 1))),

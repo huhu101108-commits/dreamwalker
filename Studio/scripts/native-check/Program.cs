@@ -26,6 +26,13 @@ public static class Verify
             if (StudioCombatClock.SweepTouches(0, 0, -face * 2, 0, face, 1.66f, -55, 55))
                 throw new Exception("behind");
         }
+        var button = new StudioWidget { shape = "custom", points = new[] {
+            new StudioVertex { x=0,y=0 }, new StudioVertex { x=100,y=0 }, new StudioVertex { x=0,y=100 } } };
+        if (!StudioOutline.Contains(button,.1f,.2f,2) || StudioOutline.Contains(button,.9f,.8f,2)) throw new Exception("polygon hit area");
+        foreach (var shape in new[] { "pill", "hex", "diamond", "round" }) {
+            button.shape=shape;
+            if (!StudioOutline.Contains(button,.5f,.5f,2) || StudioOutline.Contains(button,.01f,.01f,2)) throw new Exception(shape);
+        }
         var flow = new StudioScreenFlow();
         flow.Flag("story", true);
         flow.Open("pause");

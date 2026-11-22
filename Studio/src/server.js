@@ -188,6 +188,18 @@ async function api(req, env, path) {
   if (!post && path === '/api/runtime') {
     if (session.data.scope === 'edit') return json({ rev: cur.rev, project: cur.project });
     const world = packNativeWorld(cur.project);
+    if (new URL(req.url).searchParams.get('joystick') !== '1') {
+      for (const layout of world.layouts) {
+        const buttons = layout.elements.filter(w => w.type === 'button' && w.visible);
+        layout.elements = layout.elements.flatMap(w => {
+          if (w.type !== 'joystick') return [w];
+          return ['left', 'right'].filter(key => !buttons.some(b => b.action === key)).map(key => ({
+            ...w, type: 'button', id: w.id + '-' + key, text: key === 'left' ? '◀' : '▶',
+            action: key, target: '', x: w.x + (key === 'left' ? 0 : w.w / 2), w: w.w / 2,
+          }));
+        });
+      }
+    }
     // Installed v3 clients predate additional slots and the graph action. Keep their four slots playable.
     if (new URL(req.url).searchParams.get('schema') !== '4') {
       world.schema = 3;

@@ -55,13 +55,14 @@ public class StudioRoadmap
                 var line = source.nodes[i];
                 var answers =
                     line.choices.Length == 0
-                        ? new[] { Choice("다음",
+                        ? new[] { Choice(string.IsNullOrEmpty(line.nextLabel) ? "다음" : line.nextLabel,
                                          i + 1 < source.nodes.Length ? prefix + source.nodes[i + 1].id : end) }
                         : Array.ConvertAll(
                               line.choices,
                               c => Choice(c.label, string.IsNullOrEmpty(c.to) ? end : prefix + c.to));
                 lines.Add(new StudioLine { id = prefix + line.id, text = line.text, speaker = line.speaker,
-                                           choices = answers });
+                                           speakerName = line.speakerName, side = line.side, portrait = line.portrait,
+                                           backdrop = line.backdrop, layout = line.layout, nextLabel = line.nextLabel, choices = answers });
             }
         }
         lines.Add(new StudioLine { id = end, speaker = "", text = episode.title,

@@ -1005,3 +1005,21 @@ button.episode-card.detached {
 .hit-overlay { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:2; }
 
 .widget-inventory, .widget-quests { display:block; text-align:left; }
+.stage.drawn-floor { background-image: none; }
+.stage.drawn-floor:before { display: none; }
+.obj.platform { transform: translateX(-50%); }
+.terrain-marks { position:absolute; height:2.5%; border:2px dashed #fff; pointer-events:none; z-index:3; }
+.obj.erasing { opacity:.25; }
+.screen-shortcuts, .asset-gallery { display:flex; flex-wrap:wrap; gap:.45rem; }
+.screen-shortcuts .on { border-color:#8fd7d0; box-shadow:inset 0 -2px #8fd7d0; }
+.file-picker, .outline-editor { display:grid; gap:.45rem; min-width:0; }
+.file-picker input[type=file] { min-height:44px; padding:.3rem; }
+.file-picker input::file-selector-button { min-height:36px; margin-right:.5rem; }
+.asset-gallery button { width:64px; padding:3px; }
+.asset-gallery img { width:100%; height:50px; object-fit:contain; }
+.outline-editor canvas { width:min(100%,400px); aspect-ratio:2; touch-action:none; background:#142939; border:1px solid #71a1b2; }
+.widget-portrait { background-position:center; background-repeat:no-repeat; background-size:contain; }
+.widget-joystick { display:grid; place-items:center; padding:0; container-type:size; pointer-events:auto; touch-action:none; }
+.stick-ring { width:min(100cqw,100cqh); height:min(100cqw,100cqh); border:2px solid currentColor; border-radius:50%; position:relative; pointer-events:none; }
+.stick-thumb { width:38%; height:38%; border-radius:50%; background:currentColor; box-shadow:0 2px 6px #0005; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); }
+.dialogue-content.face-right { flex-direction:row-reverse; }

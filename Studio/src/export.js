@@ -80,13 +80,7 @@ async function exportUnityPack(fullProject = false) {
     const ref = obj[key];
     if (typeof ref !== 'string' || !ref.startsWith('data:')) return;
     if (!converted.has(ref)) {
-      const bitmap = await createImageBitmap(await read(ref)),
-        canvas = el('canvas');
-      canvas.width = bitmap.width;
-      canvas.height = bitmap.height;
-      canvas.getContext('2d').drawImage(bitmap, 0, 0);
-      bitmap.close();
-      const png = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+      const png = await convertArtwork(await read(ref));
       if (!png) throw Error('기존 이미지 변환에 실패했어요.');
       const bytes = await png.arrayBuffer(),
         digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)),
@@ -108,6 +102,7 @@ async function exportUnityPack(fullProject = false) {
     await convert(s, 'backdrop');
     for (const o of s.objects) await convert(o, 'image');
   }
+  for (const story of d.stories) for (const n of story.nodes) { await convert(n, 'backdrop'); await convert(n, 'portrait'); }
   for (const l of d.layouts) {
     await convert(l, 'skin');
     for (const w of l.elements) await convert(w, 'image');

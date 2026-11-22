@@ -55,7 +55,7 @@ function launchGame(mapId, screenId = '') {
     return false;
   }
   if (!screenId && (location.pathname === '/play' || typeof GAME_DATA !== 'undefined')) continueProgress();
-  if (screenId) run.openScreen(screenId);
+  run.startPresentation(screenId);
   let frame,
     last = performance.now(),
     acc = 0,
@@ -76,6 +76,7 @@ function launchGame(mapId, screenId = '') {
     previousSample = performance.now(),
     slowFrames = 0,
     enabledStats = false;
+  let releaseSticks = [], extraStick = false, loadingRequest = null;
   const diagnostics = el('output');
   diagnostics.className = 'perf-readout';
   stage.append(diagnostics);
@@ -93,6 +94,9 @@ function launchGame(mapId, screenId = '') {
   barButton('진행 저장', () => saveProgress(true));
   barButton('이어하기', () => {
     if (continueProgress(true)) render();
+  });
+  const stickToggle = barButton('조이스틱', () => {
+    extraStick = !extraStick; run.serial++; render();
   });
   barButton('성능', () => {
     enabledStats = !enabledStats;
@@ -153,15 +157,42 @@ function launchGame(mapId, screenId = '') {
         go();
       };
       b.onpointerup = b.onpointercancel = b.onlostpointercapture = () => run.keys.delete(key);
-    } else
-      b.onclick = () => {
-        go();
-        render();
+    } else {
+      const immediate = key === 'jump' || key === 'attack' || skillSlot(key) >= 0;
+      if (immediate) b.onpointerdown = e => {
+        if (e.pointerType === 'mouse' || e.button !== 0) return;
+        e.preventDefault();
+        go(); render();
       };
+      b.onclick = e => {
+        if (immediate && e.detail && (e.pointerType === 'touch' || e.pointerType === 'pen' || e.sourceCapabilities?.firesTouchEvents)) return;
+        go(); render();
+      };
+    }
   }
   function rebuild() {
     serial = run.serial;
+    for (const release of releaseSticks) release();
+    releaseSticks = [];
     paintStage(stage, run.map);
+    if (run.dialogue?.node.backdrop && !run.customScreen) cssImage(stage, imageUrl(run.dialogue.node.backdrop));
+    if (run.presentation?.role === 'loading' && loadingRequest !== run.presentation) {
+      const p = loadingRequest = run.presentation;
+      const urls = new Set([imageUrl(run.map.backdrop), characterUrl(run.character), characterUrl(run.character,true)]);
+      for (const o of run.map.objects) if (o.image) urls.add(imageUrl(o.image));
+      for (const id of [run.map.hudId,run.map.menuId,run.map.dialogueId]) {
+        const layout = named(run.world.layouts,id);
+        if (layout.skin) urls.add(imageUrl(layout.skin));
+        for (const w of layout.elements) if (w.image) urls.add(imageUrl(w.image));
+      }
+      urls.delete('');
+      p.assets = urls.size;
+      for (const url of urls) {
+        const img = new Image();
+        img.onload = img.onerror = () => { p.done++; };
+        img.src = url;
+      }
+    }
     $('#level').textContent = run.map.name + ' · ' + run.character.name;
     if (mapSerial !== run.hero || prevCharacter !== run.character) {
       actors.replaceChildren();
@@ -180,6 +211,10 @@ function launchGame(mapId, screenId = '') {
     widgets = [];
     exitOverlay.hidden = !(run.customScreen || run.menu || run.dialogue);
     const screen = run.screen;
+    const elements = [...screen.elements];
+    stickToggle.hidden = run.paused || elements.some(w => w.type === 'joystick' && w.visible);
+    stickToggle.setAttribute('aria-pressed', String(extraStick));
+    if (extraStick && !stickToggle.hidden) elements.push(joystickWidget('temporary-stick'));
     styleScreen(layer, screen);
     layer.className = run.dialogue ? 'reading' : '';
     if (run.result && !run.customScreen) {
@@ -197,10 +232,11 @@ function launchGame(mapId, screenId = '') {
         ),
       );
     } else
-      for (const w of screen.elements.filter(
+      for (const w of elements.filter(
         (w) => w.visible && (!w.showFlag || run.flags.has(w.showFlag) === w.showValue),
       )) {
         const n = newWidgetView(w);
+        if (w.type === 'joystick') releaseSticks.push(bindJoystick(n, value => { run.stickAxis = run.paused ? 0 : value; }));
         if (w.type === 'button') {
           bindAction(n, w.action, w.target, w);
           const i = skillSlot(w.action);
@@ -209,7 +245,7 @@ function launchGame(mapId, screenId = '') {
           if (i >= 0 && (!run.character.skills[i] || run.character.skills[i].mechanic === 'none'))
             n.disabled = true;
         }
-        if (w.type === 'dialogue' && run.dialogue)
+        if (w.type === 'dialogue' && run.dialogue && !run.presentation)
           n.append(
             dialogueContent(run.world, run.dialogue, (i) => {
               run.advance(i);
@@ -313,7 +349,7 @@ function launchGame(mapId, screenId = '') {
             ? 'attack'
             : !o.ground
               ? 'jump'
-              : run.keys.has('left') || run.keys.has('right')
+              : run.stickAxis || run.keys.has('left') || run.keys.has('right')
                 ? 'run'
                 : 'idle');
         const clip = run.character.clips?.[pose],
@@ -347,8 +383,8 @@ function launchGame(mapId, screenId = '') {
         n.remove();
         markers.delete(o);
       }
-    const state = { character: run.character, hp: run.hero.hp, map: run.map, enemies: run.enemiesLeft };
-    const stamp = state.hp + '|' + state.enemies + '|' + run.progressVersion;
+    const state = { character: run.character, hp: run.hero.hp, map: run.map, enemies: run.enemiesLeft, loading: run.loadingFraction };
+    const stamp = state.hp + '|' + state.enemies + '|' + run.progressVersion + '|' + Math.round(100 * state.loading);
     if (hudStamp !== stamp) {
       for (const { w, n } of widgets)
         if (w.type === 'inventory' || w.type === 'quests') paintProgressWidget(n, w, run);
@@ -408,7 +444,7 @@ function launchGame(mapId, screenId = '') {
       render();
       return;
     }
-    if (run.dialogue && (e.code === 'Enter' || e.code === 'Space') && !run.dialogue.node.choices.length) {
+    if (!run.customScreen && run.dialogue && (e.code === 'Enter' || e.code === 'Space') && !run.dialogue.node.choices.length) {
       e.preventDefault();
       run.advance();
       run.serial++;
@@ -424,6 +460,7 @@ function launchGame(mapId, screenId = '') {
   const up = (e) => run.keys.delete(codes[e.code]),
     blur = () => {
       run.keys.clear();
+      for (const release of releaseSticks) release();
       saveProgress();
     };
   $('#assist').onclick = () => {
@@ -443,6 +480,7 @@ function launchGame(mapId, screenId = '') {
   window.addEventListener('blur', blur);
   modal.onclose = () => {
     cancelAnimationFrame(frame);
+    for (const release of releaseSticks) release();
     saveProgress();
     diagnostics.remove();
     hitCanvas.remove();

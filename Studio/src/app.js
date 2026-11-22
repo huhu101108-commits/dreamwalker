@@ -282,24 +282,17 @@ function drawVersions() {
         }),
       ),
     );
-  const file = el('input');
-  file.type = 'file';
-  file.accept = '.json';
-  file.onchange = async () => {
-    try {
-      await importProject(file.files[0]);
-    } catch (e) {
-      note(e.message);
-    }
-    file.value = '';
-  };
+  const jsonText = el('textarea'), pasteBackup = el('details');
+  pasteBackup.append(el('summary', '백업 내용 붙여넣기'), titled('백업 JSON 내용', jsonText),
+    action('붙여넣은 백업 열기', () => importProject(new Blob([jsonText.value]))));
   b.append(
     heading('프로젝트 관리'),
     bindText('프로젝트 이름', project, 'title'),
     action('이미지 포함 백업 내보내기', exportProject),
     action('저장본 → Unity 콘텐츠 팩', exportUnityPack),
     action('저장본 → 전체 Unity 프로젝트', () => exportUnityPack(true)),
-    titled('백업 JSON 가져오기', file),
+    filePicker('백업 JSON 가져오기', '.json,application/json,text/plain', false, ([file]) => importProject(file)),
+    pasteBackup,
     action('최신 버전 다시 열기', async () => {
       if (!dirty || confirm('현재 초안을 닫고 최신 저장본을 열까요?')) loadRecord(await api('project'));
     }),

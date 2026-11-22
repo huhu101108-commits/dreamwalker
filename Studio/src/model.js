@@ -95,6 +95,9 @@ const THEMES = { snow: '설원', dusk: '노을', night: '밤' };
 const WIDGETS = {
   inventory: '인벤토리 · 장비 장착',
   quests: '의뢰 진행 목록',
+  joystick: '이동 조이스틱',
+  portrait: '선택 캐릭터 초상',
+  loading: '로딩 진행률',
   hp: '체력 바',
   enemies: '남은 적',
   map: '맵 이름',
@@ -126,6 +129,9 @@ const INPUTS = {
   roadmap: '현재 캐릭터 스토리',
 };
 Object.assign(INPUTS, {
+  beginGame: '시작 화면에서 진행',
+  confirmActor: '캐릭터 선택 확정',
+  previousActor: '이전 캐릭터',
   newRun: '게임 처음부터',
   back: '이전 화면',
   gotoMap: '지정 맵으로 이동',
@@ -196,6 +202,12 @@ function actionRefOK(d, action, target) {
   return target === '';
 }
 function resetUIReferences(d, type, id, fallback = '') {
+  if (type === 'screen') {
+    for (const role of Object.keys(FRONT_SCREENS))
+      if (d.frontScreens?.[role] === id) d.frontScreens[role] = '';
+    for (const story of d.stories) for (const line of story.nodes)
+      if (line.layout === id) line.layout = named(d.layouts, fallback)?.kind === 'dialogue' ? fallback : '';
+  }
   const act = { map: 'gotoMap', character: 'selectActor', story: 'startStory', screen: 'open' }[type];
   for (const l of d.layouts) {
     if (type === 'map' || type === 'character') {
@@ -293,8 +305,9 @@ function newScreen(id, name, kind) {
     ];
     inputs.forEach((action, i) => {
       const [x, y, w] = positions[i];
-      elements.push(widget(action, 'button', x, y, w, 12, { action, fontSize: 14 }));
+      if (action !== 'left' && action !== 'right') elements.push(widget(action, 'button', x, y, w, 12, { action, fontSize: 14 }));
     });
+    elements.push(joystickWidget('move-stick'));
   } else if (kind === 'menu') {
     elements = [
       widget('name', 'character', 32, 16, 36, 10),
@@ -307,6 +320,39 @@ function newScreen(id, name, kind) {
   if (kind === 'custom')
     elements = [widget('back', 'button', 36, 76, 28, 12, { action: 'back', text: '돌아가기' })];
   return { id, name, kind, elements, ...screenDefaults(kind) };
+}
+const FRONT_SCREENS = { title: '시작 화면', loading: '로딩 화면', roster: '캐릭터 선택 화면' };
+const BUTTON_SHAPES = { rect: '사각형', round: '타원', pill: '캡슐', diamond: '마름모', hex: '육각형', custom: '직접 그린 모양' };
+const shapePoints = {
+  diamond: [{x:50,y:0},{x:100,y:50},{x:50,y:100},{x:0,y:50}],
+  hex: [{x:20,y:0},{x:80,y:0},{x:100,y:50},{x:80,y:100},{x:20,y:100},{x:0,y:50}],
+};
+function polygonOK(points) {
+  if (!Array.isArray(points) || points.length < 3 || points.length > 24 ||
+      points.some(p => !p || !num(p.x, 0, 100) || !num(p.y, 0, 100))) return false;
+  let area = 0;
+  for (let i = 0; i < points.length; i++) {
+    const a = points[i], b = points[(i + 1) % points.length];
+    area += a.x * b.y - b.x * a.y;
+  }
+  return Math.abs(area) >= 50;
+}
+function joystickWidget(id) {
+  return widget(id, 'joystick', 2, 65, 17, 32, { background: '#132b42', color: '#c5eef1', opacity: 65 });
+}
+function frontScreen(id, role, title) {
+  const s = newScreen(id, FRONT_SCREENS[role], 'custom');
+  s.shade = 94;
+  const titleAt = (msg) => widget('heading', 'text', 8, 12, 84, 18, { text: msg, fontSize: 32, opacity: 0 });
+  const button = (id, text, action, x, y, w) => widget(id, 'button', x, y, w, 14, { text, action, shape: 'pill' });
+  if (role === 'title') s.elements = [titleAt(title), button('start', '게임 시작', 'beginGame', 32, 64, 36)];
+  if (role === 'roster') s.elements = [titleAt('캐릭터 선택'),
+    widget('face', 'portrait', 35, 30, 30, 30, { opacity: 0 }),
+    widget('name', 'character', 28, 60, 44, 10, { opacity: 0 }),
+    button('prev','이전','previousActor',8,43,18), button('next-actor','다음','switch',74,43,18),
+    button('confirm','이 캐릭터로 시작','confirmActor',29,77,42)];
+  if (role === 'loading') s.elements = [titleAt('불러오는 중'), widget('progress', 'loading', 20, 60, 60, 10)];
+  return s;
 }
 function defaultScreens() {
   return [
@@ -360,6 +406,17 @@ function newMap(id, name, characterId = 'baekseol', screens = defaultScreens()) 
     ],
   };
 }
+function terrainStroke(map, ax, bx, y, tint) {
+  const left = clamp(Math.round(Math.min(ax, bx)), 0, map.width - 3);
+  const right = clamp(Math.round(Math.max(ax, bx)), left + 3, map.width);
+  const count = Math.ceil((right - left) / 60), result = [];
+  for (let i = 0; i < count; i++) {
+    const a = Math.round(left + (right - left) * i / count);
+    const b = Math.round(left + (right - left) * (i + 1) / count);
+    result.push({ ...makeObject('platform', uid(), (a + b) / 2, clamp(Math.round(y), 0, map.height - 18)), width: b-a, tint });
+  }
+  return result;
+}
 function makeObject(type, id, x, y) {
   const o = { id, type, x, y };
   if (type === 'enemy') Object.assign(o, { enemy: enemyDefaults(), label: '', image: '' });
@@ -395,7 +452,8 @@ function seed() {
     startMap: map.id,
     scenes: [map],
     stories: [],
-    layouts: [...defaultScreens(), ...resultScreens(defaultScreens())],
+    layouts: [...defaultScreens(), ...resultScreens(defaultScreens()), ...Object.keys(FRONT_SCREENS).map(role => frontScreen('front-' + role, role, 'Dreamwalker'))],
+    frontScreens: { title: 'front-title', roster: 'front-roster', loading: 'front-loading', seconds: 0.8 },
   };
 }
 // Upgrade stored content without assigning a speaker's dialogue to an invented storyline.
@@ -578,12 +636,21 @@ function problem(d) {
     )
       return '캐릭터의 이름, 능력치와 스킬 동작을 확인하세요.';
   }
+  if (d.frontScreens !== undefined && (!d.frontScreens || typeof d.frontScreens !== 'object' ||
+      !Object.keys(FRONT_SCREENS).every(k => !d.frontScreens[k] || screen(d.frontScreens[k], 'custom')) ||
+      (d.frontScreens.seconds !== undefined && !num(d.frontScreens.seconds, 0.2, 10)) ||
+      new Set(Object.keys(FRONT_SCREENS).map(k => d.frontScreens[k]).filter(Boolean)).size !==
+        Object.keys(FRONT_SCREENS).filter(k => d.frontScreens[k]).length)) return '시작·로딩·캐릭터 선택 화면 연결을 확인하세요.';
   for (const s of d.stories) {
     if (!title(s.name) || !rows(s.nodes, 1, LIMIT.nodes)) return '스토리 이름과 대사 목록을 확인하세요.';
     for (const n of s.nodes)
       if (
         (n.speaker !== '' && !character(n.speaker)) ||
         !textValue(n.text, 1200) ||
+        !textValue(n.speakerName ?? '', 50) || !textValue(n.nextLabel ?? '', 80) ||
+        !imageRef(n.backdrop ?? '') || !imageRef(n.portrait ?? '') ||
+        !['left','right','hidden'].includes(n.side ?? 'left') ||
+        (!!n.layout && !screen(n.layout, 'dialogue')) ||
         !Array.isArray(n.choices) ||
         n.choices.length > LIMIT.choices ||
         !n.choices.every((c) => c && textValue(c.label, 80, true) && (c.to === '' || !!named(s.nodes, c.to)))
@@ -629,6 +696,8 @@ function problem(d) {
         !signalKey(w.enableFlag, true) ||
         typeof w.showValue !== 'boolean' ||
         typeof w.enableValue !== 'boolean' ||
+        !has(BUTTON_SHAPES, w.shape ?? 'rect') ||
+        ((w.shape === 'custom' || w.points !== undefined) && !polygonOK(w.points)) ||
         !num(w.radius, 0, 50) ||
         !num(w.borderWidth, 0, 12) ||
         !color(w.borderColor) ||
@@ -667,6 +736,7 @@ function problem(d) {
     if (
       !title(s.name) ||
       !has(THEMES, s.theme) ||
+      !['solid', 'drawn'].includes(s.floorMode ?? 'solid') || (s.sky !== undefined && !color(s.sky)) ||
       !integer(s.width, 100, 3200) ||
       !integer(s.height ?? 100, 100, 1600) ||
       (s.camera !== undefined &&
@@ -713,7 +783,7 @@ function problem(d) {
         (o.type === 'exit' && !['next', 'end-of-game'].includes(o.to) && !named(d.scenes, o.to)) ||
         (o.type === 'trigger' && (!story(o.storyId) || !signalKey(o.eventKey ?? '', true))) ||
         (o.type === 'platform' &&
-          (!num(o.width, 3, 60) ||
+          (!num(o.width, 3, 60) || (o.tint !== undefined && !color(o.tint)) ||
             (o.motion !== undefined &&
               (!o.motion ||
                 !num(o.motion.dx, -200, 200) ||
@@ -744,6 +814,7 @@ function imageRefs(d) {
     add(s.backdrop);
     s.objects.forEach((o) => add(o.image));
   });
+  for (const story of d.stories) for (const n of story.nodes) { add(n.backdrop); add(n.portrait); }
   d.layouts.forEach((l) => {
     add(l.skin);
     l.elements.forEach((w) => add(w.image));
@@ -774,7 +845,7 @@ function roadmapStory(world, character, startId = '') {
       story.nodes.forEach((line, i) => {
         const choices = line.choices.length
           ? line.choices.map((c) => ({ label: c.label, to: c.to ? prefix + c.to : end }))
-          : [{ label: '다음', to: story.nodes[i + 1] ? prefix + story.nodes[i + 1].id : end }];
+          : [{ label: line.nextLabel || '다음', to: story.nodes[i + 1] ? prefix + story.nodes[i + 1].id : end }];
         nodes.push({ ...line, mapId: e.mapId, id: prefix + line.id, choices });
       });
     nodes.push({
@@ -806,6 +877,8 @@ function inspectScreens(doc) {
     destinations = new Set();
   for (const scene of doc.scenes)
     for (const id of [scene.hudId, scene.menuId, scene.dialogueId]) destinations.add(id);
+  for (const role of Object.keys(FRONT_SCREENS)) if (doc.frontScreens?.[role]) destinations.add(doc.frontScreens[role]);
+  for (const s of doc.stories) for (const n of s.nodes) if (n.layout) destinations.add(n.layout);
   const transitions = (w) => [{ action: w.action, target: w.target }, ...w.steps];
   for (const l of doc.layouts) {
     if (l.rules.length) destinations.add(l.id);
@@ -828,7 +901,8 @@ function inspectScreens(doc) {
               }
   }
   const safe = new Set(doc.layouts.filter((l) => !l.pauseGame).map((l) => l.id));
-  const exit = new Set(['back', 'resume', 'restart', 'newRun', 'gotoMap', 'startStory', 'skip', 'nextLine']);
+  if (doc.frontScreens?.loading) safe.add(doc.frontScreens.loading);
+  const exit = new Set(['beginGame', 'confirmActor', 'back', 'resume', 'restart', 'newRun', 'gotoMap', 'startStory', 'skip', 'nextLine']);
   for (let changed = true; changed;) {
     changed = false;
     for (const l of doc.layouts) {

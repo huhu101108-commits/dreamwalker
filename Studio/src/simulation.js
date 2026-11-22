@@ -86,6 +86,7 @@ class FieldRun {
     this.events = [];
     this.serial = 0;
     this.keys = new Set();
+    this.stickAxis = 0;
     this.rulesByEvent = new Map();
     for (const layout of world.layouts)
       for (const rule of layout.rules) {
@@ -116,16 +117,38 @@ class FieldRun {
     return this.viewport.x;
   }
   get customScreen() {
+    const front = this.presentation;
+    if (front && this.layers.length <= front.depth) return named(this.world.layouts, this.world.frontScreens[front.role]);
     return named(this.world.layouts, this.layers.at(-1));
+  }
+  present(role) {
+    this.layers.length = this.presentation?.depth ?? this.layers.length;
+    this.presentation = this.world.frontScreens?.[role]
+      ? { role, depth: this.layers.length, time: 0, assets: 0, done: 0 } : null;
+    this.keys.clear();
+    this.stickAxis = 0;
+    this.serial++;
+  }
+  startPresentation(screenId = '') {
+    this.presentationEnabled = true;
+    const roles = ['title', 'roster', 'loading'];
+    const role = roles.find(k => this.world.frontScreens?.[k] && (!screenId || this.world.frontScreens[k] === screenId));
+    if (role) this.present(role);
+    else if (screenId) this.openScreen(screenId);
+  }
+  get loadingFraction() {
+    const p = this.presentation;
+    if (p?.role !== 'loading') return 1;
+    return Math.min(1, p.time / (this.world.frontScreens.seconds ?? 0.8), p.assets ? p.done / p.assets : 1);
   }
   get screen() {
     return (
       this.customScreen ||
-      named(this.world.layouts, this.dialogue ? this.map.dialogueId : this.menu || this.map.hudId)
+      named(this.world.layouts, this.dialogue ? this.dialogue.node.layout || this.map.dialogueId : this.menu || this.map.hudId)
     );
   }
   get paused() {
-    return !!(this.dialogue || this.result || this.screen?.pauseGame);
+    return !!(this.presentation || this.dialogue || this.result || this.screen?.pauseGame);
   }
   rememberMap() {
     if (!this.map || !this.hero) return;
@@ -136,7 +159,7 @@ class FieldRun {
   }
   checkpoint() {
     if (
-      this.hero.hp <= 0 ||
+      this.presentation || this.hero.hp <= 0 ||
       this.dialogue ||
       this.sequence ||
       this.pendingTravel ||
@@ -234,6 +257,9 @@ class FieldRun {
     return true;
   }
   enter(id, mode = 'travel') {
+    const showLoading = this.map && mode === 'travel' && this.world.frontScreens?.loading && this.presentationEnabled;
+    this.presentation = null;
+    this.stickAxis = 0;
     const fraction = mode === 'travel' && this.hero ? this.hero.hp / this.character.health : 1;
     if (mode === 'travel') this.rememberMap();
     this.map = named(this.world.scenes, id);
@@ -287,6 +313,7 @@ class FieldRun {
     if (mode !== 'restore') {
       this.openStory(this.map.entryStory);
       this.fire('enter');
+      if (showLoading) this.present('loading');
     }
   }
   openStory(id, after = null) {
@@ -430,6 +457,20 @@ class FieldRun {
     go();
   }
   press(action, target = '') {
+    const front = this.presentation;
+    if (action === 'beginGame' || action === 'confirmActor') {
+      this.present(action === 'beginGame' && this.world.frontScreens?.roster ? 'roster' : 'loading');
+      return;
+    }
+    if (action === 'previousActor' || (action === 'switch' && front)) {
+      const roster = this.world.characters, delta = action === 'previousActor' ? -1 : 1;
+      this.chooseActor(roster[(roster.indexOf(this.character) + delta + roster.length) % roster.length].id);
+      return;
+    }
+    if (front && this.layers.length <= front.depth && (action === 'back' || action === 'resume')) {
+      this.present(action === 'back' && front.role === 'roster' && this.world.frontScreens?.title ? 'title' : '');
+      return;
+    }
     if (action === 'newRun') {
       this.flags.clear();
       this.runRules.clear();
@@ -442,10 +483,12 @@ class FieldRun {
       this.progressVersion++;
       this.enter(this.world.startMap, 'restart');
       this.fire('start');
+      if (this.presentationEnabled) this.startPresentation();
       return;
     }
     if (action === 'open') {
-      this.openScreen(target);
+      const role = Object.keys(FRONT_SCREENS).find(k => this.world.frontScreens?.[k] === target);
+      if (role) this.present(role); else this.openScreen(target);
       return;
     }
     if (action === 'back') {
@@ -472,6 +515,7 @@ class FieldRun {
     }
     if (action === 'startStory') {
       if (named(this.world.stories, target)) {
+        this.presentation = null;
         this.layers = [];
         this.menu = '';
         this.pendingTravel = null;
@@ -741,15 +785,20 @@ class FieldRun {
     }
   }
   tick(dt) {
+    if (this.presentation?.role === 'loading' && this.layers.length <= this.presentation.depth) {
+      this.presentation.time += dt;
+      if (this.loadingFraction >= 1 || this.presentation.time >= Math.max(8, this.world.frontScreens.seconds || 0)) this.present('');
+      return;
+    }
     if (this.paused) return;
     const priorClock = this.clock;
     this.clock += dt;
     if (this.rulesByEvent.has('elapsed') && this.fire('elapsed', '', priorClock) && this.paused) return;
     const h = this.hero,
       t = this.t;
-    const move = Number(this.keys.has('right')) - Number(this.keys.has('left'));
+    const move = (Number(this.keys.has('right')) - Number(this.keys.has('left'))) || this.stickAxis;
     if (!this.sequence) {
-      if (move) h.face = move;
+      if (move) h.face = Math.sign(move);
       h.x = clamp(h.x + move * t.runSpeed * this.character.speedScale * 3.5 * dt, 1, this.map.width - 1);
     }
     this.movePlatforms();
@@ -759,7 +808,7 @@ class FieldRun {
     h.y += h.vy * dt;
     h.ground = false;
     if (h.vy <= 0) {
-      let floor = 0,
+      let floor = this.map.floorMode === 'drawn' ? -Infinity : 0,
         support = null;
       for (const p of this.platforms)
         if (Math.abs(p.x - h.x) <= p.width / 2 && old >= p.y - 0.01 && p.y >= floor) {
@@ -772,6 +821,12 @@ class FieldRun {
         h.vy = 0;
         h.ground = true;
       }
+    }
+    if (h.y < -20) {
+      const spawn = this.map.objects.find(o => o.type === 'spawn');
+      Object.assign(h, { x: spawn.x, y: spawn.y, vy: 0, ground: false });
+      this.stroke = this.sequence = this.support = null;
+      this.viewport = new MapViewport(this.map, h);
     }
     const previousHp = (h.hp / this.character.health) * 100;
     this.skill();

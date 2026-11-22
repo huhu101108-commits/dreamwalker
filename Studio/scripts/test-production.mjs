@@ -205,3 +205,40 @@ console.log(
 );
 
 assert(replay(base, 120, 5, 12, 24).match);
+
+const touch = seed();
+const { terrainStroke, polygonOK, frontScreen, resetUIReferences, imageRefs } =
+  vm.runInContext('({terrainStroke,polygonOK,frontScreen,resetUIReferences,imageRefs})',ctx);
+const customMap = touch.scenes[0];
+customMap.floorMode = 'drawn';
+customMap.objects = [customMap.objects[0],customMap.objects.at(-1),...terrainStroke(customMap,0,72,0,'#346159')];
+assert.deepEqual([...customMap.objects.slice(2).map(o=>o.width)],[36,36]);
+const oldProject = structuredClone(touch);
+delete oldProject.frontScreens;
+const oldSnapshot = JSON.stringify(oldProject);
+assert.equal(JSON.stringify(migrateProject(oldProject)),oldSnapshot);
+const play = new FieldRun(touch);
+play.startPresentation();
+assert.equal(play.screen.id,touch.frontScreens.title);
+assert.equal(play.checkpoint(),null);
+play.press('beginGame');
+assert.equal(play.screen.id,touch.frontScreens.roster);
+play.press('confirmActor');
+play.presentation.assets=2;
+play.tick(1); assert.equal(play.clock,0); assert.equal(play.loadingFraction,0);
+play.presentation.done=2; play.tick(.01); assert(!play.paused);
+play.stickAxis=.5; play.tick(1/60); assert(play.hero.x>16 && play.hero.ground && play.hero.face===1);
+play.stickAxis=0; play.hero.x=80;
+for(let i=0;i<65;i++) play.tick(1/60);
+assert.equal(play.hero.x,16); assert.equal(play.hero.hp,touch.characters[0].health);
+const lineArt='asset:'+'a'.repeat(64);
+touch.stories=[{id:'story',name:'연출',nodes:[{id:'line',speaker:'',text:'한 줄',choices:[],portrait:lineArt,side:'right',layout:customMap.dialogueId}]}];
+assert.deepEqual([...imageRefs(touch)],['a'.repeat(64)]);
+assert.equal(problem(touch),'');
+assert.deepEqual([...inspectScreens(touch).errors],[]);
+assert(!polygonOK([{x:0,y:0},{x:1,y:1},{x:2,y:2}]));
+touch.layouts.push(frontScreen('more','roster','제목'));
+resetUIReferences(touch,'screen',touch.frontScreens.roster);
+assert.equal(touch.frontScreens.roster,'');
+assert.equal(problem(touch),'');
+console.log('PASS legacy preservation, title/roster/asset-gated loading, drawn terrain collision and gap respawn, analog movement, scene asset references and valid screen routes');

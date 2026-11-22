@@ -19,12 +19,19 @@ public class StudioProject
     public StudioCharacter[] characters;
     public StudioStory[] stories;
     public StudioLayout[] layouts;
+    public StudioFrontScreens frontScreens;
     public StudioItem[] items;
     public StudioQuest[] quests;
     public StudioMap Map(string id) => Array.Find(scenes, v => v.id == id);
     public StudioCharacter Character(string id) => Array.Find(characters, v => v.id == id);
     public StudioStory Story(string id) => Array.Find(stories, v => v.id == id);
     public StudioLayout Layout(string id) => Array.Find(layouts, v => v.id == id);
+}
+[Serializable]
+public class StudioFrontScreens
+{
+    public string title, roster, loading;
+    public float seconds = .8f;
 }
 [Serializable]
 public class StudioTuning
@@ -87,7 +94,7 @@ public class StudioEnemy
 [Serializable]
 public class StudioMap
 {
-    public string id, name, theme, backdrop, characterId, hudId, menuId, dialogueId, entryStory, exitStory;
+    public string id, name, theme, backdrop, characterId, hudId, menuId, dialogueId, entryStory, exitStory, floorMode, sky;
     public int width, height = 100;
     public StudioCamera camera;
     public bool requireClear;
@@ -106,7 +113,7 @@ public class StudioMotion
 [Serializable]
 public class StudioObject
 {
-    public string id, type, to, storyId, label, image, eventKey;
+    public string id, type, to, storyId, label, image, eventKey, tint;
     public float x, y, width, height;
     public StudioEnemy enemy;
     public StudioMotion motion;
@@ -120,7 +127,7 @@ public class StudioStory
 [Serializable]
 public class StudioLine
 {
-    public string id, speaker, text;
+    public string id, speaker, text, speakerName, side, portrait, backdrop, layout, nextLabel;
     public StudioChoice[] choices;
 }
 [Serializable]
@@ -144,7 +151,8 @@ public class StudioWidget
     public float x, y, w, h, opacity;
     public int fontSize;
     public float radius, borderWidth;
-    public string borderColor, pressedColor, imageFit, showFlag, enableFlag;
+    public string borderColor, pressedColor, imageFit, showFlag, enableFlag, shape;
+    public StudioVertex[] points;
     public bool showValue, enableValue;
     public StudioAction[] steps;
     public bool visible;
@@ -153,6 +161,35 @@ public class StudioWidget
 
 namespace Dreamwalker.Demo
 {
+[Serializable] public class StudioVertex { public float x, y; }
+internal static class StudioOutline
+{
+    public static bool Contains(StudioWidget w, float x, float y, float aspect)
+    {
+        if (x < 0 || y < 0 || x > 1 || y > 1) return false;
+        float dx = Math.Abs(x - .5f) * 2, dy = Math.Abs(y - .5f) * 2;
+        if (w.shape == "round") return dx * dx + dy * dy <= 1;
+        if (w.shape == "diamond") return dx + dy <= 1;
+        if (w.shape == "hex") return dx + .4f * dy <= 1;
+        if (w.shape == "pill")
+        {
+            if (aspect >= 1) dx = Math.Max(0, dx * aspect - (aspect - 1));
+            else dy = Math.Max(0, dy / aspect - (1 / aspect - 1));
+            return dx * dx + dy * dy <= 1;
+        }
+        if (w.shape != "custom" || w.points == null || w.points.Length < 3) return true;
+        var points = w.points;
+        bool inside = false;
+        x *= 100; y *= 100;
+        for (int i = 0, j = points.Length - 1; i < points.Length; j = i++)
+        {
+            var a = points[i]; var b = points[j];
+            if ((a.y > y) != (b.y > y) && x < (b.x - a.x) * (y - a.y) / (b.y - a.y) + a.x)
+                inside = !inside;
+        }
+        return inside;
+    }
+}
 [Serializable] public class StudioItem { public string id, name, slot; public int power; }
 [Serializable] public class StudioQuest { public string id, name, kind, target, reward; public int count; }
 [Serializable] public class StudioClip { public string key, fx, cue; public int cueTick; public StudioFrame[] frames; }

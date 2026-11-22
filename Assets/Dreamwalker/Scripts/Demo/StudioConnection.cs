@@ -190,7 +190,7 @@ public sealed class StudioConnection : MonoBehaviour
         while (!string.IsNullOrEmpty(token))
         {
             int since = latest != null ? latest.rev : -1;
-            using (var request = UnityWebRequest.Get(Origin + "/api/runtime?schema=4&since=" + since))
+            using (var request = UnityWebRequest.Get(Origin + "/api/runtime?schema=4&joystick=1&since=" + since))
             {
                 request.SetRequestHeader("Authorization", "Bearer " + token);
                 request.timeout = 12;
@@ -221,6 +221,7 @@ public sealed class StudioConnection : MonoBehaviour
         }
     }
 
+    internal int PendingTextures => loading.Count;
     public Texture2D Texture(string reference)
     {
         if (string.IsNullOrEmpty(reference))

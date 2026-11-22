@@ -85,28 +85,14 @@ function drawProduction() {
   });
   main.append(preview, titled('프레임 탐색', scrub), row(play, caption));
   paint();
-  const file = el('input');
-  file.type = 'file';
-  file.accept = 'image/png,image/jpeg';
-  file.multiple = true;
-  file.onchange = async () => {
-    const files = [...file.files].sort((a, b) => a.name.localeCompare(b.name, 'ko', { numeric: true }));
-    if (clip.frames.length + files.length > 64) return note('한 동작에 최대 64장을 연결할 수 있어요.');
-    if (files.some((f) => !['image/png', 'image/jpeg'].includes(f.type) || f.size > 2000000))
-      return note('각 프레임은 2MB 이하 PNG 또는 JPG여야 해요.');
-    file.disabled = true;
-    try {
-      const frames = [];
-      for (const f of files) frames.push({ image: await uploadAsset(f), ticks: 4 });
-      if (!file.isConnected) return note('편집 항목이 바뀌었어요. 다시 선택하세요.');
-      edit(() => ensure().frames.push(...frames));
-    } catch (e) {
-      note(e.message);
-    } finally {
-      file.disabled = false;
-    }
-  };
-  main.append(titled('프레임 여러 장 가져오기 · 파일명 순서', file));
+  main.append(filePicker('프레임 여러 장 가져오기 · 파일명 순서', 'image/*', true, async (files, active) => {
+    files.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ko', { numeric: true }));
+    if (clip.frames.length + files.length > 64) throw Error('한 동작에 최대 64장을 연결할 수 있어요.');
+    const frames = [];
+    for (const f of files) frames.push({ image: await uploadAsset(await convertArtwork(f)), ticks: 4 });
+    if (!active()) throw Error('편집 항목이 바뀌었어요. 새 항목에서 파일을 선택하세요.');
+    edit(() => ensure().frames.push(...frames));
+  }, true));
   clip.frames.forEach((f, i) => {
     const thumb = el('img');
     thumb.className = 'frame-thumb';

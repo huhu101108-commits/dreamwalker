@@ -84,6 +84,10 @@ assert.deepEqual((await Promise.all([save(), save()])).map((r) => r.status).sort
 assert.equal((await call('runtime?since=1', undefined, token)).status, 204);
 const modern = await (await call('runtime?schema=4', undefined, token)).json();
 assert.equal(modern.project.schema, 4);
+const touchRelease = await (await call('runtime?schema=4&joystick=1', undefined, token)).json();
+assert(touchRelease.project.layouts[0].elements.some(w => w.type === 'joystick'));
+assert(modern.project.layouts[0].elements.some(w => w.action === 'left'));
+assert(modern.project.layouts[0].elements.some(w => w.action === 'right'));
 assert.equal(modern.project.sourceFiles.length, 0);
 const release = await (await call('runtime', undefined, token)).json();
 assert.equal(release.project.schema, 3);

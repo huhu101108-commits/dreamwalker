@@ -86,6 +86,8 @@ function changeRole(l, kind) {
       for (const map of maps)
         for (const k of ['hudId', 'menuId', 'dialogueId']) if (map[k] === l.id) map[k] = next.id;
     }
+    for (const role of Object.keys(FRONT_SCREENS)) if (project.frontScreens?.[role] === l.id) project.frontScreens[role] = '';
+    if (was === 'dialogue') for (const s of project.stories) for (const n of s.nodes) if (n.layout === l.id) n.layout = existing?.id || maps[0]?.dialogueId || '';
     l.kind = kind;
     l.pauseGame = kind !== 'hud';
     if (kind === 'dialogue' && !l.elements.some((w) => w.type === 'dialogue')) {

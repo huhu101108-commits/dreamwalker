@@ -5,6 +5,7 @@ import { createServer } from 'node:http';
 import { once } from 'node:events';
 import { createRequire } from 'node:module';
 import { BUCKET, ownerDigest, previewOwnerHeaders, worker } from './worker-fixture.mjs';
+import { testTouchAuthoring } from './test-touch-authoring.mjs';
 const { chromium } = createRequire(import.meta.url)('playwright-core');
 
 async function fixture(identity) {
@@ -29,7 +30,7 @@ const servers = [], browsers = [];
 try {
   for (const identity of [previewOwnerHeaders, {}]) {
     servers.push(await fixture(identity));
-    browsers.push(await chromium.launch({ channel: 'chrome', headless: true, args: ['--allow-loopback-in-peer-connection'] }));
+    browsers.push(await chromium.launch({ ...(process.env.DREAMWALKER_CHROME ? {executablePath:process.env.DREAMWALKER_CHROME} : {channel:'chrome'}), headless: true, args: ['--allow-loopback-in-peer-connection'] }));
   }
   const errors = [];
   const [host, guest] = await Promise.all(browsers.map(async (browser, i) => {
@@ -70,6 +71,7 @@ try {
   console.log('PASS two independent Chrome processes, same runner: ' + await outcome.textContent());
   await host.getByRole('button', { name: '종료', exact: true }).click();
   await host.getByText('연결을 종료했어요.').waitFor();
+  await testTouchAuthoring(host);
   assert.deepEqual(errors, []);
 } finally {
   await Promise.allSettled(browsers.map(browser => browser.close()));
