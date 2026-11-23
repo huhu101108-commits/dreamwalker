@@ -10,7 +10,7 @@ using UnityEngine;
 
 namespace Dreamwalker.EditorTools
 {
-    public sealed class StudioPackageImporter : EditorWindow
+    public sealed partial class StudioPackageImporter : EditorWindow
     {
         private List<StudioImportRow> rows;
         private string archivePath, archiveHash, stateHash, message="";
@@ -46,13 +46,14 @@ namespace Dreamwalker.EditorTools
                 return JsonUtility.FromJson<StudioPackageIndex>(new string(text,0,count));
             }
         }
-        private void Review(string file)
+        private void Review(string file, int? tabletRevision = null)
         {
-            rows=null;message="";archivePath=file;
+            rows=null;message="";archivePath=file;tabletTarget=null;
             using(var stream=File.OpenRead(file)) {
                 archiveHash=StudioPackagePlan.Digest(stream);stream.Position=0;
                 using(var zip=new ZipArchive(stream,ZipArchiveMode.Read)) {
                     var entries=Entries(zip);incoming=Manifest(entries);
+                    if(tabletRevision.HasValue)StudioPackagePlan.CheckTabletContent(incoming, tabletRevision.Value);
                     string state=StudioPackagePlan.SafePath(Root,StudioPackagePlan.StatePath);
                     stateHash=StudioPackagePlan.FileHash(state);
                     before=stateHash==null?new StudioPackageIndex():JsonUtility.FromJson<StudioPackageIndex>(File.ReadAllText(state));
@@ -93,6 +94,7 @@ namespace Dreamwalker.EditorTools
         }
         private void OnGUI()
         {
+            DrawTabletTransfer();
             if(GUILayout.Button("스튜디오에서 내보낸 ZIP 열기")) {
                 var path=EditorUtility.OpenFilePanel("드림워커 Unity 팩","","zip");
                 if(!string.IsNullOrEmpty(path))try {Review(path);}catch(Exception e){message=e.Message;}

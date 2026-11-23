@@ -37,6 +37,11 @@ public static class PortableImport
             Store(release,"released");StudioPackagePlan.Apply(root,rows,Open,"index",null);
             if(Read(release)!="updated"||Read(src)!="my extension"||Read(c.path)!="new")throw new Exception("merge");
             var contentOnly=new StudioPackageIndex {kind="content",files=new[]{next.files[1]},revision=23};
+            StudioPackagePlan.CheckTabletContent(contentOnly,23);
+            if(!Reject(()=>StudioPackagePlan.CheckTabletContent(contentOnly,24)))throw new Exception("tablet revision");
+            var wrong=new StudioPackageIndex{kind="content",revision=23,files=new[]{b,Item(StudioPackagePlan.ContentRoot+"Editor/Script.cs","script")}};
+            if(!Reject(()=>StudioPackagePlan.CheckTabletContent(wrong,23)))throw new Exception("tablet content type");
+            Console.WriteLine("PASS native tablet delivery requires content media, release JSON and matching revision");
             var subset=StudioPackagePlan.Review(root,baseline,contentOnly);
             if(subset.Count!=1||subset[0].Change!=StudioFileChange.Unchanged)throw new Exception("pack scope");
             if(!Reject(()=>StudioPackagePlan.CheckPath("Assets/../outside.cs")))throw new Exception("traversal");

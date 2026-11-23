@@ -144,6 +144,7 @@ function saveEditorPosition(){
     const value=JSON.stringify({view:url.search,task:selectedTask,rule:selectedCombatRule,event:selectedEventRule});
     const key='dreamwalker-position-v1:'+scope+':'+url.searchParams.get('tool');
     sessionStorage.setItem(key,value);localStorage.setItem(key,value);
+    localStorage.setItem('dreamwalker-last-tool:'+scope,url.searchParams.get('tool'));
     localStorage.setItem('dreamwalker-inspection-start-v1:'+scope,JSON.stringify(inspectionTarget));
   }catch{}
 }
@@ -160,6 +161,7 @@ function restoreEditorPosition(params){
       if(named(project.combatRules||[],saved.rule))selectedCombatRule=saved.rule;
       if(named(project.eventRules||[],saved.event))selectedEventRule=saved.event;
       const view=new URLSearchParams(saved.view);
+      if(params.has('map')&&(params.get('map')!==view.get('map')||params.has('object')&&params.get('object')!==view.get('object'))){view.delete('page');view.delete('floor');}
       for(const [key,value] of params)view.set(key,value);
       restoreDeviceView(view);return;
     }

@@ -1270,3 +1270,61 @@ body { font-size:16px; }
 #editor .studio-part-painted:is(.on,:active,[aria-current=page]){box-shadow:inset 0 -3px var(--studio-part-accent)}
 #editor .studio-part-painted.studio-part-fixed{width:min(var(--studio-part-width),100%);max-width:100%;flex-grow:0;flex-basis:auto}
 #editor .studio-part-order{order:var(--studio-part-order)}
+
+/* Keep the selected work and its play controls together on a tablet. */
+#work-area{grid-area:body;min-width:0}
+#work-context[hidden]{display:none}
+#work-context{display:flex;align-items:center;flex-wrap:wrap;gap:.35rem .6rem;margin:0 0 .65rem;padding:.45rem .75rem;background:#10212b;border:1px solid var(--desk-line);border-radius:.65rem}
+.work-breadcrumb{display:flex;align-items:baseline;gap:.65rem;flex:1 1 13rem;min-width:0}
+.work-breadcrumb strong{white-space:nowrap;color:#a7e9dc}
+.work-breadcrumb span{overflow-wrap:anywhere;color:#e1ecee;font-size:.94rem}
+#work-context button,#quick-tools button,.finder-results button{min-height:44px}
+.work-comparison{flex:1 0 100%;text-align:left;color:#b8ebe0}
+#quick-tools{display:flex;gap:.2rem;align-items:center;flex-wrap:wrap}
+#quick-tools [aria-current=page]{background:#22423f;border-color:#6abbae;color:#defff5}
+#tabs #find-work{border:1px solid #47616d;background:#192d38}
+.finder-panel{width:min(35rem,85vw);display:grid;gap:.6rem}
+.finder-panel>.row{justify-content:space-between}
+.finder-panel h2,.finder-panel p{margin:0}
+.finder-panel input{width:100%;min-height:46px}
+.finder-results{max-height:55dvh;overflow:auto;display:grid;gap:.25rem}
+.finder-results button{display:flex;align-items:baseline;gap:.7rem;text-align:start;overflow-wrap:anywhere}
+.finder-results small{color:#9ecac6;min-width:4.2rem}
+.unity-transfer{display:grid;gap:.7rem;max-width:min(32rem,85vw)}
+.unity-transfer h2,.unity-transfer p{margin:0}
+.unity-transfer output{white-space:pre-line;overflow-wrap:anywhere}
+@media(max-width:1100px){
+  #editor .compact-tools{display:flex;align-items:center;flex-wrap:wrap;gap:.3rem;grid-area:tools}
+  .compact-tools #current-area{margin-inline-end:auto}
+  #quick-tools button,.compact-tools>button{padding:.4rem .7rem}
+  .compact-tools button{min-height:44px}
+}
+@media(max-width:960px){
+  #editor>.bar{margin-bottom:.25rem}
+  #work-context{padding:.35rem .5rem}
+  .palette{display:flex;flex-wrap:nowrap;overflow-x:auto;max-width:100%;scrollbar-width:thin}
+  .palette button{flex:0 0 auto;min-height:44px}
+}
+@media(min-width:1001px) and (max-width:1100px){
+  #editor:not([hidden]){grid-template-areas:"bar bar" "tools tools" "rail body" "rail message"}
+}
+@media(max-width:570px){
+  #quick-tools{flex-basis:100%}
+  #quick-tools button{flex:1;padding:.35rem}
+  .work-breadcrumb{flex-basis:100%}
+}
+
+
+.work-actions,.map-selection-bar{display:flex;align-items:center;flex-wrap:wrap;gap:.35rem}
+.map-selection-bar{margin:.4rem 0 .75rem;padding:.35rem .5rem;border:1px solid #3d575e;border-radius:.5rem;background:#172e34}
+.map-selection-bar>output{color:#afd5ca;margin-inline-end:auto;font-variant-numeric:tabular-nums}
+.map-selection-bar>button{min-height:44px}
+@media(max-width:1000px){
+  .work-actions{position:fixed;bottom:0;left:0;right:0;z-index:13;flex-wrap:nowrap;justify-content:center;padding:.4rem max(.45rem,env(safe-area-inset-right)) max(.4rem,env(safe-area-inset-bottom));background:#10212bf5;border-top:1px solid #517177}
+  #editor:not([hidden]){padding-bottom:calc(5.5rem + env(safe-area-inset-bottom))}
+  .work-actions button{min-height:44px}
+  #editor.gpt-docked{padding-bottom:calc(60dvh + 5rem)}
+  #gpt-dock{bottom:calc(3.9rem + env(safe-area-inset-bottom))}
+  html:has(#editor:not([hidden])){scroll-padding-bottom:5.5rem}
+}
+

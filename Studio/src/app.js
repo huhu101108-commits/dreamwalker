@@ -2,7 +2,7 @@ let access,
   project,
   record,
   dirty = false,
-  tab = 'desk',
+  tab = 'scene',
   sceneId = '',
   actorId = '',
   storyId = '',
@@ -129,6 +129,8 @@ function bindColor(label, obj, key, update) {
   });
 }
 function draw() {
+  const previousCanvas=document.querySelector('.scene-scroll');
+  const scroll=previousCanvas&&[previousCanvas.dataset.view,previousCanvas.scrollLeft,previousCanvas.scrollTop];
   releaseDevicePreview();
   if(motionPreviewSound){motionPreviewSound.pause();motionPreviewSound=null;}
   if (!project) return;
@@ -156,10 +158,13 @@ function draw() {
     balance: drawBalance,
     versions: drawVersions,
   })[tab]();
+  const nextCanvas=document.querySelector('.scene-scroll');
+  if(scroll&&nextCanvas&&nextCanvas.dataset.view===scroll[0]){nextCanvas.scrollLeft=scroll[1];nextCanvas.scrollTop=scroll[2];}
   drawGptDock();
   const hasInspector=!!$('#content .inspector');
   $('#inspector-switch').hidden=!hasInspector;
   if (!hasInspector) $('#editor').classList.remove('inspect-mode');
+  drawWorkContext();
   if(typeof showWorkReturn==='function')showWorkReturn();
   if(tab==='quality'||tab==='versions')addInspectionWorkspace($('#content .canvas-panel')||$('#content'));
   if(tab==='quality'){
@@ -470,7 +475,7 @@ async function openEditor() {
   if (access.ok) {
     const r = await api('project');
     const prefs=readStudioLayout();applyStudioLayout(prefs);
-    const section = new URLSearchParams(location.search).get('tool') || prefs.first;
+    const section = new URLSearchParams(location.search).get('tool') || (prefs.first && prefs.first!=='recent' ? prefs.first : lastWorkTool());
     if ([...$('#tabs').querySelectorAll('[data-tab]')].some((n) => n.dataset.tab === section)) tab = section;
     const requestedScreen=new URLSearchParams(location.search).get('screen');
     if(tab==='assistant'&&requestedScreen&&named(r.project.layouts||[],requestedScreen))layoutId=requestedScreen;
@@ -529,6 +534,7 @@ $('#login').onsubmit = async (e) => {
     $('#enter').disabled = false;
   }
 };
+initWorkNavigation();
 $('#studio-layout').onclick=editStudioLayout;
 $('#gpt-work-toggle').onclick=toggleGptDock;
 $('#project-import').append(integratedDevicePicker());
@@ -544,7 +550,7 @@ $('#inspector-switch').onclick=()=>{
 };
 $('#undo').onclick = () => travel(past, future);
 $('#redo').onclick = () => travel(future, past);
-$('#save').onclick = async () => {
+async function saveEditorProject() {
   try {
     const issue = problem(project) || inspectScreens(project).errors[0];
     if (issue) throw Error(issue);
@@ -573,12 +579,12 @@ $('#save').onclick = async () => {
       mark();
     }
     note((inspectionId?'검수 사본 v':'공유 버전 v') + r.rev + ' 저장 완료');
-  } catch (e) {
-    note(e.message);
+    return r;
   } finally {
     $('#save').disabled = false;
   }
-};
+}
+$('#save').onclick = () => saveEditorProject().catch(e=>note(e.message));
 $('#play').onclick = async () => {
   try {
     if (!dirty) {
@@ -587,7 +593,7 @@ $('#play').onclick = async () => {
     }
     const issue = problem(project);
     if (issue) throw Error(issue);
-    await playProject(activeMap().id);
+    await playFromWork();
   } catch (e) {
     note(e.message);
   }

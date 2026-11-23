@@ -117,6 +117,22 @@ namespace Dreamwalker.EditorTools
             }
             return new StudioPackageIndex {kind="project",revision=incoming.revision,files=result.Values.OrderBy(x=>x.path,StringComparer.Ordinal).ToArray()};
         }
+        // Tablet delivery is restricted to the data and media emitted by the content exporter.
+        public static void CheckTabletContent(StudioPackageIndex manifest, int revision)
+        {
+            if (manifest == null || manifest.kind != "content" || manifest.revision != revision)
+                throw new InvalidDataException("요청한 공유 버전의 콘텐츠 팩을 확인하세요.");
+            var files = Index(manifest);
+            if (!files.ContainsKey(ContentRoot + "release.json"))
+                throw new InvalidDataException("게임 데이터가 빠져 있어요.");
+            foreach (var entry in manifest.files)
+            {
+                string name = entry.path.Substring(ContentRoot.Length);
+                if (name != "release.json" && name != "Images/builtin-player.png" && name != "Images/builtin-stage.jpg" &&
+                    !Regex.IsMatch(name, @"^(Images/[a-f0-9]{64}\.(png|jpg)|Audio/[a-f0-9]{64}\.(mp3|ogg|wav))$"))
+                    throw new InvalidDataException("콘텐츠 전송에서 지원하지 않는 파일 " + name);
+            }
+        }
         private static void CopyVerified(Stream input,string dest,StudioPackageFile file)
         {
             long copied=0;var buffer=new byte[65536];

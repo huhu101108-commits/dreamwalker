@@ -28,7 +28,10 @@ function deviceEditorUrl(){
   if(typeof inspectionId!=='undefined'&&inspectionId)url.searchParams.set('qa',inspectionId);
   const fields={map:target?.map||sceneId,screen:target?.screen||layoutId,story:target?.story||storyId,
     line:target?.line||lineId,element:target?.element||elementId};
-  if(tool==='scene')fields.object=target?.object||mapObject;
+  if(tool==='scene'){
+    fields.object=target?.object||mapObject;
+    url.searchParams.set('page',String(mapPage));url.searchParams.set('floor',String(mapFloor));
+  }
   if(tool==='characters'||tool==='motion')fields.actor=target?.actor||actorId;
   if(tool==='motion'){fields.motion=target?.motion||motionKey;url.searchParams.set('tick',String(target?.tick??previewTick));}
   if(tool==='assets')fields.asset=target?.asset||assetSelection;
@@ -55,6 +58,8 @@ function restoreDeviceView(params){
   if(map){
     sceneId=map.id;const o=named(map.objects,params.get('object'));
     if(o){mapObject=o.id;mapPage=Math.floor(o.x/100);mapFloor=Math.max(0,Math.ceil((o.y-82)/100));}
+    if(params.has('page'))mapPage=clamp(parseInt(params.get('page'),10)||0,0,Math.ceil(map.width/100)-1);
+    if(params.has('floor'))mapFloor=clamp(parseInt(params.get('floor'),10)||0,0,Math.ceil(map.height/100)-1);
   }
   if(screen){layoutId=screen.id;elementId=named(screen.elements,params.get('element'))?.id||'';}
   if(story){storyId=story.id;const line=named(story.nodes,params.get('line'));lineId=line?.id||'';

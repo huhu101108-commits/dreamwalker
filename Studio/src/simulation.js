@@ -796,6 +796,7 @@ class FieldRun {
     );
     const applied=damage+this.applyCombatEvent('hit',e.enemy?.tag||'');
     e.hp = Math.max(0, e.hp - applied);
+    this.onFieldHit?.(applied);
     if (!e.hp) {
       this.applyCombatEvent('kill',e.enemy?.tag||'');
       this.kills.set(this.map.id+'/'+e.id,e.enemy?.tag||'');

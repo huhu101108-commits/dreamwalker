@@ -140,11 +140,16 @@ public sealed partial class StudioWorld
     }
     private readonly Dictionary<string, AudioClip> tones = new Dictionary<string, AudioClip>();
     private readonly Dictionary<string, Vector2> widgetScroll = new Dictionary<string, Vector2>();
+#if UNITY_EDITOR
+    public const string TabletPreviewSlotKey="Dreamwalker.TabletPreview.Slot", TabletPreviewMapKey="Dreamwalker.TabletPreview.Map", TabletPreviewObjectKey="Dreamwalker.TabletPreview.Object";
+#endif
     private string SaveKey
     {
         get
         {
 #if UNITY_EDITOR
+            string preview = UnityEditor.SessionState.GetString(TabletPreviewSlotKey, "");
+            if (Guid.TryParseExact(preview,"N",out _)) return "dreamwalker-tablet-preview:"+preview;
             string slot = UnityEditor.SessionState.GetString(StoryProbeSlotKey, "");
             if (IsStoryProbeSlot(slot)) return slot;
 #endif

@@ -11,7 +11,7 @@ namespace Dreamwalker.Demo
 {
 public sealed class StudioConnection : MonoBehaviour
 {
-    internal const string Origin = "https://dreamwalker-snowfield-studio.congenialcockatoo.chatgpt.site";
+    public const string Origin = "https://dreamwalker-snowfield-studio.congenialcockatoo.chatgpt.site";
     [Serializable]
     private class Login
     {

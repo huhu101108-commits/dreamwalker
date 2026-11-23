@@ -27,7 +27,7 @@ function goTool(tool,id='') {
   $('#tool-menu').setAttribute('aria-expanded','false');
   $('#inspector-switch').setAttribute('aria-pressed','false');
   $('#inspector-switch').textContent='속성 보기';
-  note(''); draw();
+  note(''); draw(); saveEditorPosition();
   window.scrollTo({top:0});
 }
 function newTask(title='새 작업',kind='feature') {

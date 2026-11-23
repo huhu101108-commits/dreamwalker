@@ -330,9 +330,14 @@ async function playCustom(d, mapId, screenId = '', inspection = false) {
       const clean=typeof cleanInspectionSample==='function'?cleanInspectionSample(e.data,snapshot):{};
       if(scoped&&inspection.traceRules&&e.data.dreamwalker==='close'&&validFieldCapture(e.data.ruleCapture,snapshot))modal.fieldRuleCapture=e.data.ruleCapture;
       modal.inspectionSample={...clean,ticks:e.data.ticks,inputs:e.data.inputs,loadMs:Math.round(firstFrameAt-openedAt)};
+      if(scoped&&inspection.transient&&e.data.dreamwalker==='close'){
+        if(inspection.recordInputs&&validFieldTake(e.data.inputTape))modal.inspectionSample.inputTape=e.data.inputTape;
+        if(inspection.replayTape&&validFieldOutcome(e.data.replayResult))modal.inspectionSample.replayResult=e.data.replayResult;
+        if(typeof e.data.inputIssue==='string')modal.inspectionSample.inputIssue=e.data.inputIssue.slice(0,150);
+      }
     }
     if (
-      (!inspection||scoped) &&
+      (!inspection||scoped&&!inspection.transient) &&
       e.data?.dreamwalker === 'progress' &&
       typeof e.data.value === 'string' &&
       e.data.value.length <= 500000

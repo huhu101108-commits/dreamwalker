@@ -54,9 +54,8 @@ function zipArchive(items) {
   tail.u32(16, offset);
   return new Blob([...local, ...central, tail.array], { type: 'application/zip' });
 }
-async function exportUnityPack(fullProject = false) {
-  const release = await api('runtime'),
-    d = release.project,
+async function makeUnityPack(fullProject,release) {
+  const d = release.project,
     items = [],
     root = 'Assets/Resources/DreamwalkerStudio/';
   const issues=await inspectOutput(d,fullProject?'unity':'content');
@@ -132,7 +131,11 @@ async function exportUnityPack(fullProject = false) {
   const index=new TextEncoder().encode(JSON.stringify(manifest));
   items.push(['Dreamwalker-Pack.json',index]);
   if(fullProject)items.push(['ProjectSettings/DreamwalkerStudioImport.json',index]);
-  const url = URL.createObjectURL(zipArchive(items)),
+  return zipArchive(items);
+}
+async function exportUnityPack(fullProject = false) {
+  const release=await api('runtime');
+  const url = URL.createObjectURL(await makeUnityPack(fullProject,release)),
     a = el('a');
   a.href = url;
   a.download = (fullProject ? 'Dreamwalker-Unity-Project-v' : 'Dreamwalker-Unity-v') + release.rev + '.zip';

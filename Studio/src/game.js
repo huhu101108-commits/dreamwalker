@@ -100,6 +100,8 @@ function launchGame(mapId, screenId = '', inspection = false) {
   if (!inspection && !screenId && (location.pathname === '/play' || typeof GAME_DATA !== 'undefined')) continueProgress();
   if(options){if(!options.resume || !continueProgress())beginInspectionAt(run,{...options,screenId});}
   else if(!inspection)run.startPresentation(screenId);
+  const replay=options?.replayTape&&validFieldTake(options.replayTape)?options.replayTape:null;
+  const take=replay||options?.recordInputs?new FieldInputTake(run,replay):null;
   let frame,
     last = performance.now(),
     acc = 0,
@@ -197,7 +199,7 @@ function launchGame(mapId, screenId = '', inspection = false) {
   let stickSign=0,stickAllowed=true;
   function setStick(value){
     const sign=Math.sign(value);
-    if(sign!==stickSign){stickSign=sign;stickAllowed=!sign||!run.dispatchProgram?.('input',sign<0?'left':'right')?.consumed;}
+    if(sign!==stickSign){take?.log('stick',sign);stickSign=sign;stickAllowed=!sign||!run.dispatchProgram?.('input',sign<0?'left':'right')?.consumed;}
     run.stickAxis=run.paused||!stickAllowed?0:value;
   }
   let bindingScreen=null,padsAvailable=true;
@@ -544,7 +546,7 @@ function launchGame(mapId, screenId = '', inspection = false) {
   }
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   function loop(ts) {
-    pollPads();gestures.tick(ts);
+    if(!replay){pollPads();gestures.tick(ts);}
     if(metrics)metrics.record(ts,run.map.id,!document.hidden,performance.memory?.usedJSHeapSize);
     drawnFrames++;
     if (ts - last > 25) slowFrames++;
@@ -564,7 +566,9 @@ function launchGame(mapId, screenId = '', inspection = false) {
     acc += Math.min(0.1, (ts - last) / 1000);
     last = ts;
     while (acc >= 1 / 60) {
-      run.tick(1 / 60);
+      if(!take || (take.done&&!replay))run.tick(1/60);
+      else if(take.step()&&take.done&&replay){say('재생 완료 · '+compareFieldOutcomes(replay.outcome,take.final));}
+      if(take?.tick===takeTickLimit&&!replay&&!sample.inputIssue)sample.inputIssue='처음 60초의 입력을 기록했어요.';
       if(sample && !document.hidden) {
         sample.ticks++;
         if(sample.ticks%30===1 && typeof GAME_DATA!=='undefined' && window.parent!==window)
@@ -576,6 +580,7 @@ function launchGame(mapId, screenId = '', inspection = false) {
     frame = requestAnimationFrame(loop);
   }
   const down = (e) => {
+    if(replay)return;
     if(e.isComposing||e.altKey||e.ctrlKey||e.metaKey||e.target?.closest?.('input,textarea,select,[contenteditable=true]'))return;
     const custom=widgets.find(({w,n})=>w.type==='button'&&!n.disabled&&w.shortcut===e.code);
     if(custom){e.preventDefault();if(e.repeat)return;
@@ -621,6 +626,13 @@ function launchGame(mapId, screenId = '', inspection = false) {
   };
   $('#stop').onclick = () => modal.close();
   $('#controls').hidden = true;
+  if(replay){
+    const stopInput=e=>{if(stage.contains(e.target)||$('#controls').contains(e.target)||e.target.closest('button')!==$('#stop')&&e.target.closest('.bar')){
+      e.preventDefault();e.stopImmediatePropagation();
+    }};
+    for(const type of ['pointerdown','click','input'])modal.addEventListener(type,stopInput,true);
+    modal.addEventListener('close',()=>{for(const type of ['pointerdown','click','input'])modal.removeEventListener(type,stopInput,true);},{once:true});
+  }
   const sizeObserver=new ResizeObserver(()=>{for(const {w,n} of widgets)if(w.anchor)setWidgetGeometry(n,w,layer.clientWidth,layer.clientHeight);});
   sizeObserver.observe(layer);modal.showModal();
   render();
@@ -634,6 +646,12 @@ function launchGame(mapId, screenId = '', inspection = false) {
   const storeOnExit=()=>saveProgress();window.addEventListener('pagehide',storeOnExit);document.addEventListener('visibilitychange',storeOnHide);
   modal.onclose = () => {
     window.removeEventListener('pagehide',storeOnExit);document.removeEventListener('visibilitychange',storeOnHide);
+    if(take){
+      if(replay){if(take.done)sample.replayResult=take.final;}
+      else if(take.overflow)sample.inputIssue='입력이 너무 많아 이 플레이를 기록할 수 없었어요.';
+      else sample.inputTape=take.close();
+      run.onFieldHit=null;
+    }
     if(ruleCapture)sample.ruleCapture=ruleCapture.close(run);
     metrics?.capture();sizeObserver.disconnect();cancelAnimationFrame(frame);
     if(sample) modal.removeEventListener('pointerdown',countTouch,true);

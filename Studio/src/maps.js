@@ -87,8 +87,27 @@ function drawMaps() {
   if (mapTool === 'brush') a.append(colorField('그릴 지형 색', terrainTint, value => { terrainTint = value; }));
   if(mapTool==='tiles') tileControls(a);
   const scroll=box('scene-scroll',stage);
-  addSceneViewTools(a,scroll,stage,s,offset,bottom);
+  scroll.dataset.view=[s.id,mapPage,mapFloor,sceneZoom].join('/');
   a.append(scroll);
+  const selected=named(s.objects,mapObject)||s.objects[0];
+  const selectionBar=box('map-selection-bar',el('strong',selected.editorName||selected.label||OBJECTS[selected.type]));
+  const coordinates=el('output',selected.x+', '+selected.y);selectionBar.append(coordinates);
+  for(const [label,dx,dy] of [['왼쪽',-1,0],['오른쪽',1,0],['위',0,1],['아래',0,-1]]){
+    const move=action(label,()=>{
+      const group=selectionFor(s),moving=group.has(selected.id)?s.objects.filter(o=>group.has(o.id)&&!o.locked):[selected];
+      if(selected.locked||!moving.length)return;
+      const shift=groupDelta(moving,s,dx*sceneGrid,dy*sceneGrid);
+      edit(()=>{for(const o of moving){o.x+=shift.dx;o.y+=shift.dy;}
+        mapPage=Math.min(pageCount-1,Math.floor(selected.x/100));mapFloor=Math.max(0,Math.ceil((selected.y-82)/100));});
+    });
+    move.disabled=!!selected.locked;move.setAttribute('aria-label','선택 개체 '+label+' 이동');selectionBar.append(move);
+  }
+  selectionBar.append(action('개체 속성 열기',()=>{
+    if(matchMedia('(max-width:1000px)').matches&&!$('#editor').classList.contains('inspect-mode'))$('#inspector-switch').click();
+    b.querySelector('[aria-label="선택 개체"]').focus();b.scrollIntoView({block:'start'});
+  }),action('이 위치에서 플레이',()=>playFromWork(),'accent'));
+  a.append(selectionBar);
+  addSceneViewTools(a,scroll,stage,s,offset,bottom);
   function addAt(x, y) {
     if (s.objects.length >= LIMIT.objects) return note('맵의 개체 한도에 도달했어요.');
     const px=clamp(snapped(x),1,s.width-1), py=clamp(snapped(y),0,s.height-18);
@@ -167,11 +186,13 @@ function drawMaps() {
     )
       continue;
     const n = actorNode(o, c);
+    n.dataset.objectId=o.id;
     placeWorld(n, o, offset, offsetY);
-    n.classList.toggle('selected', o.id === mapObject);
+    n.classList.toggle('selected', o.id === (mapObject || s.objects[0].id));
     stage.append(n);
     nodes.set(o.id, n);
     if (selectionFor(s).has(o.id)) n.classList.add('group-selected');
+    if(!mapTool && o.locked)n.onclick=()=>{mapObject=o.id;draw();};
     if (mapTool || o.locked) continue;
     pointerDrag(
       n,
@@ -234,8 +255,7 @@ function drawMaps() {
   );
   const o = named(s.objects, mapObject) || s.objects[0];
   mapObject = o.id;
-  sceneHierarchy(b,s,o);
-  b.append(action('이 개체 위치에서 검수 플레이',()=>playInspectionFrom(project,{mapId:s.id,objectId:o.id})));
+
   const attrs = box('control-grid', bindText('맵 이름', s, 'name'), bindSelect('시간대', s, 'theme', THEMES));
   attrs.append(
     ...[
@@ -341,6 +361,7 @@ function drawMaps() {
     ),
   );
   const refresh = () => {
+    coordinates.textContent=o.x+', '+o.y;
     const n = nodes.get(o.id);
     if (n) {
       placeWorld(n, o, offset, offsetY);
@@ -472,6 +493,8 @@ function drawMaps() {
         ),
       ),
     );
+  sceneHierarchy(b,s,o);
+  b.append(action('이 개체 위치에서 검수 플레이',()=>playInspectionFrom(project,{mapId:s.id,objectId:o.id})));
 }
 
 function cameraFrameEditor(panel,map){

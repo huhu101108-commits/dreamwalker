@@ -57,6 +57,8 @@ async function api(req, env, path) {
   const session = sk && (await get(b, sk));
   const ok = !!(session && auth && session.data.gen === auth.data.gen && session.data.exp > Date.now()
     && (!session.data.ownerOnly || owner));
+  if(path.startsWith('/api/unity-sync/'))return unityTransfer(req,b,path.slice('/api/unity-sync/'.length),auth,ok?session.data:null,owner);
+  if(session?.data.scope==='unity')err(403,'Unity 연결은 전달한 콘텐츠만 읽을 수 있어요.');
   if (path.startsWith('/api/file-relay/'))
     return fileRelay(req, path.slice('/api/file-relay/'.length), b, ok && session.data.scope === 'edit' ? sk : '', auth?.data.gen);
   if (path.startsWith('/api/android/'))

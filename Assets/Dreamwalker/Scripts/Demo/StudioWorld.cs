@@ -138,6 +138,29 @@ public sealed partial class StudioWorld : MonoBehaviour
         hasTimers = Array.Exists(project.layouts,
                                  l => l.rules != null && Array.Exists(l.rules, r => r.@event == "elapsed"));
         ResetProgress();
+#if UNITY_EDITOR
+        if (!string.IsNullOrEmpty(UnityEditor.SessionState.GetString(TabletPreviewSlotKey, "")))
+        {
+            var targetMap = project.Map(UnityEditor.SessionState.GetString(TabletPreviewMapKey, ""));
+            if (targetMap != null)
+            {
+                Enter(targetMap, false, true);
+                var target = Array.Find(targetMap.objects, o => o.id == UnityEditor.SessionState.GetString(TabletPreviewObjectKey, ""));
+                if (target != null)
+                {
+                    var position = Point(target);
+                    if (target.type == "enemy") position.x -= 5 * UnitX;
+                    position.x = Mathf.Clamp(position.x, OriginX, OriginX + targetMap.width * UnitX);
+                    body.position = position;
+                    transform.position = position;
+                    body.linearVelocity = Vector2.zero;
+                    cameraOffset = CameraClamp(new Vector2((position.x-OriginX)/UnitX-46/CameraZoom, position.y/UnitY-36/CameraZoom));
+                    UpdateCamera();
+                }
+                return;
+            }
+        }
+#endif
         if (!RestoreProgress()) { Enter(project.Map(project.startMap)); Fire("start"); }
         StartPresentation();
     }

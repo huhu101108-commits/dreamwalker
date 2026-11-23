@@ -88,7 +88,7 @@ function applyStudioLayout(prefs){
 }
 function editStudioLayout(){
   const saved=readStudioLayout(), dialog=el('dialog'), content=box('panel studio-preferences');
-  let next={side:'right',width:'normal',first:'desk',...structuredClone(saved)},finished=false,selectedPart='id/save';
+  let next={side:'right',width:'normal',first:'recent',...structuredClone(saved)},finished=false,selectedPart='id/save';
   const tools=Object.fromEntries([...$('#tabs').querySelectorAll('[data-tab]')].map(b=>[b.dataset.tab,b.textContent]));
   function preview(){applyStudioLayout(next);paintStudioControls(dialog,next.paint);}
   function finish(keep){
@@ -99,7 +99,7 @@ function editStudioLayout(){
     const opened=content.querySelector('.preset-shelf')?.open,singleOpen=content.querySelector('.studio-single-control')?.open;content.replaceChildren();
     content.append(heading('스튜디오 배치'),selectField('속성 패널 위치',next.side,{right:'오른쪽',left:'왼쪽'},v=>{next.side=v;preview();}),
       selectField('속성 패널 너비',next.width,{normal:'기본',wide:'넓게'},v=>{next.width=v;preview();}),
-      selectField('처음 열 제작 도구',next.first,tools,v=>{next.first=v;}),heading('제작실 버튼과 입력창'));
+      selectField('처음 열 제작 도구',next.first,{recent:'마지막 작업 이어서',...tools},v=>{next.first=v;}),heading('제작실 버튼과 입력창'));
     const skin={...studioPaintDefaults(),...next.paint};
     function style(key,v){next.paint={...skin,...next.paint,[key]:v};preview();}
     const fields=box('control-grid');
