@@ -1328,3 +1328,16 @@ body { font-size:16px; }
   html:has(#editor:not([hidden])){scroll-padding-bottom:5.5rem}
 }
 
+
+#claude-panel { width: min(42rem,94vw); max-height: 86dvh; padding: 1rem; }
+#claude-panel > .row { justify-content: space-between; align-items: center; }
+#claude-panel h2 { margin: 0; }
+.claude-sections { display: grid; gap: .65rem; margin: 1rem 0; }
+.claude-sections details { padding: .7rem .8rem; border: 1px solid var(--desk-line,#536775); border-radius: .6rem; }
+.claude-sections summary { cursor: pointer; font-weight: 650; padding: .25rem 0; }
+.claude-sections details[open] > * + * { margin-top: .65rem; }
+.claude-sections a { display: inline-flex; align-items: center; min-height: 44px; color: #9ee2eb; }
+.claude-sections textarea, .claude-sections input { box-sizing: border-box; width: 100%; resize: vertical; }
+.claude-copy { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: end; gap: .45rem; margin-block: .5rem; }
+#claude-panel output { display: block; min-height: 1.5em; }
+@media (max-width: 520px) { .claude-copy { grid-template-columns: 1fr; } .claude-copy button { justify-self: start; } }

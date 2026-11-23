@@ -1,22 +1,22 @@
-# Claude Code로 Dreamwalker Studio 수정하기
+# 태블릿에서 Claude와 드림워커 제작하기
 
-Claude Code를 통해 태블릿 제작 스튜디오의 소스 코드를 수정하고 Pull Request로 검토할 수 있다. 이 설정은 게임 프로젝트의 대사·맵·전투 내용을 편집하는 **제작 GPT**와 별개로, 스튜디오 자체를 개발하는 경로다.
+## Claude 대화에서 게임 편집
 
-## GitHub에서 쓰기
+1. 드림워커 스튜디오에 소유자 계정으로 입장해 **Claude → 연결 키 발급**을 누른다. [연결 화면 열기](https://dreamwalker-snowfield-studio.congenialcockatoo.chatgpt.site/?tool=claude)
+2. Claude의 **Customize → Connectors → Add custom connector**에서 이름을 드림워커로 정하고 편집기가 표시한 원격 MCP 서버 URL을 붙여넣는다. **No sign in**을 선택하고 **Request headers**에 이름 `X-Dreamwalker-Key`, 값에 복사한 연결 키를 넣는다. 키는 이 설정 칸에만 입력한다. [Claude 커넥터 설정](https://claude.ai/customize/connectors)
+3. 대화에서 드림워커 커넥터를 켜고 스튜디오의 **편집 요청 복사** 문구를 붙여넣는다. 현재 공유 버전과 실제 화면·맵·대사 줄·캐릭터·규칙 ID가 작업 기준이다.
+4. Claude는 `studio_read`로 대상을 고르고 `studio_preview`로 전후 값을 확인한 뒤 `studio_apply`로 공유 버전을 저장한다. 미리보기는 30분간 유효하다. 같은 연결에서 새 미리보기를 만들거나 기준 버전이 바뀌면 최신본에서 다시 시작한다. 스튜디오의 **버전 · 백업**에서 이전 버전을 확인할 수 있다.
 
-1. 저장소 관리자 계정으로 [Claude Code GitHub 앱](https://github.com/apps/claude)을 `huhu101108-commits/dreamwalker` 저장소에 설치한다. Claude Code를 실행할 수 있는 컴퓨터에서 `/install-github-app`을 사용할 수도 있다.
-2. GitHub 저장소의 **Settings → Secrets and variables → Actions**에서 인증 시크릿 하나를 추가한다. Anthropic API를 쓰려면 `ANTHROPIC_API_KEY`, Claude Pro/Max의 Claude Code 로그인을 쓰려면 로컬에서 `claude setup-token`으로 만든 `CLAUDE_CODE_OAUTH_TOKEN`을 저장한다. 두 방식 중 하나만 설정한다. 키와 토큰은 저장소 파일이나 Unity 내보내기에 넣지 않는다.
-3. `feature/tablet-production-studio`의 **Actions** 탭에서 `Claude Code` 워크플로가 활성화됐는지 확인한다.
-4. 이슈 또는 Pull Request의 대화·코드 검토 댓글에 `@claude`와 구체적인 작업을 남긴다. 예: `@claude Studio/src/desk.js의 태블릿 화면에서 이 편집 흐름을 개선하고, 변경 이유와 검증 결과를 PR에 정리해 줘.` 이슈에서 부른 경우 Claude가 `feature/tablet-production-studio`를 기준으로 작업 브랜치와 Pull Request를 만든다.
-5. Claude가 만든 변경은 Pull Request에서 diff와 Actions 결과를 검토한 뒤 병합한다. Claude가 `main`에 직접 배포하거나 병합하지 않는다.
+연결 키에는 소유자가 위임한 게임 편집 권한이 있다. 닫으면 키는 다시 표시되지 않는다. **연결 키 해제** 후 새로 발급할 수 있다. 팀 암호 변경으로 기존 연결도 무효가 된다.
 
-워크플로는 이슈와 Pull Request의 댓글에서 `@claude` 요청에 반응한다. 권한이 있는 저장소 사용자의 요청만 허용하며, 작업은 저장소의 `CLAUDE.md`와 이 문서의 프로젝트 지침을 따른다. 저장소에 GitHub 앱과 인증 시크릿을 설정하기 전에는 Action이 Claude에 인증할 수 없다.
+## 저장 전 초안을 주고받기
 
-## Claude Code 로컬 실행
+편집기에서 대상 화면·맵·대사 줄·캐릭터·규칙을 선택한다. **Claude → 저장 전 초안을 Claude와 주고받기**에 요청을 적고 **초안 요청 만들기 → 초안 요청 복사**를 누른다. Claude에 붙여넣고 JSON 답변을 같은 스튜디오 탭의 답변 칸에 붙여넣는다. **변경안 미리보기 → 내 초안에 적용**으로 편집기에 반영한다. 실행 취소와 저장은 평소 편집 방식과 같다. 검수 사본에서는 이 경로가 사본에 적용된다.
 
-컴퓨터에서 저장소를 열고 `feature/tablet-production-studio`를 기준으로 별도 작업 브랜치를 만든다. Claude Code에 이슈 하나를 맡긴 다음 diff를 확인하고, 작업 브랜치를 푸시해 Pull Request로 검토한다. Codex와 같은 파일을 동시에 수정하지 않도록 작업 범위를 나눈다.
+## Claude Code로 스튜디오 개조
 
-## Studio 프로젝트 내용 편집
+1. 태블릿 브라우저에서 Claude Code를 열고 GitHub를 연결한다. 저장소 선택에서 `huhu101108-commits/dreamwalker`에 접근을 허용한다. [Claude Code 열기](https://claude.ai/code)
+2. 스튜디오의 **Claude → Claude Code로 스튜디오 개조 → 개조 요청 복사**를 누른다. Claude Code에 붙여넣고 바꾸고 싶은 기능을 덧붙인다.
+3. `feature/tablet-production-studio`의 최신 커밋에서 작업하고 `CLAUDE.md`를 따라 수정·검증한다. PR의 대상 브랜치가 `feature/tablet-production-studio`인지 확인한다. 사이트 반영은 배포된 버전으로 확인한다.
 
-화면·맵·대사·캐릭터·규칙 같은 게임 제작 데이터의 수정은 스튜디오 안의 **제작 GPT**에서 한다. Studio 소스 코드를 바꾸는 작업과 게임 프로젝트의 콘텐츠를 바꾸는 작업은 다른 기능이며, 콘텐츠 수정은 미리보기 후 제작자가 적용해야 한다.
-
+GitHub 댓글로도 요청하려면 기본 브랜치에 `.github/workflows/claude-code.yml`이 있어야 한다. Claude GitHub 앱과 Actions 시크릿 `ANTHROPIC_API_KEY` 또는 `CLAUDE_CODE_OAUTH_TOKEN` 중 하나를 설정한 뒤 권한 있는 사용자가 댓글에 `@claude`를 적는다. Claude Code 웹에서는 저장소를 직접 선택해 작업한다. [Anthropic 설정 안내](https://code.claude.com/docs/en/github-actions)

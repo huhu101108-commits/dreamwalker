@@ -11,15 +11,16 @@
 ## Change and review workflow
 
 - Work on a task branch based on `feature/tablet-production-studio`; do not commit directly to `main` or merge your own pull request.
-- Keep changes scoped to the requested issue or pull request. Do not overwrite unrelated work or edit files assigned to another active task.
+- Keep changes scoped to the creator’s request, issue, or pull request. Do not overwrite unrelated work or edit files assigned to another active task.
 - Before editing, inspect existing entry points and related tests. Use an isolated project copy and a separate save slot for play or compatibility checks.
 - Do not claim that browser, Unity Editor, Android APK, Galaxy Tab, or two-device online checks passed unless that environment actually ran them. Report the environment used and list blocked device-only checks.
 - For Studio code changes, run `npm test` from `Studio/` when the environment supports it. Report failures and missing tools accurately; do not remove checks to get a green result.
-- Do not publish or deploy from Claude Code. Submit a pull request with a concise change summary, verification results, and remaining conditions.
+- For a source change, open a pull request targeting `feature/tablet-production-studio` with the change summary and verification results. Report deployment separately when requested and verified.
 
 ## Studio structure
 
 - `Studio/src`: tablet editor, project model, Worker services, web play, export, and assistant integrations.
+- `Studio/src/claude-service.js` and `claude-panel.js`: scoped remote project editing and tablet handoff. Keep connector credentials out of repository data, messages and exports.
 - `Studio/scripts`: build, verification, browser, and native contract checks.
 - `Assets/Dreamwalker`: Unity runtime and editor integration. Run `node scripts/sync-unity.mjs ..` from `Studio/` only when intentionally syncing runtime sources.
 - Keep web and Unity behavior aligned where the shared project format promises parity; identify intentional differences.

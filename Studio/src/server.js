@@ -42,6 +42,29 @@ async function startSession(b, generation, scope, ownerOnly = false) {
     'set-cookie': 'dw_session=' + token + '; Path=/; Max-Age=43200; Secure; HttpOnly; SameSite=Strict',
   });
 }
+async function saveStudioRevision(b, old, cur, project, claudePreview) {
+  project = migrateProject(project);
+  const issue = problem(project) || inspectScreens(project).errors[0];
+  if (issue) err(400, issue);
+  for (const [refsFor,kind] of [[imageRefs,'image/'],[soundRefs,'audio/']]) {
+    const prior = new Set(refsFor(cur.project));
+    const refs = refsFor(project).filter(key => !prior.has(key));
+    for (let i=0; i<refs.length; i+=12) {
+      const items=await Promise.all(refs.slice(i,i+12).map(key=>b.head('asset/'+key)));
+      if (items.some(item=>!item || !(item.httpMetadata?.contentType || 'image/png').startsWith(kind)))
+        err(400,'필요한 에셋이 없거나 형식이 달라요. 파일이 포함된 백업을 가져오세요.');
+    }
+  }
+  const next = {
+    rev: cur.rev + 1,
+    updated: new Date().toISOString(),
+    ...(claudePreview ? { claudePreview } : {}),
+    project,
+    history: [{ rev: cur.rev, updated: cur.updated, project: cur.project }, ...cur.history].slice(0, 8),
+  };
+  if (!(await put(b, 'project', next, old))) err(409, '동시 저장 충돌이 발생했어요.');
+  return next;
+}
 async function api(req, env, path) {
   const b = env.BUCKET,
     origin = new URL(req.url).origin;
@@ -76,6 +99,10 @@ async function api(req, env, path) {
   if (!assetHead && !['GET', 'POST'].includes(req.method)) err(405, '지원하지 않는 요청이에요.');
   if (post && req.headers.get('origin') && req.headers.get('origin') !== origin)
     err(403, '허용되지 않은 출처');
+  if (path === '/api/claude-connection') {
+    if (!owner || !ok || session.data.scope !== 'edit') err(403, '소유자 계정으로 입장하세요.');
+    return claudeConnection(req, env, auth.data.gen);
+  }
   if (path.startsWith('/api/personal-gpt/')) {
     if (!owner || !ok || session.data.scope!=='edit') err(403,'소유자 계정으로 입장하세요.');
     return ownerGptAction(req,env,path.slice('/api/personal-gpt/'.length));
@@ -290,26 +317,7 @@ async function api(req, env, path) {
         err(409, '같은 항목을 수정했어요 · ' + merged.conflicts.slice(0, 4).join(', '));
       body.project = merged.project;
     }
-    body.project = migrateProject(body.project);
-    const issue = problem(body.project) || inspectScreens(body.project).errors[0];
-    if (issue) err(400, issue);
-    for (const [refsFor,kind] of [[imageRefs,'image/'],[soundRefs,'audio/']]) {
-      const prior = new Set(refsFor(cur.project));
-      const refs = refsFor(body.project).filter(key => !prior.has(key));
-      for (let i=0; i<refs.length; i+=12) {
-        const items=await Promise.all(refs.slice(i,i+12).map(key=>b.head('asset/'+key)));
-        if (items.some(item=>!item || !(item.httpMetadata?.contentType || 'image/png').startsWith(kind)))
-          err(400,'필요한 에셋이 없거나 형식이 달라요. 파일이 포함된 백업을 가져오세요.');
-      }
-    }
-    const next = {
-      rev: cur.rev + 1,
-      updated: new Date().toISOString(),
-      project: body.project,
-      history: [{ rev: cur.rev, updated: cur.updated, project: cur.project }, ...cur.history].slice(0, 8),
-    };
-    if (!(await put(b, 'project', next, old))) err(409, '동시 저장 충돌이 발생했어요.');
-    return json(next);
+    return json(await saveStudioRevision(b, old, cur, body.project));
   }
   err(404, '경로를 찾을 수 없어요.');
 }
@@ -317,6 +325,7 @@ export default {
   async fetch(req, env) {
     try {
       const path = new URL(req.url).pathname;
+      if (path === '/claude/mcp') return await claudeMcp(req, env);
       if (path==='/mcp') return await studioGptMcp(req,env);
       if (path.startsWith('/api/gpt-device/')) return await personalGptDevice(req,env,path.slice('/api/gpt-device/'.length));
       if (path.startsWith('/api/arena/')) return await arenaApi(req,env,path.slice(11));

@@ -7,6 +7,7 @@ import { createRequire } from 'node:module';
 import { BUCKET, ownerDigest, previewOwnerHeaders, worker } from './worker-fixture.mjs';
 import { testDeviceDesigner } from './test-device-designer-browser.mjs';
 import { testDialogueBrowser } from './test-dialogue-browser.mjs';
+import { testClaudeTablet } from './test-claude-browser.mjs';
 import { testWorkConvenience } from './test-workspace-browser.mjs';
 import { testDeskBrowser } from './test-desk-browser.mjs';
 import {arenaFixture} from './arena-fixture.mjs';
@@ -91,7 +92,7 @@ try {
   const origin='http://127.0.0.1:'+servers[0].address().port, peerOrigin='http://127.0.0.1:'+teammate.address().port;
   // Run every independent workflow even if another one reports a regression.
   const workflows=[
-    [testWorkConvenience,host,origin],[testInspectionWorkflow,host,origin],[testTargetFile,host,origin],[testPortablePipeline,host,origin],
+    [testClaudeTablet,host,origin],[testWorkConvenience,host,origin],[testInspectionWorkflow,host,origin],[testTargetFile,host,origin],[testPortablePipeline,host,origin],
     [testSceneMediaBrowser,host,origin],[testScreenWorkflow,host,origin],[testRuleAuthoring,host,origin],[testStoryProbeBrowser,host,origin],
     [testTouchAuthoring,host],[testDeskBrowser,host],[testDialogueBrowser,host],[testDeviceDesigner,host],
     [testPersonalGptBrowser,host,guest,origin,peerOrigin],[testGptWorkbenchBrowser,host,origin,guest.context().browser()],

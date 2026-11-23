@@ -503,6 +503,7 @@ async function openEditor() {
     $('#gate').hidden = true;
     $('#editor').hidden = false;
     if(location.pathname!=='/play')restoreEditorPosition(new URLSearchParams(location.search));
+    if (location.pathname !== '/play' && new URLSearchParams(location.search).get('tool') === 'claude') await openClaudePanel();
     if (location.pathname === '/play') {
       document.body.classList.add('game-only');
       await playProject(r.project.startMap);
@@ -537,6 +538,7 @@ $('#login').onsubmit = async (e) => {
 initWorkNavigation();
 $('#studio-layout').onclick=editStudioLayout;
 $('#gpt-work-toggle').onclick=toggleGptDock;
+$('#open-claude').onclick=openClaudePanel;
 $('#project-import').append(integratedDevicePicker());
 $('#tabs').onclick=e=>{const b=e.target.closest('[data-tab]');if(b)goTool(b.dataset.tab);};
 $('#tool-menu').onclick=()=>{
