@@ -54,12 +54,13 @@ export async function testRuleAuthoring(page,origin){
     await frame.locator('#game[open]').waitFor();await frame.locator('#assist').click();
     await frame.locator('#controls').getByRole('button',{name:'베기',exact:true}).click();
     await button(modal,'편집기로').click();await modal.waitFor({state:'hidden'});
-    await p.waitForFunction(async()=>!!(await inspectionGet('drafts','field-rules/'+inspectionId)));
+    await button(p,'전투 규칙 · Unity').click();
+    const real=p.locator('[data-field-rules]');await expand(real);
+    await real.getByText(/검수 슬롯 규칙 기록 전용/).waitFor();
     const sample=await p.evaluate(async()=>await inspectionGet('drafts','field-rules/'+inspectionId));
     assert.equal(sample.slot,'규칙 기록 전용');assert(sample.capture.outcome.steps.some(s=>s.split('/')[1]==='input'&&s.split('/')[2]==='attack'));
     assert(sample.capture.outcome.state.includes('save/v/자원/7'));
-    await button(p,'전투 규칙 · Unity').click();
-    const real=p.locator('[data-field-rules]');await expand(real);await button(real,'플레이 관찰값과 현재 규칙 비교').click();
+    await button(real,'플레이 관찰값과 현재 규칙 비교').click();
     assert.match(await real.locator('pre').textContent(),/규칙 재실행이 모두 일치/);
     const download=async(action,path)=>{const got=p.waitForEvent('download');await action.click();await (await got).saveAs(path);};
     const input=join(dir,'input.json'),archive=join(dir,'game.zip'),released=join(dir,'release.json'),out=join(dir,'result.json');

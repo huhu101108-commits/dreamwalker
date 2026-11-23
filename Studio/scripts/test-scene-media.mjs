@@ -8,6 +8,10 @@ const drawn=[];const brush={clearRect(){},save(){},restore(){},setLineDash(){},f
 const canvas={clientWidth:1000,clientHeight:600,getContext:()=>brush};
 const projection={viewport:{x:0,y:0},hero:{x:50,y:0,face:-1},foes:[],character:{strike:{shape:'box',x:1,y:.8,w:2,h:.8}},stroke:{tick:7,startup:6,active:7}};
 ctx.paintCombatOverlay(canvas,projection);assert.deepEqual(drawn[0],[430,447,70,30]);drawn.length=0;projection.stroke.tick=6;ctx.paintCombatOverlay(canvas,projection);assert(!drawn.length);
+projection.character.strike.hurt={from:7,to:9,x:-1,y:.8,w:2,h:.8};
+const outlines=[];brush.strokeRect=(...rect)=>outlines.push(rect);projection.stroke.tick=7;
+ctx.paintCombatOverlay(canvas,projection);assert.deepEqual(outlines[0],[500,447,70,30]);assert.equal(outlines.length,2);
+outlines.length=0;projection.stroke.tick=10;ctx.paintCombatOverlay(canvas,projection);assert.equal(outlines.length,1);
 for(const file of ['model','simulation'])vm.runInContext(await readFile('src/'+file+'.js','utf8'),ctx);
 const m=vm.runInContext('({seed,newStory,newNode,newShot,defaultStageTrack,DialogueCursor,stageText,FieldRun,defaultCameraFrame,cameraFrame,MapViewport,defaultMix:undefined,imageRefs,soundRefs,problem,packNativeWorld,prefabFields,prefabImpact,publishPrefab,poseAt,clipMarkers,emptyWork})',ctx);
 const p=m.seed(),map=p.scenes[0],s=m.newStory('sequence','연출 검수'),a=s.nodes[0],b=m.newNode('branch'),end=m.newNode('finish');

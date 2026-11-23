@@ -440,7 +440,13 @@ function paintCombatOverlay(canvas,run,spanX=100,spanY=100,floor=82) {
   if (!a) return;
   const step = a.tick - a.startup,
     active = step > 0 && step <= a.active;
-  const authored=run.character.strike;
+  const authored=run.character.strike,hurt=authored?.hurt;
+  if(hurt&&a.tick>=hurt.from&&a.tick<=hurt.to){
+    const w=hurt.w*3.5,h=hurt.h/.16;
+    ctx.save();ctx.strokeStyle='#ff9ed7';ctx.lineWidth=2;ctx.setLineDash([2,3]);
+    ctx.strokeRect(px(hero.x+hero.face*hurt.x*3.5-w/2),py(hero.y+hurt.y/.16+h/2),w*width/spanX,h*height/spanY);
+    ctx.restore();
+  }
   if(authored?.shape==='box'){
     const w=authored.w*3.5,h=authored.h/.16;
     const x=px(hero.x+hero.face*authored.x*3.5-w/2),y=py(hero.y+authored.y/.16+h/2);

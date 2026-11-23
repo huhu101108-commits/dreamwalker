@@ -306,7 +306,7 @@ async function playCustom(d, mapId, screenId = '', inspection = false) {
     modal = el('dialog');
   const scoped=inspection && typeof inspection==='object',openedAt=performance.now();let firstFrameAt=null,closeTimer;
   modal.className = 'source-player';
-  const requestExit=()=>{if(!frame.isConnected){modal.close();return;}frame.contentWindow.postMessage({dreamwalker:'request-exit'},'*');clearTimeout(closeTimer);closeTimer=setTimeout(()=>{if(modal.open)modal.close();},350);};
+  const requestExit=()=>{if(!frame.isConnected){modal.close();return;}frame.contentWindow.postMessage({dreamwalker:'request-exit'},'*');clearTimeout(closeTimer);closeTimer=setTimeout(()=>{if(modal.open){if(scoped)note('게임에서 종료 응답을 받지 못했어요. 마지막으로 기록된 슬롯을 확인하세요.');modal.close();}},scoped?2500:350);};
   const close = action('편집기로', requestExit),
     bar = box('bar', el('strong', '웹 게임'), close),
     frame = el('iframe');
