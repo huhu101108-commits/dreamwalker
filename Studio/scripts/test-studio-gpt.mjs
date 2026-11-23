@@ -38,6 +38,8 @@ const writable={write:async b=>{onDisk=new File([b],file.name,{type:file.type,la
 const local={file,handle:{getFile:async()=>onDisk,createWritable:async()=>writable,requestPermission:async()=> 'granted'},original:'대사 A\r\n',text:'대사 B\r\n',bom:true};
 assert.deepEqual(Buffer.from(await localFileBytes(local).arrayBuffer()),Buffer.from('\uFEFF대사 B\r\n'));
 await writeDeviceOriginal(local);assert.equal(writes,1);assert.equal(local.original,'대사 B\r\n');
+local.crlf=true;local.text='새 대사\n다음 줄';
+assert.deepEqual(Buffer.from(await localFileBytes(local).arrayBuffer()),Buffer.from('\uFEFF새 대사\r\n다음 줄'));
 local.text='새 초안';onDisk=new File(['같은 용량이어도 중간에 바뀐 문구'],file.name,{lastModified:3});
 await assert.rejects(writeDeviceOriginal(local),/다른 앱/);assert.equal(writes,1);assert.equal(local.text,'새 초안');
 console.log('PASS first-party file handle save, BOM and CRLF preservation, external edit conflict leaves original and draft intact');

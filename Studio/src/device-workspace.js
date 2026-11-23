@@ -3,19 +3,20 @@ const localTextFile=f=>/^text\//.test(f.type)||/\.(txt|md|cs|js|ts|json|html?|cs
 function releaseDevicePreview(){if(previewResource){URL.revokeObjectURL(previewResource);previewResource='';}}
 function localFileBytes(doc,text=doc.text){
   if(text===null||text===doc.original)return doc.file;
-  return new File([doc.bom?'\uFEFF':'',text],doc.file.name,{type:doc.file.type||'text/plain;charset=utf-8',lastModified:Date.now()});
+  const output=doc.crlf?text.replace(/\r?\n/g,'\r\n'):text;
+  return new File([doc.bom?'\uFEFF':'',output],doc.file.name,{type:doc.file.type||'text/plain;charset=utf-8',lastModified:Date.now()});
 }
 async function writeDeviceOriginal(doc){
   const handle=doc.handle, text=doc.text, bytes=localFileBytes(doc,text);
   if(!handle||!handle.createWritable)throw Error('이 환경에서는 사본 저장을 사용하세요.');
   if(handle.requestPermission && await handle.requestPermission({mode:'readwrite'})!=='granted')throw Error('원본 쓰기 권한을 확인하거나 사본을 저장하세요.');
   const latest=await handle.getFile();
-  if(latest.size!==doc.file.size || latest.lastModified!==doc.file.lastModified || await latest.text()!==doc.original)
+  if(latest.size!==doc.file.size || latest.lastModified!==doc.file.lastModified || await latest.text()!==(doc.baseline??doc.original))
     throw Error('다른 앱이 원본을 변경했어요. 현재 편집은 사본으로 저장하세요.');
   const writable=await handle.createWritable();
   try{await writable.write(bytes);await writable.close();}
   catch(e){await writable.abort().catch(()=>{});throw e;}
-  doc.file=await handle.getFile();doc.original=text;
+  doc.file=await handle.getFile();doc.original=text;doc.baseline=await bytes.text();
 }
 function localDiskLink(){
   const url=new URL('/device',location.origin),link=el('a','기기에 있는 파일만 열기');
@@ -40,7 +41,7 @@ function renderDeviceWorkspace(main,integrated){
       try{text=new TextDecoder('utf-8',{fatal:true}).decode(bytes);}catch{/* Unrecognized encodings stay byte-for-byte available as a copy. */}
     }
     if(version!==deviceRead||!main.isConnected)return;
-    deviceDocument={file,handle:handles[0]||null,text,original:text,bom,busy:false};
+    deviceDocument={file,handle:handles[0]||null,text,original:text,baseline:text,crlf:typeof text==='string' && /\r\n/.test(text) && !/(^|[^\r])\n/.test(text),bom,busy:false};
     renderDeviceWorkspace(main,integrated);
   }
   input.onchange=()=>{const files=[...input.files];input.value='';receive(files).catch(e=>say(e.message));};

@@ -4,8 +4,8 @@ function designStamp(doc,screen){
   return JSON.stringify([screen,doc.menuFunctions||[],designContext(doc,screen).screens]);
 }
 function designSample(doc,l){
-  const stage=box('gpt-screen-sample'),map=named(doc.scenes,sceneId)||doc.scenes[0],actor=named(doc.characters,map.characterId)||doc.characters[0];
-  paintStage(stage,map);stage.classList.add('ui-canvas');
+  const stage=el('div'),map=named(doc.scenes,sceneId)||doc.scenes[0],actor=named(doc.characters,map.characterId)||doc.characters[0];
+  paintStage(stage,map);stage.classList.add('ui-canvas','gpt-screen-sample');
   const back=box('ui-backdrop');styleScreen(back,l);stage.append(back);
   const sample={character:actor,map,hp:actor.health,enemies:3};
   for(const w of l.elements.filter(item=>item.visible)){
