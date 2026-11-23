@@ -260,8 +260,9 @@ function launchGame(mapId, screenId = '', inspection = false) {
       for (const w of elements.filter(
         (w) => w.visible && (!w.showFlag || run.flags.has(w.showFlag) === w.showValue),
       )) {
-        const n = newWidgetView(w);
-        if (w.type === 'joystick') releaseSticks.push(bindJoystick(n, value => { run.stickAxis = run.paused ? 0 : value; }));
+        const n = newWidgetView(w,true);
+        if(w.type==='input')connectInput(n,w,run,run.screen.id,render);
+        if (w.type === 'joystick') releaseSticks.push(bindJoystick(n, value => { run.stickAxis = run.paused ? 0 : value; },w.stick));
         if (w.type === 'button') {
           bindAction(n, w.action, w.target, w);
           const i = skillSlot(w.action);
@@ -414,11 +415,12 @@ function launchGame(mapId, screenId = '', inspection = false) {
       }
   }
   function paintHUD() {
-    const state = { character: run.character, hp: run.hero.hp, map: run.map, enemies: run.enemiesLeft, loading: run.loadingFraction };
+    const state = { inputs:run.inputValues, character: run.character, hp: run.hero.hp, map: run.map, enemies: run.enemiesLeft, loading: run.loadingFraction };
     const stamp = state.hp + '|' + state.enemies + '|' + run.progressVersion + '|' + Math.round(100 * state.loading);
     if (hudStamp !== stamp) {
       for (const { w, n } of widgets)
-        if (w.type === 'inventory' || w.type === 'quests') paintProgressWidget(n, w, run);
+        if(w.type==='input'){if(!n.contains(document.activeElement))showInputValue(n,w,readControl(w,run.screen.id,run.inputValues));}
+        else if (w.type === 'inventory' || w.type === 'quests') paintProgressWidget(n, w, run);
         else if (w.type !== 'dialogue' && w.type !== 'panel' && w.type !== 'image') updateWidget(n, w, state);
       hudStamp = stamp;
     }
@@ -472,7 +474,12 @@ function launchGame(mapId, screenId = '', inspection = false) {
     render();
     frame = requestAnimationFrame(loop);
   }
+  const shortcutHeld=new Map();
   const down = (e) => {
+    if(e.isComposing||e.altKey||e.ctrlKey||e.metaKey||e.target?.closest?.('input,textarea,select,[contenteditable=true]'))return;
+    const custom=widgets.find(({w,n})=>w.type==='button'&&!n.disabled&&w.shortcut===e.code);
+    if(custom){e.preventDefault();if(e.repeat)return;run.activate(custom.w);
+      if(['left','right'].includes(custom.w.action))shortcutHeld.set(e.code,custom.w.action);render();return;}
     if(sample && !e.repeat && (codes[e.code] || ['Enter','Space','Escape'].includes(e.code))) sample.inputs++;
     if (e.repeat) return;
     if (e.code === 'Escape' && (run.customScreen || run.menu)) {
@@ -494,9 +501,9 @@ function launchGame(mapId, screenId = '', inspection = false) {
       render();
     }
   };
-  const up = (e) => run.keys.delete(codes[e.code]),
+  const up = (e) => {run.keys.delete(shortcutHeld.get(e.code)||codes[e.code]);shortcutHeld.delete(e.code);},
     blur = () => {
-      run.keys.clear();
+      shortcutHeld.clear();run.keys.clear();
       for (const release of releaseSticks) release();
       saveProgress();
     };

@@ -206,7 +206,7 @@ function styleButton(n, w) {
   n.style.backgroundSize = w.imageFit === 'stretch' ? '100% 100%' : w.imageFit;
   cssImage(n, imageUrl(w.image));
 }
-function newWidgetView(w) {
+function newWidgetView(w,play=false) {
   const node = el(w.type === 'button' ? 'button' : 'div');
   if (node.tagName === 'BUTTON') node.type = 'button';
   node.className = 'widget widget-' + w.type;
@@ -225,7 +225,23 @@ function newWidgetView(w) {
     justifyContent: { left: 'flex-start', center: 'center', right: 'flex-end' }[w.align],
     fontSize: 'clamp(8px,' + w.fontSize / 8 + 'cqw,' + w.fontSize * 1.4 + 'px)',
   });
-  if (w.type === 'button') styleButton(node, w);
+  if(w.type==='button'){styleButton(node,w);if(w.hotspot)node.classList.add('hotspot');if(w.shortcut)node.title=w.shortcut;}
+  if(w.type==='input'){
+    styleButton(node,w);node.style.setProperty('--input-accent',w.pressedColor);
+    const spec=w.control,field=el(spec.mode==='choice'?'select':'input');
+    if(spec.mode==='choice')for(const option of spec.options)field.add(new Option(option,option));
+    else {
+      field.type=({text:'text',number:'number',range:'range',toggle:'checkbox'})[spec.mode];
+      if(spec.mode==='text')field.maxLength=spec.limit;
+      if(spec.mode==='range'||spec.mode==='number')Object.assign(field,{min:spec.min,max:spec.max,step:spec.step});
+      field.placeholder=spec.hint;field.autocomplete='off';
+    }
+    const label=el('span',w.text);label.className='input-title';field.setAttribute('aria-label',w.text||spec.hint||CONTROL_MODES[spec.mode]);
+    if(!play)field.tabIndex=-1;
+    label.hidden=!w.text;node.append(label,field);
+    if(spec.mode==='range')node.append(el('output'));
+    showInputValue(node,w,spec.initial);
+  }
   if (w.type === 'image') {
     cssImage(node, imageUrl(w.image));
     if (!w.image) node.textContent = '이미지';
@@ -234,6 +250,10 @@ function newWidgetView(w) {
     const ring = box('stick-ring', box('stick-thumb'));
     node.setAttribute('aria-label', w.text || '이동 조이스틱');
     ring.style.backgroundColor = node.style.backgroundColor;
+    if(w.stick){
+      ring.style.borderColor=w.stick.ring;const thumb=ring.firstChild;
+      thumb.style.background=w.stick.knob;thumb.style.width=thumb.style.height=w.stick.thumb+'%';
+    }
     node.style.backgroundColor = 'transparent';
     node.append(ring);
   }
@@ -245,6 +265,28 @@ function newWidgetView(w) {
     node.append(fill, label);
   }
   return node;
+}
+function showInputValue(node,w,value){
+  const field=node.querySelector('input, select');if(!field)return;
+  if(w.control.mode==='toggle')field.checked=value==='true';else if(field.value!==value)field.value=value;
+  const out=node.querySelector('output');if(out)out.textContent=value;
+}
+function connectInput(node,w,run,screenId,render){
+  const field=node.querySelector('input, select'),spec=w.control;
+  const stored=()=>readControl(w,screenId,run.inputValues);
+  showInputValue(node,w,stored());field.disabled=!!(w.enableFlag&&run.flags.has(w.enableFlag)!==w.enableValue);
+  field.onfocus=()=>{run.keys.clear();};
+  field.oninput=()=>{if(spec.mode==='range')node.querySelector('output').textContent=field.value;};
+  function commit(){
+    const raw=spec.mode==='toggle'?String(field.checked):field.value;
+    run.commitInput(w,screenId,raw);showInputValue(node,w,stored());render();
+  }
+  field.onchange=commit;
+  field.onkeydown=e=>{
+    if(e.key==='Enter'&&!e.isComposing&&(spec.mode==='text'||spec.mode==='number')){
+      e.preventDefault();commit();field.blur();
+    }
+  };
 }
 function updateWidget(n, w, state) {
   const c = state.character;
@@ -261,13 +303,16 @@ function updateWidget(n, w, state) {
     cssImage(n, url);
     n.textContent = url ? '' : c.name;
     n.setAttribute('aria-label', c.name);
+  } else if(w.type==='input'){
+    const title=n.querySelector('.input-title'),field=n.querySelector('input,select');
+    title.textContent=w.text;title.hidden=!w.text;field.setAttribute('aria-label',w.text||w.control.hint||CONTROL_MODES[w.control.mode]);
   } else if (w.type === 'enemies') n.textContent = (w.text || '남은 적') + ' ' + state.enemies;
   else if (w.type === 'character') n.textContent = w.text || c.name;
   else if (w.type === 'map') n.textContent = w.text || state.map.name;
   else if (w.type === 'inventory') n.textContent = '보유 장비 · 장착 변경';
   else if (w.type === 'quests') n.textContent = '의뢰 목록 · 진행 상태';
-  else if (w.type === 'text') n.textContent = w.text;
-  else if (w.type === 'button') n.textContent = w.text || getActionLabel(w.action, c);
+  else if (w.type === 'text') n.textContent = state.inputs?controlText(w.text,state.inputs):w.text;
+  else if (w.type === 'button') n.textContent = (state.inputs?controlText(w.text,state.inputs):w.text) || getActionLabel(w.action, c);
 }
 const defaultMix = () => ({music:65,fx:85,voice:100});
 function gameAudio(world,host) {
@@ -386,7 +431,7 @@ function paintCombatOverlay(canvas, run) {
   ctx.fill();
   ctx.restore();
 }
-function bindJoystick(node, setAxis) {
+function bindJoystick(node, setAxis, config) {
   const ring = node.querySelector('.stick-ring'), thumb = ring.firstChild;
   let owner = null;
   function move(e) {
@@ -395,9 +440,10 @@ function bindJoystick(node, setAxis) {
     const dx = (e.clientX - r.left - r.width / 2) / Math.max(1, r.width * .38);
     const dy = (e.clientY - r.top - r.height / 2) / Math.max(1, r.height * .38);
     const length = Math.max(1, Math.hypot(dx, dy)), x = dx / length, y = dy / length;
-    thumb.style.left = (50 + x * 32) + '%';
-    thumb.style.top = (50 + y * 32) + '%';
-    setAxis(Math.abs(x) < .14 ? 0 : Math.sign(x) * (Math.abs(x) - .14) / .86);
+    const travel=config?(100-config.thumb)/2:32, dead=(config?.dead??14)/100;
+    thumb.style.left = (50 + x * travel) + '%';
+    thumb.style.top = (50 + y * travel) + '%';
+    setAxis(Math.abs(x) <= dead ? 0 : Math.sign(x) * (Math.abs(x) - dead) / (1-dead));
   }
   function release(e) {
     if (e && e.pointerId !== owner) return;

@@ -10,6 +10,7 @@ function drawShotEditor(main,side,story,line) {
   function replaceLayout(shot) {
     if(!line.shot || confirm('이 줄의 화면 구도를 바꿀까요? 실행 취소로 복원할 수 있어요.')) useShot(shot);
   }
+  panel.append(presetPanel('shot',line.shot?()=>line.shot:null,p=>replaceLayout(p.data)));
   if(!line.shot) {
     header.append(action('이 줄 화면 편집',()=>useShot(newShot(line)),'accent'));
     if(previous?.shot) header.append(action('이전 줄 구도 사용',()=>useShot(previous.shot)));

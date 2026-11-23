@@ -177,6 +177,10 @@ public class StudioWidget
     public float radius, borderWidth;
     public string borderColor, pressedColor, imageFit, showFlag, enableFlag, shape;
     public StudioVertex[] points;
+    public StudioControlSpec control;
+    public StudioStickStyle stick;
+    public string shortcut;
+    public bool hotspot;
     public bool showValue, enableValue;
     public StudioAction[] steps;
     public bool visible;
@@ -185,6 +189,26 @@ public class StudioWidget
 
 namespace Dreamwalker.Demo
 {
+[Serializable] public class StudioStickStyle { public int thumb, dead; public string knob, ring; }
+[Serializable] public class StudioControlSpec
+{
+    public string mode, key, hint, initial, signal;
+    public int limit, min, max, step;
+    public string[] options;
+    public string Value(string raw)
+    {
+        raw = raw ?? "";
+        if (mode == "text") return raw.Substring(0, Math.Min(raw.Length, Math.Max(0, limit)));
+        if (mode == "toggle") return raw == "true" || raw == "false" ? raw : null;
+        if (mode == "choice") return options != null && Array.IndexOf(options,raw) >= 0 ? raw : null;
+        if (step < 1 || max < min || !System.Text.RegularExpressions.Regex.IsMatch(raw, @"^[+-]?[0-9]{1,9}\z") ||
+            !int.TryParse(raw,System.Globalization.NumberStyles.AllowLeadingSign,System.Globalization.CultureInfo.InvariantCulture,out int num)) return null;
+        int bound = Math.Max(min, Math.Min(max, num)), count = (max-min)/step;
+        int tick = Math.Min(count,(int)Math.Floor((bound-min)/(double)step+.5));
+        return (min+tick*step).ToString(System.Globalization.CultureInfo.InvariantCulture);
+    }
+    public string Name(string screen, string widget) => string.IsNullOrEmpty(key) ? screen + "/" + widget : key;
+}
 [Serializable] public class StudioVertex { public float x, y; }
 internal static class StudioOutline
 {

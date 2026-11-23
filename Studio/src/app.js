@@ -177,6 +177,7 @@ function loadRecord(r) {
 function drawBalance() {
   const root = $('#content');
   root.append(heading('공통 전투 수치', '캐릭터별 능력 배율과 스킬 배율은 캐릭터 탭에서 조정해요.'));
+  root.append(presetPanel('tuning',()=>project.tuning,p=>edit(()=>{project.tuning=structuredClone(p.data);})));
   const groups = [
     [
       '기본 전투',

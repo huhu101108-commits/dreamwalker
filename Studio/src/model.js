@@ -93,6 +93,7 @@ const OBJECTS = {
 };
 const THEMES = { snow: '설원', dusk: '노을', night: '밤' };
 const WIDGETS = {
+  input: '입력 컨트롤',
   inventory: '인벤토리 · 장비 장착',
   quests: '의뢰 진행 목록',
   joystick: '이동 조이스틱',
@@ -328,6 +329,7 @@ function widget(id, type, x, y, w, h, overrides = {}) {
     align: 'center',
     visible: true,
     ...paintDefaults(),
+    ...(type==='input'?{control:newInputSpec('text'),text:'입력',align:'left'}:{}),
     ...overrides,
   };
 }
@@ -682,6 +684,46 @@ function validMenuStep(d,s) {
   return !!s && actionRefOK(d,s.action,s.target) && !['left','right'].includes(s.action) &&
     signalKey(s.flag,true) && typeof s.flagState==='boolean';
 }
+function validScreenWidget(d,w) {
+  return !!w && !(!has(WIDGETS, w.type) ||
+        (w.type === 'input' && !validInputSpec(w.control)) ||
+        (w.shortcut !== undefined && (w.type !== 'button' || !validShortcut(w.shortcut))) ||
+        (w.hotspot !== undefined && (w.type !== 'button' || typeof w.hotspot !== 'boolean')) ||
+        (w.stick !== undefined && (w.type !== 'joystick' || !validStick(w.stick))) ||
+        (w.editorLocked!==undefined && typeof w.editorLocked!=='boolean') ||
+        (w.functionId!==undefined && (w.type!=='button'||!named(d.menuFunctions||[],w.functionId))) ||
+        !signalKey(w.showFlag, true) ||
+        !signalKey(w.enableFlag, true) ||
+        typeof w.showValue !== 'boolean' ||
+        typeof w.enableValue !== 'boolean' ||
+        !has(BUTTON_SHAPES, w.shape ?? 'rect') ||
+        ((w.shape === 'custom' || w.points !== undefined) && !polygonOK(w.points)) ||
+        !num(w.radius, 0, 50) ||
+        !num(w.borderWidth, 0, 12) ||
+        !color(w.borderColor) ||
+        !color(w.pressedColor) ||
+        !['contain', 'cover', 'stretch'].includes(w.imageFit) ||
+        !Array.isArray(w.steps) ||
+        w.steps.length > 12 ||
+        w.steps.some(s=>!validMenuStep(d,s)) ||
+        !num(w.x, 0, 100) ||
+        !num(w.y, 0, 100) ||
+        !num(w.w, 3, 100) ||
+        !num(w.h, 3, 100) ||
+        w.x + w.w > 100.001 ||
+        w.y + w.h > 100.001 ||
+        !num(w.opacity, 0, 100) ||
+        !integer(w.fontSize, 8, 64) ||
+        !textValue(w.text, 160) ||
+        !color(w.color) ||
+        !color(w.background) ||
+        !imageRef(w.image) ||
+        !['left', 'center', 'right'].includes(w.align) ||
+        typeof w.visible !== 'boolean' ||
+        !has(INPUTS, w.action) ||
+        (w.type === 'button' && !actionRefOK(d, w.action, w.target))
+  );
+}
 function problem(d) {
   const title = (v) => textValue(v, 50, true);
   if (!d || d.schema !== SCHEMA || !title(d.title)) return '프로젝트 형식과 이름을 확인하세요.';
@@ -832,42 +874,10 @@ function problem(d) {
       return 'UI 화면 목록을 확인하세요.';
     if (l.kind === 'dialogue' && l.elements.filter((w) => w.type === 'dialogue' && w.visible).length !== 1)
       return l.name + '에 표시되는 대화 상자가 하나 필요해요.';
+    const shortcuts=l.elements.map(w=>w.shortcut).filter(Boolean);
+    if(new Set(shortcuts).size!==shortcuts.length)return l.name+'에 같은 단축키가 두 번 지정됐어요.';
     for (const w of l.elements)
-      if (
-        !has(WIDGETS, w.type) ||
-        (w.editorLocked!==undefined && typeof w.editorLocked!=='boolean') ||
-        (w.functionId!==undefined && (w.type!=='button'||!named(d.menuFunctions||[],w.functionId))) ||
-        !signalKey(w.showFlag, true) ||
-        !signalKey(w.enableFlag, true) ||
-        typeof w.showValue !== 'boolean' ||
-        typeof w.enableValue !== 'boolean' ||
-        !has(BUTTON_SHAPES, w.shape ?? 'rect') ||
-        ((w.shape === 'custom' || w.points !== undefined) && !polygonOK(w.points)) ||
-        !num(w.radius, 0, 50) ||
-        !num(w.borderWidth, 0, 12) ||
-        !color(w.borderColor) ||
-        !color(w.pressedColor) ||
-        !['contain', 'cover', 'stretch'].includes(w.imageFit) ||
-        !Array.isArray(w.steps) ||
-        w.steps.length > 12 ||
-        w.steps.some(s=>!validMenuStep(d,s)) ||
-        !num(w.x, 0, 100) ||
-        !num(w.y, 0, 100) ||
-        !num(w.w, 3, 100) ||
-        !num(w.h, 3, 100) ||
-        w.x + w.w > 100.001 ||
-        w.y + w.h > 100.001 ||
-        !num(w.opacity, 0, 100) ||
-        !integer(w.fontSize, 8, 64) ||
-        !textValue(w.text, 160) ||
-        !color(w.color) ||
-        !color(w.background) ||
-        !imageRef(w.image) ||
-        !['left', 'center', 'right'].includes(w.align) ||
-        typeof w.visible !== 'boolean' ||
-        !has(INPUTS, w.action) ||
-        (w.type === 'button' && !actionRefOK(d, w.action, w.target))
-      )
+      if (!validScreenWidget(d,w))
         return l.name + '의 요소 속성이나 버튼 연결을 확인하세요.';
   }
   for (const s of d.scenes) {
@@ -947,6 +957,11 @@ function imageRefs(d) {
     };
   for (const a of d.work?.assets || []) if (a.kind === 'image') add(a.ref);
   for (const p of d.work?.prefabs || []) add(p.object.image);
+  for(const p of d.work?.presets||[]) {
+    if(p.kind==='widget')add(p.data.image);
+    if(p.kind==='layout'){add(p.data.skin);p.data.elements.forEach(w=>add(w.image));}
+    if(p.kind==='shot')p.data.layers.forEach(layer=>add(layer.image));
+  }
   d.characters.forEach((c) => {
     add(c.sprite);
     add(c.portrait);
@@ -1221,6 +1236,7 @@ function mergeProject(base, mine, live) {
   const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   const merge = (a, b, c, path) => {
     if (path==='/work' && a===undefined && b && c) a=emptyWork();
+    if(path==='/work/presets' && a===undefined && Array.isArray(b) && Array.isArray(c))a=[];
     if (same(b, c) || same(b, a)) return c;
     if (same(c, a)) return b;
     const arrays = [a, b, c].every(Array.isArray);
@@ -1298,6 +1314,7 @@ function workProblem(d) {
   if (!w || !textValue(w.brief,3000) || !textValue(w.milestone,120) ||
       !rows(w.tasks,0,240) || !rows(w.assets,0,400) || !rows(w.prefabs,0,160) || !rows(w.runs,0,60))
     return '제작 보드의 항목 수와 프로젝트 기획을 확인하세요.';
+  if(w.presets!==undefined && (!rows(w.presets,0,64) || w.presets.some(p=>!validStudioPreset(d,p))))return '저장한 프리셋의 구성이나 이름을 확인하세요.';
   if (w.tasks.some(t => !textValue(t.title,100,true) || !textValue(t.owner,60) || !textValue(t.criteria,1500) ||
       !has(WORK_STATES,t.state) || !has(WORK_KINDS,t.kind) || (!has(WORK_TARGETS,t.tool) && t.tool!=='') ||
       (t.target!=='' && !validId(t.target)))) return '작업 카드의 이름과 제작 대상을 확인하세요.';
@@ -1350,4 +1367,108 @@ function spriteCells(width,height,cols,rowsCount,first,last) {
     cells.push({x:left,y:top,w:Math.floor((x+1)*width/cols)-left,h:Math.floor((y+1)*height/rowsCount)-top});
   }
   return cells;
+}
+
+// Input values belong to one running game. Only the design belongs to the project.
+const CONTROL_MODES={text:'글자 입력',number:'숫자 입력',toggle:'체크박스',range:'슬라이더',choice:'선택 목록'};
+function newInputSpec(mode='text'){
+  return {mode,key:'',hint:'',initial:({toggle:'false',number:'0',range:'50',choice:'선택 1'})[mode]||'',
+    limit:60,min:0,max:100,step:1,options:['선택 1','선택 2'],signal:''};
+}
+function controlValue(spec,raw){
+  const value=String(raw??'');
+  if(spec.mode==='text')return value.slice(0,spec.limit);
+  if(spec.mode==='toggle')return value==='true'||value==='false'?value:null;
+  if(spec.mode==='choice')return spec.options.includes(value)?value:null;
+  if(!/^[+-]?\d{1,9}$/.test(value))return null;
+  const bounded=clamp(Number(value),spec.min,spec.max);
+  const maxStep=Math.floor((spec.max-spec.min)/spec.step);
+  return String(spec.min+Math.min(maxStep,Math.round((bounded-spec.min)/spec.step))*spec.step);
+}
+function validInputSpec(c){
+  return !!c && has(CONTROL_MODES,c.mode) && signalKey(c.key,true) && signalKey(c.signal,true) &&
+    textValue(c.hint,120) && textValue(c.initial,160) && integer(c.limit,1,160) &&
+    integer(c.min,-99999,99999) && integer(c.max,c.min+1,99999) && integer(c.step,1,c.max-c.min) &&
+    Array.isArray(c.options) && c.options.length>=1 && c.options.length<=16 &&
+    c.options.every(v=>textValue(v,60,true)) && new Set(c.options).size===c.options.length &&
+    controlValue(c,c.initial)===c.initial;
+}
+function controlKey(w,screenId){return w.control.key||screenId+'/'+w.id;}
+function readControl(w,screenId,values){return controlValue(w.control,values.get(controlKey(w,screenId))??w.control.initial)??w.control.initial;}
+function controlText(text,values){
+  return (text||'').replace(/\{입력:([a-zA-Z0-9_가-힣-]{1,50})\}/g,(_,name)=>values.get(name)??'');
+}
+const validShortcut=key=>typeof key==='string' && /^(?:Key[A-Z]|Digit[0-9]|Space|Enter|Arrow(?:Up|Down|Left|Right)|Minus|Equal)?$/.test(key);
+const stickDefaults=()=>({thumb:38,dead:14,knob:'#c5eef1',ring:'#c5eef1'});
+const validStick=s=>!!s && integer(s.thumb,15,75) && integer(s.dead,0,80) && color(s.knob) && color(s.ring);
+const PRESET_KINDS={layout:'화면 디자인',widget:'UI 요소',shot:'대사 구도',tuning:'전투 수치',workspace:'제작실 배치'};
+const studioPaintDefaults=()=>({surface:'#233847',entry:'#152b38',ink:'#eef4f6',line:'#57808a',accent:'#a0e7d4',radius:7,height:40});
+function validWorkspace(p){
+  const t=p?.paint;
+  return !!p && ['left','right'].includes(p.side) && ['normal','wide'].includes(p.width) && textValue(p.first,50,true) &&
+    (!t||(['surface','entry','ink','line','accent'].every(k=>color(t[k]))&&integer(t.radius,0,32)&&integer(t.height,32,64)));
+}
+function presetWidget(doc,w){
+  const copy=structuredClone(boundMenuButton(doc,w));
+  delete copy.functionId;delete copy.editorLocked;
+  return copy;
+}
+function capturePreset(doc,kind,current){
+  if(kind==='layout')return {source:current.id,kind:current.kind,tint:current.tint,shade:current.shade,skin:current.skin,
+    elements:current.elements.map(w=>presetWidget(doc,w))};
+  if(kind==='widget')return presetWidget(doc,current);
+  return structuredClone(current);
+}
+function resolvePresetLinks(w,source,target,doc,allowMissing){
+  for(const act of [w,...w.steps]){
+    if(act.action==='open' && act.target===source)act.target=target;
+    if(!actionRefOK(doc,act.action,act.target)){
+      if(!allowMissing)throw Error('프리셋이 연결한 제작 대상이 삭제됐어요. 요소의 모양만 적용하거나 연결을 고친 프리셋을 저장하세요.');
+      if(!['open','gotoMap','selectActor','startStory'].includes(act.action)||!validId(act.target))return false;
+      act.action='back';act.target='';
+    }
+  }
+  return true;
+}
+function validStudioPreset(doc,p){
+  if(!has(PRESET_KINDS,p.kind)||!textValue(p.name,60,true)||!p.data||typeof p.data!=='object')return false;
+  const data=p.data;
+  if(p.kind==='tuning')return Object.entries(FIELDS).every(([k,[,min,max,step]])=>num(data[k],min,max)&&(step!==1||Number.isInteger(data[k])));
+  if(p.kind==='shot')return validShot(data);
+  if(p.kind==='workspace')return validWorkspace(data);
+  const layout=p.kind==='layout';
+  if(layout && (!validId(data.source)||!has(SCREEN_TYPES,data.kind)||!color(data.tint)||!num(data.shade,0,100)||
+    !imageRef(data.skin)||!rows(data.elements,0,LIMIT.widgets)))return false;
+  if(!layout && !validId(p.origin))return false;
+  const elements=layout?data.elements:[data];
+  if(layout && data.kind==='dialogue' && elements.filter(w=>w.type==='dialogue'&&w.visible).length!==1)return false;
+  const keys=elements.map(w=>w?.shortcut).filter(Boolean);
+  return new Set(keys).size===keys.length && elements.every(w=>{
+    if(!w||!validId(w.id)||w.functionId||!Array.isArray(w.steps)||w.steps.length>12||w.steps.some(s=>!s))return false;
+    const copy={...w,steps:w.steps.map(s=>({...s}))};
+    return resolvePresetLinks(copy,'','',doc,true) && validScreenWidget(doc,copy);
+  });
+}
+const paintFields=['color','background','opacity','fontSize','align','radius','borderWidth','borderColor','pressedColor','imageFit','image','shape','points'];
+function applyWidgetPaint(target,source){
+  for(const key of paintFields){
+    if(Object.hasOwn(source,key))target[key]=structuredClone(source[key]);
+    else delete target[key];
+  }
+  if(target.type==='joystick'&&source.stick)target.stick=structuredClone(source.stick);
+}
+function applyUIPreset(doc,p,layout,target,styleOnly=false){
+  const data=structuredClone(p.data);
+  if(styleOnly){if(!target)throw Error('모양을 적용할 요소를 선택하세요.');applyWidgetPaint(target,data);return target.id;}
+  if(p.kind==='layout'){
+    if(layout.kind!==data.kind)throw Error('같은 종류의 화면을 선택하세요. 이 프리셋으로 새 화면을 만들 수도 있어요.');
+    for(const w of data.elements)resolvePresetLinks(w,data.source,layout.id,doc,false);
+    Object.assign(layout,{tint:data.tint,shade:data.shade,skin:data.skin,elements:data.elements});
+    return layout.elements[0]?.id||'';
+  }
+  if(layout.elements.length>=LIMIT.widgets)throw Error('이 화면의 요소 공간이 부족해요.');
+  if(data.type==='dialogue'&&layout.elements.some(w=>w.type==='dialogue'))throw Error('이 화면에는 이미 대화 상자가 있어요.');
+  resolvePresetLinks(data,p.origin,layout.id,doc,false);
+  if(data.shortcut&&layout.elements.some(w=>w.shortcut===data.shortcut))delete data.shortcut;
+  data.id=uid();layout.elements.push(data);return data.id;
 }

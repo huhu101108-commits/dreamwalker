@@ -41,6 +41,11 @@ public static class Verify
             button.shape=shape;
             if (!StudioOutline.Contains(button,.5f,.5f,2) || StudioOutline.Contains(button,.01f,.01f,2)) throw new Exception(shape);
         }
+        var input = new StudioControlSpec { mode="range", min=-5, max=10, step=4, initial="3", key="호출명" };
+        if(input.Value("5")!="7" || input.Value("999")!="7" || input.Value("1.2")!=null || input.Name("s","w")!="호출명") throw new Exception("native input range");
+        input.mode="choice";input.options=new[]{"설원","승강장"};if(input.Value("철도")!=null || input.Value("설원")!="설원")throw new Exception("native choice");
+        input.mode="text";input.limit=2;input.key="";if(input.Value("백설역")!="백설" || input.Name("hud","name")!="hud/name")throw new Exception("native input text");
+        Console.WriteLine("PASS authored control ranges, choices, Korean field values and stable binding");
         var options = new StudioShotLayer { id="choices", kind="choices", columns=3 };
         if (options.ChoiceColumns(2)!=2 || options.ChoiceColumns(0)!=1) throw new Exception("choice grid");
         var shot = new StudioShot { layers=new[] { options } };

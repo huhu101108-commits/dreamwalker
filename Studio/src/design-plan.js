@@ -1,5 +1,5 @@
 const DESIGN_OPS=['screen','addWidget','editWidget','submenu','newFunction','addStep','bindFunction'];
-const DESIGN_FIELDS=['name','kind','contents','text','x','y','w','h','tint','shade','color','background','opacity','fontSize','align','shape','radius','borderColor','borderWidth','pressedColor','visible','action','target','flag','flagState','functionId'];
+const DESIGN_FIELDS=['name','kind','contents','text','x','y','w','h','tint','shade','color','background','opacity','fontSize','align','shape','radius','borderColor','borderWidth','pressedColor','visible','action','target','flag','flagState','functionId','controlMode','valueKey','hint','initial','limit','min','max','step','options','signal','shortcut','hotspot','thumb','dead','knob','ring'];
 const designFormat={
   type:'object',additionalProperties:false,required:['message','changes'],properties:{
     message:{type:'string'},changes:{type:'array',items:{type:'object',additionalProperties:false,
@@ -20,8 +20,13 @@ function designContext(doc,screen){
   const listing=rows=>rows.map(({id,name})=>({id,name}));
   return {screen:{id:screen.id,name:screen.name,kind:screen.kind,tint:screen.tint,shade:screen.shade,elements:screen.elements.map(w=>{
     const item={id:w.id,type:w.type};
-    for(const k of ['text','x','y','w','h','color','background','opacity','fontSize','align','shape','visible','action','target','functionId','editorLocked'])
+    for(const k of ['text','x','y','w','h','color','background','opacity','fontSize','align','shape','visible','action','target','functionId','editorLocked','hotspot','shortcut'])
       if(w[k]!==undefined)item[k]=w[k];
+    if(w.type==='input'&&validInputSpec(w.control)){
+      const {mode,key,hint,initial,limit,min,max,step,options,signal}=w.control;
+      item.control={mode,key,hint,initial,limit,min,max,step,options:[...options],signal};
+    }
+    if(w.type==='joystick'&&validStick(w.stick)){const {thumb,dead,knob,ring}=w.stick;item.stick={thumb,dead,knob,ring};}
     return item;
   })},screens:listing(doc.layouts),maps:listing(doc.scenes),stories:listing(doc.stories),characters:listing(doc.characters),
     functions:(doc.menuFunctions||[]).map(({id,name,action,target,steps})=>({id,name,action,target,steps:steps.map(({action,target,flag,flagState})=>({action,target,flag,flagState}))}))};
@@ -81,11 +86,19 @@ function planDesign(doc,screenId,changes){
   }
   function editWidget(w,v,adding){
     const numeric=['x','y','w','h','opacity','fontSize','radius','borderWidth'];
-    keys(v,[...numeric,'kind','text','color','background','align','shape','borderColor','pressedColor','visible','action','target','functionId']);
+    const specFields={controlMode:'mode',valueKey:'key',hint:'hint',initial:'initial',limit:'limit',min:'min',max:'max',step:'step',options:'options',signal:'signal'};
+    const extra=w.type==='input'?Object.keys(specFields):w.type==='joystick'?['thumb','dead','knob','ring']:w.type==='button'?['shortcut','hotspot']:[];
+    keys(v,[...numeric,...extra,'kind','text','color','background','align','shape','borderColor','pressedColor','visible','action','target','functionId']);
+    if(w.type==='input' && v.controlMode!==undefined && w.control.mode!==v.controlMode)w.control={...newInputSpec(v.controlMode),key:w.control.key,signal:w.control.signal};
     if(!adding && v.kind!==undefined)fail('기존 요소의 종류를 바꿀 수 없어요.');
     if(w.editorLocked && ['x','y','w','h'].some(k=>Object.hasOwn(v,k)))fail('잠긴 요소는 먼저 배치 잠금을 해제하세요.');
     for(const [k,value] of Object.entries(v)){
       if(k==='kind')continue;
+      if(w.type==='input' && Object.hasOwn(specFields,k)){
+        w.control[specFields[k]]=k==='options'?value.split('\n').map(s=>s.trim()):['limit','min','max','step'].includes(k)?number(value):value;continue;
+      }
+      if(w.type==='joystick'&&extra.includes(k)){(w.stick||={...stickDefaults(),knob:w.color,ring:w.color})[k]=['thumb','dead'].includes(k)?number(value):value;continue;}
+      if(k==='hotspot'){w.hotspot=bool(value);continue;}
       if(k==='functionId'){if(value)w.functionId=resolve(value);else delete w.functionId;if(value&&!w.functionId)fail('지정한 기능이 없어요.');}
       else if(k==='target')w.target=resolve(value);
       else if(k==='visible')w.visible=bool(value);

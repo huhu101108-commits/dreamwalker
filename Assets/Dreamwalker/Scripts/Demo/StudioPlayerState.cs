@@ -38,7 +38,7 @@ public class StudioPlayerSave
     public StudioMapMemory[] maps;
     public StudioFoeMemory[] foes;
     public StudioBagEntry[] bag;
-    public StudioEquipEntry[] gear, kills;
+    public StudioEquipEntry[] gear, kills, inputs;
     public int combatTick;
     public StudioActorRules[] combatStates;
 }
@@ -48,6 +48,23 @@ public sealed partial class StudioWorld
         new Dictionary<string, StudioMapMemory>();
     private readonly HashSet<string> mapsDone = new HashSet<string>(), storiesDone = new HashSet<string>(),
                                      rewards = new HashSet<string>();
+    private readonly Dictionary<string,string> formValues = new Dictionary<string,string>();
+    internal string FieldValue(StudioWidget w) {
+        string key = w.control.Name(CurrentLayout.id,w.id);
+        return formValues.TryGetValue(key,out string value) ? w.control.Value(value) ?? w.control.initial : w.control.initial;
+    }
+    internal string FieldText(string text) {
+        if (string.IsNullOrEmpty(text) || !text.Contains("{입력:")) return text;
+        return System.Text.RegularExpressions.Regex.Replace(text,@"\{입력:([a-zA-Z0-9_가-힣-]{1,50})\}",
+            m => formValues.TryGetValue(m.Groups[1].Value,out string value) ? value : "");
+    }
+    internal void CommitField(StudioWidget w,string raw) {
+        if (!Visible(w) || !Enabled(w) || Array.IndexOf(CurrentLayout.elements,w)<0) return;
+        string key=w.control.Name(CurrentLayout.id,w.id), value=w.control.Value(raw);
+        if (value==null || (formValues.TryGetValue(key,out string old) && old==value)) return;
+        formValues[key]=value;
+        if (!string.IsNullOrEmpty(w.control.signal)) Fire("signal",w.control.signal);
+    }
     private readonly Dictionary<string, int> bag = new Dictionary<string, int>();
     private readonly Dictionary<string, string> gear = new Dictionary<string, string>();
     private float nextProgressSave, poseStart;
@@ -138,6 +155,7 @@ public sealed partial class StudioWorld
     }
     private void ResetProgress()
     {
+        formValues.Clear();
         mapHistory.Clear();
         kills.Clear();
         combatStates.Clear();
@@ -193,6 +211,7 @@ public sealed partial class StudioWorld
             actor = Actor.id,
             result = Result,
             flags = flow.Flags,
+            inputs = new List<KeyValuePair<string,string>>(formValues).ConvertAll(p=>new StudioEquipEntry{key=p.Key,id=p.Value}).ToArray(),
             runRules = flow.RunRules,
             mapRules = flow.MapRules,
             maps = new List<StudioMapMemory>(mapHistory.Values).ToArray(),
@@ -250,6 +269,14 @@ public sealed partial class StudioWorld
         foreach (var m in saved.maps ?? Array.Empty<StudioMapMemory>())
             if (m != null && Project.Map(m.id) != null)
                 mapHistory[m.id] = m;
+        var fields = new Dictionary<string,string>();
+        foreach (var item in saved.inputs ?? Array.Empty<StudioEquipEntry>())
+            if (item?.key != null && item.id != null) fields[item.key]=item.id;
+        formValues.Clear();
+        foreach (var layout in Project.layouts) foreach (var w in layout.elements) if (w.type=="input" && w.control!=null) {
+            string key=w.control.Name(layout.id,w.id);
+            if (fields.TryGetValue(key,out string raw) && w.control.Value(raw)!=null) formValues[key]=w.control.Value(raw);
+        }
         combatTick = Math.Max(0, saved.combatTick);
         foreach (var state in saved.combatStates ?? Array.Empty<StudioActorRules>())
             if (state != null && state.counters != null && Project.Character(state.actor) != null) combatStates.Add(state);

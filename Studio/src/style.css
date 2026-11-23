@@ -1219,3 +1219,23 @@ body { font-size:16px; }
  #gpt-dock{position:fixed;z-index:12;inset:auto .45rem max(.35rem,env(safe-area-inset-bottom)) auto;width:min(29rem,calc(100% - .9rem));max-height:55dvh;box-shadow:0 10px 42px #020a15ba}
  #editor.gpt-docked{padding-bottom:57dvh}
 }
+
+.preset-shelf{margin:.65rem 0;padding:.55rem .7rem;border:1px solid var(--line,#3c5865);border-radius:.55rem}
+.preset-shelf>summary{font-weight:650;cursor:pointer}.preset-shelf[open]>.row,.preset-shelf[open]>.control{margin:.45rem 0}
+.studio-preferences{max-height:83dvh;overflow:auto}
+.studio-control-theme :is(button,input,select,textarea):not(.widget,.widget *,.stage *,.shot-board *,input[type=range],input[type=checkbox],input[type=color]){
+  background-color:var(--studio-entry);border:1px solid var(--studio-line);border-radius:var(--studio-radius);min-height:var(--studio-height);color:var(--studio-ink)
+}
+.studio-control-theme button:not(.widget,.widget *,.stage *,.shot-board *){background-color:var(--studio-surface)}
+.studio-control-theme :is(button,input,select,textarea):focus-visible{outline:2px solid var(--studio-accent);outline-offset:1px}
+.studio-control-theme :is(button.on,button[aria-current=page],button:active):not(.widget,.stage *,.shot-board *){box-shadow:inset 0 -3px var(--studio-accent)}
+.widget-input{pointer-events:auto;gap:.35em;line-height:1.15;touch-action:manipulation;justify-content:stretch;flex-wrap:nowrap}
+.widget-input>.input-title{min-width:0;overflow:hidden;text-overflow:ellipsis;max-width:48%}
+.widget-input :is(input,select){flex:1 1 0;width:0;min-width:0;max-width:100%;min-height:0;height:100%;border:0;border-radius:3px;padding:0 .16em;margin:0;background:transparent;color:inherit;accent-color:var(--input-accent);font:inherit;text-align:inherit}
+.widget-input option{background:#132833;color:#fff}.widget-input input::placeholder{color:inherit;opacity:.65}
+.widget-input:focus-within{outline:2px solid var(--input-accent);outline-offset:-2px}
+.widget-input input[type=checkbox]{flex:none;width:1.12em;height:1.12em;margin-inline:.2em}
+.widget-input input[type=range]{padding:0}.widget-input output{color:inherit;font:inherit}
+.ui-canvas .widget-input>*{pointer-events:none}
+#overlay .hotspot:not(:focus-visible){opacity:0}.ui-preview.hotspot{outline:2px dashed currentColor;outline-offset:-3px}
+

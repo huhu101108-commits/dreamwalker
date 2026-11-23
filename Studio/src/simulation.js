@@ -88,6 +88,7 @@ class FieldRun {
     this.serial = 0;
     this.keys = new Set();
     this.stickAxis = 0;
+    this.inputValues = new Map();
     this.rulesByEvent = new Map();
     for (const layout of world.layouts)
       for (const rule of layout.rules) {
@@ -182,6 +183,7 @@ class FieldRun {
       y: this.hero.y,
       face: this.hero.face,
       flags: [...this.flags],
+      inputs: [...this.inputValues],
       rules: [...this.runRules],
       stories: [...this.completedStories],
       maps: [...this.mapMemory],
@@ -243,6 +245,12 @@ class FieldRun {
     this.progressVersion++;
     this.mapMemory = new Map(data.maps);
     this.flags = new Set(data.flags);
+    this.inputValues.clear();
+    const savedInputs=new Map(pairs(data.inputs));
+    for(const layout of this.world.layouts)for(const w of layout.elements)if(w.type==='input'){
+      const key=controlKey(w,layout.id),raw=savedInputs.get(key);
+      if(typeof raw==='string'){const value=controlValue(w.control,raw);if(value!==null)this.inputValues.set(key,value);}
+    }
     this.runRules = new Set(data.rules);
     this.completedStories = new Set(data.stories);
     this.enter(data.map, 'restore');
@@ -445,6 +453,18 @@ class FieldRun {
     this.openScreen(best.layout.id);
     return true;
   }
+  commitInput(w,screenId,raw){
+    if(w.type!=='input'||this.screen?.id!==screenId||!w.visible||(w.showFlag&&this.flags.has(w.showFlag)!==w.showValue)||
+      (w.enableFlag&&this.flags.has(w.enableFlag)!==w.enableValue))return false;
+    const value=controlValue(w.control,raw);if(value===null)return false;
+    const key=controlKey(w,screenId);if(this.inputValues.get(key)===value)return true;
+    this.inputValues.set(key,value);this.progressVersion++;
+    if(w.control.signal)this.fire('signal',w.control.signal);
+    return true;
+  }
+  displayText(text){
+    return controlText(text,this.inputValues);
+  }
   activate(w) {
     if (
       !w.visible ||
@@ -493,6 +513,7 @@ class FieldRun {
     }
     if (action === 'newRun') {
       this.flags.clear();
+      this.inputValues.clear();
       this.runRules.clear();
       this.mapMemory.clear();
       this.completedStories.clear();

@@ -9,7 +9,7 @@ using UnityEngine.InputSystem;
 namespace Dreamwalker.Demo
 {
 // Both the canvas bounds and draw order are read from the published UI layout.
-internal sealed class StudioScreenView
+internal sealed partial class StudioScreenView
 {
     private readonly StudioWorld world;
     private readonly Dictionary<int, GUIStyle> textStyles = new Dictionary<int, GUIStyle>();
@@ -28,22 +28,18 @@ internal sealed class StudioScreenView
     private StudioShot ActiveShot => world.HasOverlay ? null : world.Line?.shot;
     private string pressedId;
     private float pressUntil;
-#if ENABLE_INPUT_SYSTEM
-    private static readonly Key[] SlotKeys = { Key.Digit1, Key.Digit2, Key.Digit3, Key.Digit4,
-                                               Key.Digit5, Key.Digit6, Key.Digit7, Key.Digit8,
-                                               Key.Digit9, Key.Digit0, Key.Minus,  Key.Equals };
-#else
-    private static readonly KeyCode[] SlotKeys = { KeyCode.Alpha1, KeyCode.Alpha2, KeyCode.Alpha3,
-                                                   KeyCode.Alpha4, KeyCode.Alpha5, KeyCode.Alpha6,
-                                                   KeyCode.Alpha7, KeyCode.Alpha8, KeyCode.Alpha9,
-                                                   KeyCode.Alpha0, KeyCode.Minus,  KeyCode.Equals };
-#endif
+
     internal StudioScreenView(StudioWorld world)
     {
         this.world = world;
+        Dreamwalker.Input.DreamwalkerInput.MaskKey = MaskGameKey;
     }
     internal void Dispose()
     {
+#if ENABLE_INPUT_SYSTEM
+        DetachIme();
+#endif
+        if (Dreamwalker.Input.DreamwalkerInput.MaskKey == MaskGameKey) Dreamwalker.Input.DreamwalkerInput.MaskKey=null;
         foreach (var shape in shapes.Values) shape.Release();
         shapes.Clear();
         if (font != null)
@@ -58,22 +54,23 @@ internal sealed class StudioScreenView
         float size = Mathf.Min(rect.width, rect.height);
         return new Rect(rect.center.x-size/2, rect.center.y-size/2, size, size);
     }
-    private float StickAt(Rect rect, Vector2 pos)
+    private float StickAt(StudioWidget widget, Rect rect, Vector2 pos)
     {
         stickOffset = Vector2.ClampMagnitude((pos - rect.center) / Mathf.Max(1, rect.width * .38f), 1);
         float x = stickOffset.x;
-        return Mathf.Abs(x) < .14f ? 0 : Mathf.Sign(x) * (Mathf.Abs(x) - .14f) / .86f;
+        float dead=(widget.stick?.dead ?? 14) / 100f;
+        return Mathf.Abs(x) <= dead ? 0 : Mathf.Sign(x) * (Mathf.Abs(x) - dead) / (1-dead);
     }
     private static bool Hit(StudioWidget w, Rect r, Vector2 pos) =>
         r.Contains(pos) && StudioOutline.Contains(w,(pos.x-r.x)/r.width,(pos.y-r.y)/r.height,r.width/r.height);
     private void Touch(int finger, Vector2 position, bool began, ref float horizontal)
     {
-        if (ActiveShot != null) return;
+        if (ActiveShot != null || openChoices != null) return;
         position.y = Screen.height - position.y;
         if (finger == stickOwner && heldStick != null)
         {
             sawStick = true;
-            horizontal += StickAt(Ring(Bounds(heldStick)),position);
+            horizontal += StickAt(heldStick,Ring(Bounds(heldStick)),position);
             return;
         }
         var widgets = Layout.elements;
@@ -82,12 +79,13 @@ internal sealed class StudioScreenView
             var w = widgets[i];
             var r = Bounds(w);
             if (!world.Visible(w) || !world.Enabled(w) || !r.Contains(position)) continue;
+            if (w.type == "input") return;
             if (w.type == "joystick" && began && stickOwner < 0 && !world.Paused)
             {
                 stickOwner = finger;
                 heldStick = w;
                 sawStick = true;
-                horizontal += StickAt(Ring(r),position);
+                horizontal += StickAt(w,Ring(r),position);
                 return;
             }
             if (w.type != "button" || !Hit(w,r,position)) continue;
@@ -117,25 +115,6 @@ internal sealed class StudioScreenView
             foreach (var touch in screen.touches)
                 if (touch.press.isPressed)
                     Touch(touch.touchId.ReadValue(), touch.position.ReadValue(), touch.press.wasPressedThisFrame, ref horizontal);
-        var k = Keyboard.current;
-        if (k != null)
-        {
-            for (int i = 0; i < world.Actor.skills.Length && i < SlotKeys.Length; i++)
-                if (k[SlotKeys[i]].wasPressedThisFrame)
-                    world.Press("skill" + (i + 1));
-            if (k.xKey.wasPressedThisFrame)
-                world.Press("skill1");
-            if (k.cKey.wasPressedThisFrame)
-                world.Press("skill2");
-            if (k.vKey.wasPressedThisFrame)
-                world.Press("skill3");
-            if (k.bKey.wasPressedThisFrame)
-                world.Press("skill4");
-            if (k.mKey.wasPressedThisFrame)
-                world.Press(string.IsNullOrEmpty(world.Menu) ? "menu" : "resume");
-            if (k.enterKey.wasPressedThisFrame && world.Line != null && world.Line.choices.Length == 0)
-                world.Answer();
-        }
 #else
         for (int i = 0; i < UnityEngine.Input.touchCount; i++)
         {
@@ -143,23 +122,8 @@ internal sealed class StudioScreenView
             if (touch.phase != TouchPhase.Ended && touch.phase != TouchPhase.Canceled)
                 Touch(touch.fingerId, touch.position, touch.phase == TouchPhase.Began, ref horizontal);
         }
-        for (int i = 0; i < world.Actor.skills.Length && i < SlotKeys.Length; i++)
-            if (UnityEngine.Input.GetKeyDown(SlotKeys[i]))
-                world.Press("skill" + (i + 1));
-        if (UnityEngine.Input.GetKeyDown(KeyCode.X))
-            world.Press("skill1");
-        if (UnityEngine.Input.GetKeyDown(KeyCode.C))
-            world.Press("skill2");
-        if (UnityEngine.Input.GetKeyDown(KeyCode.V))
-            world.Press("skill3");
-        if (UnityEngine.Input.GetKeyDown(KeyCode.B))
-            world.Press("skill4");
-        if (UnityEngine.Input.GetKeyDown(KeyCode.M))
-            world.Press(string.IsNullOrEmpty(world.Menu) ? "menu" : "resume");
-        if (UnityEngine.Input.GetKeyDown(KeyCode.Return) && world.Line != null &&
-            world.Line.choices.Length == 0)
-            world.Answer();
 #endif
+        ReadScreenKeys(ref horizontal);
         if (!sawStick && stickOwner >= 0) { stickOwner = -1; heldStick = null; stickOffset = Vector2.zero; }
         if (!Application.isMobilePlatform && Time.unscaledTime - mouseHeldAt < .06f)
             horizontal += mouseDirection;
@@ -276,7 +240,8 @@ internal sealed class StudioScreenView
     }
     private string Label(StudioWidget w)
     {
-        string value = w.text;
+        string value = w.type=="text" || w.type=="button" ? world.FieldText(w.text) : w.text;
+        if (w.hotspot) return "";
         if (w.type == "hp")
             return (string.IsNullOrEmpty(value) ? world.Actor.name : value) + "   " + world.Health + " / " +
                    world.Actor.health;
@@ -486,6 +451,8 @@ internal sealed class StudioScreenView
     internal void Draw()
     {
         GUI.depth = 0;
+        PrepareFields();
+        if (openChoices != null) { DrawChoices(); return; }
         if (!string.IsNullOrEmpty(world.Result) && !world.HasOverlay)
         {
             var panel =
@@ -514,21 +481,25 @@ internal sealed class StudioScreenView
             var r = Bounds(w);
             var background = StudioWorld.Tint(w.background, Color.black);
             background.a = w.opacity / 100;
+            if (w.type == "input" && w.control != null) { DrawField(w,r,background); continue; }
             if (w.type == "joystick")
             {
                 var ring = Ring(r);
                 GUI.DrawTexture(ring, Texture2D.whiteTexture, ScaleMode.StretchToFill, true, 0, background, 0, ring.width/2);
-                var color = StudioWorld.Tint(w.color,Color.white);
+                var color = StudioWorld.Tint(w.stick?.ring ?? w.color,Color.white);
                 GUI.DrawTexture(ring, Texture2D.whiteTexture, ScaleMode.StretchToFill, true, 0, color, 2, ring.width/2);
                 var offset = heldStick == w || (!Application.isMobilePlatform && Time.unscaledTime-mouseHeldAt < .06f) ? stickOffset : Vector2.zero;
-                var center = ring.center + offset*ring.width*.32f;
-                float radius = ring.width*.19f;
+                float thumb=(w.stick?.thumb ?? 38)/100f;
+                var center = ring.center + offset*ring.width*(w.stick == null ? .32f : (1-thumb)*.5f);
+                float radius = ring.width*thumb*.5f;
+                color=StudioWorld.Tint(w.stick?.knob ?? w.color,Color.white);
                 GUI.DrawTexture(new Rect(center.x-radius,center.y-radius,radius*2,radius*2),Texture2D.whiteTexture,ScaleMode.StretchToFill,true,0,color,0,radius);
                 if (!Application.isMobilePlatform && GUI.RepeatButton(r, "", GUIStyle.none))
-                { mouseDirection = StickAt(ring, Event.current.mousePosition); mouseHeldAt = Time.unscaledTime; }
+                { mouseDirection = StickAt(w,ring, Event.current.mousePosition); mouseHeldAt = Time.unscaledTime; }
                 continue;
             }
-            if (w.type == "button" && !string.IsNullOrEmpty(w.shape) && w.shape != "rect")
+            if(w.type=="button" && w.hotspot){ /* The authored shape remains the hit region. */ }
+            else if (w.type == "button" && !string.IsNullOrEmpty(w.shape) && w.shape != "rect")
             {
                 if (w.id == pressedId && Time.unscaledTime < pressUntil) background = StudioWorld.Tint(w.pressedColor, background);
                 DrawShape(w, r, background);
@@ -582,7 +553,7 @@ internal sealed class StudioScreenView
                      new Color(.12f, .5f, .56f));
             if (w.type == "button" && !world.Enabled(w))
             {
-                Fill(r, new Color(.1f, .12f, .15f, .5f));
+                if(!w.hotspot)Fill(r, new Color(.1f, .12f, .15f, .5f));
                 GUI.Label(r, Label(w), style);
                 continue;
             }

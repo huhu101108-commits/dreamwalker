@@ -107,6 +107,11 @@ function drawInterface() {
           elementId = n.id;
         });
       }),
+      action('＋ 입력 추가',()=>{
+        if(l.elements.length>=LIMIT.widgets)return note('화면 요소 한도에 도달했어요.');
+        const input=widget(uid(),'input',27,36,46,12);
+        edit(()=>{l.elements.push(input);elementId=input.id;});
+      }),
       selectField('새 화면 종류', screenKind, SCREEN_TYPES, (v) => (screenKind = v)),
       action('＋ 새 화면', () => add(false)),
       action('화면 복제', () => add(true)),
@@ -186,6 +191,7 @@ function drawInterface() {
     );
   }
   screenBench(canvas,l,w,a);
+  drawInterfacePresets(a,b,l,w);
   drawMenuBuilder(l,w,a);
   const allowed = { ...WIDGETS };
   if (l.elements.some((v) => v.type === 'dialogue')) delete allowed.dialogue;
@@ -196,7 +202,7 @@ function drawInterface() {
       action('＋ 요소 추가', () => {
         if (l.elements.length >= LIMIT.widgets) return note('화면당 요소 한도에 도달했어요.');
         const n = widget(uid(), type, 32, 35, 30, type === 'dialogue' ? 38 : 14, {
-          text: type === 'text' ? '텍스트' : '',
+          text: type === 'text' ? '텍스트' : type==='input'?'입력':'',
           action: l.kind === 'menu' ? 'resume' : l.kind === 'dialogue' ? 'nextLine' : 'attack',
         });
         edit(() => {
@@ -298,6 +304,9 @@ function drawInterface() {
     g.append(input);
   }
   b.append(g);
+  if(w.type==='input')inputInspector(w,b);
+  if(w.type==='joystick')stickInspector(w,b);
+  if(w.type==='button')clickInspector(l,w,b);
   if (w.type === 'button') {
     drawButtonActions(w, b);
     const vis = el('details');
@@ -330,6 +339,7 @@ function drawInterface() {
       ),
     );
   }
+  if(w.type==='input')b.append(heading('입력창 모양'),box('control-grid',bindColor('입력 강조색',w,'pressedColor'),bindColor('입력 테두리 색',w,'borderColor'),bindNumber('입력 테두리 두께',w,'borderWidth',0,12,1),bindNumber('입력창 둥글기 (%)',w,'radius',0,50,1)));
   if (w.type === 'button') {
     const outline = el('details'); outline.append(el('summary','버튼 모양 직접 그리기'));
     polygonEditor(w, outline); b.append(outline);

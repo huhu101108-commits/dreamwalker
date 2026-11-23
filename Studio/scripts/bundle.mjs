@@ -26,7 +26,7 @@ for (const name of [
   'maps',
   'characters',
   'stories','shot-view','shot-editor',
-  'interface','screen-tools','design-plan','personal-gpt','studio-gpt','gpt-dock','studio-layout','device-open','device-workspace','device-standalone',
+  'interface','preset-editor','screen-tools','design-plan','personal-gpt','studio-gpt','gpt-dock','studio-layout','device-open','device-workspace','device-standalone',
   'flows',
   'export',
   'roadmap',
