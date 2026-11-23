@@ -26,6 +26,38 @@ function designContext(doc,screen){
   })},screens:listing(doc.layouts),maps:listing(doc.scenes),stories:listing(doc.stories),characters:listing(doc.characters),
     functions:(doc.menuFunctions||[]).map(({id,name,action,target,steps})=>({id,name,action,target,steps:steps.map(({action,target,flag,flagState})=>({action,target,flag,flagState}))}))};
 }
+const GPT_AREAS={scene:'맵 편집',stories:'대사 편집',characters:'캐릭터',rules:'전투 규칙',interface:'UI 디자인',motion:'모션 · 효과',balance:'전투 수치'};
+const GPT_CONTEXT_FIELDS=['맵 크기','시작 캐릭터','오브젝트','선택 오브젝트','현재 대사','말하는 인물','선택지','대사 수','체력','스킬','설명','발동 조건','재발동 대기','효과','화면 역할','요소 수','선택 요소'];
+function studioWorkContext(doc,area,ids={}){
+  const mode=GPT_AREAS[area]?area:'interface',fields=[];
+  let title='';
+  const add=(name,value)=>{if(value!==undefined&&value!==null&&value!=='')fields.push({name,value:String(value).slice(0,420)});};
+  if(mode==='scene'){
+    const map=named(doc.scenes,ids.map)||doc.scenes[0], obj=named(map.objects,ids.object);
+    title=map.name;add('맵 크기',map.width+' × '+map.height);add('시작 캐릭터',named(doc.characters,map.characterId)?.name);
+    const counts=new Map();for(const item of map.objects)counts.set(item.type,(counts.get(item.type)||0)+1);
+    add('오브젝트',[...counts].map(([k,v])=>k+' '+v).join(', '));
+    if(obj)add('선택 오브젝트',obj.type+' · '+obj.id+' ('+obj.x+', '+obj.y+')');
+  }else if(mode==='stories'){
+    const story=named(doc.stories,ids.story)||doc.stories[0], line=story&&(named(story.nodes,ids.line)||story.nodes[0]);
+    title=story?.name||'대사 편집';add('대사 수',story?.nodes.length||0);
+    if(line){add('현재 대사',line.text);add('말하는 인물',named(doc.characters,line.speaker)?.name||line.speaker);add('선택지',line.choices.map(c=>c.text).join(' / '));}
+  }else if(['characters','motion','balance'].includes(mode)){
+    const actor=named(doc.characters,ids.actor)||doc.characters[0];title=actor.name;
+    add('체력',actor.health);add('설명',actor.summary);add('스킬',actor.skills.map(s=>s.name+' ('+s.mechanic+')').join(', '));
+  }else if(mode==='rules'){
+    const rule=named(doc.combatRules||[],ids.rule)||doc.combatRules?.[0];title=rule?.name||'전투 규칙';
+    if(rule){add('발동 조건',(rule.enabled?'활성':'비활성')+' · '+rule.event+' · '+rule.every+'회마다 · 체력 '+rule.hpBelow+'% 이하');
+      add('재발동 대기',rule.cooldown+'틱');add('효과',rule.effects.map(e=>e.kind+' '+e.amount).join(', '));}
+  }else{
+    const screen=named(doc.layouts,ids.screen)||doc.layouts[0], w=named(screen.elements,ids.element);title=screen.name;
+    add('화면 역할',SCREEN_TYPES[screen.kind]);add('요소 수',screen.elements.length);if(w)add('선택 요소',w.type+' · '+(w.text||w.id));
+  }
+  return {area:mode,title:title.slice(0,80),fields};
+}
+function designStamp(doc,screen){
+  return JSON.stringify([screen,doc.menuFunctions||[],designContext(doc,screen).screens]);
+}
 function planDesign(doc,screenId,changes){
   if(!validDesignReply({message:'검토',changes}))throw Error('GPT 변경안 형식을 확인할 수 없어요.');
   const next=structuredClone(doc),root=named(next.layouts,screenId),aliases=new Map(),notes=[],screens=new Set([screenId]);

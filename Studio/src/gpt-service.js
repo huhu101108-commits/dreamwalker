@@ -5,6 +5,7 @@ const DESIGN_INSTRUCTIONS=[
   'Return message and changes. Use [] for discussion. A change has op, screen, ref, values. values is an array of key/value pairs and every value is a string. At most 24 changes. For screen use "" for the selected screen or @alias for a newly created child. For new objects, ref is a new short ASCII alias. Reference created objects as @alias. For existing objects use their exact id.',
   'screen edits name,tint,shade. addWidget requires kind; editWidget targets an existing widget. Supported widget kinds: '+Object.keys(WIDGETS).join(', ')+'. Widget properties: text,x,y,w,h,color,background,opacity,fontSize,align,shape,radius,borderColor,borderWidth,pressedColor,visible,action,target,functionId. Use existing actions only: '+Object.keys(INPUTS).join(', ')+'. Use empty target for an action without a target.',
   'submenu creates a child screen AND a button in its parent; specify name, contents (empty,inventory,quests). Child has a return button. newFunction creates a reusable menu function with name,action,target. addStep ref=function id adds action,target,flag,flagState. bindFunction ref=button id assigns functionId, including @alias. Existing buttons can share functions. Prefer creating new functions to changing functions shared by other screens unless requested. Do not hide a required return button. Do not move an editorLocked widget.',
+  'When selectedScreen.work is provided, use those current editor details to answer questions about that map, character, dialogue or combat rule. A proposed operation can change only the selected screen or its new menus. Explain other edits as advice.',
   'For an unsupported system, explain the work remaining, with an empty changes array if the screen editor cannot express it.'
 ].join('\n');
 function gptContext(input){
@@ -21,7 +22,13 @@ function gptContext(input){
         !textValue(w.text,160)||!num(w.x,0,100)||!num(w.y,0,100)||!num(w.w,3,100)||!num(w.h,3,100)))
     err(400,'화면 요소를 확인하세요.');
   if(doc.menuFunctions.some(f=>typeof f.action!=='string'||!Array.isArray(f.steps)||f.steps.length>12||f.steps.some(s=>!s)))err(400,'메뉴 기능을 확인하세요.');
-  return designContext(doc,s);
+  const result=designContext(doc,s), work=input.work;
+  if(work!==undefined){
+    if(!work||!has(GPT_AREAS,work.area)||!textValue(work.title,80,true)||!Array.isArray(work.fields)||work.fields.length>12||
+       work.fields.some(f=>!f||!GPT_CONTEXT_FIELDS.includes(f.name)||!textValue(f.value,420)))err(400,'작업 중인 편집 대상을 확인하세요.');
+    result.work={area:work.area,title:work.title,fields:work.fields.map(({name,value})=>({name,value}))};
+  }
+  return result;
 }
 async function studioGpt(req,env,b,sessionKey,editor,owner){
   if(!editor)err(403,'제작 GPT는 편집 권한이 필요해요.');

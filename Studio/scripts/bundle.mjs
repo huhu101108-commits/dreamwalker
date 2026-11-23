@@ -26,7 +26,7 @@ for (const name of [
   'maps',
   'characters',
   'stories','shot-view','shot-editor',
-  'interface','screen-tools','design-plan','personal-gpt','studio-gpt','studio-layout','device-open','device-workspace','device-standalone',
+  'interface','screen-tools','design-plan','personal-gpt','studio-gpt','gpt-dock','studio-layout','device-open','device-workspace','device-standalone',
   'flows',
   'export',
   'roadmap',
@@ -57,17 +57,18 @@ const web = {
   'Web/view.js': read('src/view.js').split('function pointerDrag(')[0],
 };
 const sourceBase = { ...web, ...native };
+const workbenchHtml=read('src/gpt-workbench.html').replace('/* STUDIO_HOST_BRIDGE */',()=>read('src/gpt-host-bridge.js')).replace('/* STUDIO_WORKBENCH */',()=>read('src/gpt-workbench.js'));
 for (const entry of Object.values(files))
   entry.push('"' + createHash('sha256').update(entry[1]).digest('hex') + '"');
 fs.writeFileSync(
   'dist/server/index.js',
-  'const FILES=' +
+  'const WORKBENCH_HTML='+JSON.stringify(workbenchHtml)+';\nconst FILES=' +
     JSON.stringify(files) +
     ';\n' +
     'const SOURCE_BASE=' +
     JSON.stringify(sourceBase) +
     ';\n' +
-    ['model','design-plan','gpt-service','personal-gpt-service','gpt-mcp', 'github-runner', 'android-service', 'link-test-service', 'file-relay-service', 'arena-simulation', 'arena-service', 'server']
+    ['model','design-plan','gpt-service','personal-gpt-service','gpt-workbench-service','gpt-mcp', 'github-runner', 'android-service', 'link-test-service', 'file-relay-service', 'arena-simulation', 'arena-service', 'server']
       .map((n) => read('src/' + n + '.js'))
       .join('\n'),
 );

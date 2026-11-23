@@ -21,11 +21,11 @@ function gptJobView(row) {
   if (!j || j.state==='cleared') return null;
   const {id,mode,state,prompt,screen,stamp,model,effort,answer,error,expires}=j;
   if (expires<=Date.now()) return null;
-  return {id,mode,state,prompt,screen,stamp,model,effort,answer,error,expires};
+  return {id,mode,state,prompt,screen,stamp,model,effort,answer,error,expires,...(j.relay?{delivery:j.delivery}:{})};
 }
 async function personalGptState(env) {
-  const [prefs,device,job]=await Promise.all(['prefs','device','job'].map(k=>get(env.BUCKET,accountGptKey(env,k))));
-  return {prefs:gptOwnerPrefs(prefs),device:gptDeviceView(device),job:gptJobView(job),
+  const [prefs,device,job,link]=await Promise.all(['prefs','device','job','chat-link'].map(k=>get(env.BUCKET,accountGptKey(env,k))));
+  return {prefs:gptOwnerPrefs(prefs),device:gptDeviceView(device),job:gptJobView(job),chatLink:liveChatLink(link),
     apiModels:env.OPENAI_API_KEY?apiGptModels:[]};
 }
 async function gptJson(req,limit) {
@@ -63,7 +63,7 @@ async function saveGptPrefs(env,b) {
   }
   if (!await put(env.BUCKET,key,next,old)) err(409,'설정이 변경됐어요. 다시 확인하세요.');
 }
-async function newPersonalGptJob(env,b) {
+async function newPersonalGptJob(env,b,fromWorkbench=false) {
   if (!validId(b.id)||!textValue(b.prompt,3500,true)||!Array.isArray(b.history)||b.history.length>10||
       b.history.some(m=>!m||!['user','assistant'].includes(m.role)||!textValue(m.text,3500,true))||
       typeof b.stamp!=='string'||!/^[a-f0-9]{64}$/.test(b.stamp)) err(400,'제작 GPT 요청을 확인하세요.');
@@ -73,8 +73,14 @@ async function newPersonalGptJob(env,b) {
   if (prior?.id===b.id) return prior;
   if (old?.data.id===b.id) err(409,'이미 종료한 요청이에요.');
   if (prior && ['waiting','running'].includes(prior.state)) err(409,'진행 중인 요청을 완료하거나 취소하세요.');
-  if (prefs.revision!==b.revision||prefs.mode!==b.mode||!['chatgpt','codex'].includes(b.mode)) err(409,'사용 방식이 바뀌었어요. 설정을 다시 확인하세요.');
+  if (fromWorkbench?b.mode!=='chatgpt':(prefs.revision!==b.revision||prefs.mode!==b.mode||!['chatgpt','codex'].includes(b.mode))) err(409,'사용 방식이 바뀌었어요. 설정을 다시 확인하세요.');
   const ctx=gptContext(b.context), device=gptDeviceView(d);
+  let relay='';
+  if(!fromWorkbench && b.linkId){
+    const live=liveChatLink(await get(env.BUCKET,accountGptKey(env,'chat-link')));
+    if(b.mode!=='chatgpt'||!live||live.id!==b.linkId)err(409,'ChatGPT 대화 연결이 바뀌었어요. 연결 상태를 확인하고 다시 보내세요.');
+    relay=live.id;
+  }
   let choice={model:'',effort:''};
   if (b.mode==='codex') {
     if (!device?.online) err(409,'연결한 PC에서 드림워커 연결기를 실행하세요.');
@@ -82,7 +88,7 @@ async function newPersonalGptJob(env,b) {
   }
   const j={id:b.id,mode:b.mode,...choice,device:b.mode==='codex'?device.id:'',screen:ctx.screen.id,
     stamp:b.stamp,prompt:b.prompt.trim(),history:b.history.map(({role,text})=>({role,text})),context:ctx,
-    state:'waiting',expires:Date.now()+GPT_JOB_TTL};
+    ...(relay?{relay,delivery:'queued'}:{}),state:'waiting',expires:Date.now()+GPT_JOB_TTL};
   if (!await put(env.BUCKET,key,j,old)) err(409,'현재 요청이 바뀌었어요.');
   return gptJobView({data:j});
 }
@@ -106,7 +112,10 @@ async function ownerGptAction(req,env,op) {
   if (req.method!=='POST') err(405,'요청 방식을 확인하세요.');
   const b=await gptJson(req,['ask','import'].includes(op)?196608:8000);
   const bucket=env.BUCKET;
-  if (op==='settings') await saveGptPrefs(env,b);
+  if(op==='disconnect-chat'){
+    const k=accountGptKey(env,'chat-link'),row=await get(bucket,k);
+    if(row?.data.id!==b.id||!await put(bucket,k,{},row))err(409,'이미 바뀐 연결이에요.');
+  }else if (op==='settings') await saveGptPrefs(env,b);
   else if (op==='ask') return json({job:await newPersonalGptJob(env,b)});
   else if (op==='export-request') {
     const old=await get(bucket,accountGptKey(env,'job')), j=old?.data;

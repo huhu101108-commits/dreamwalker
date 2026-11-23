@@ -38,7 +38,7 @@
           <h1 id="title"></h1>
         </div>
         <div class="actions">
-          <div id="project-import"></div><button id="undo" title="실행 취소">↶ 취소</button
+          <button type="button" id="gpt-work-toggle" aria-controls="gpt-dock" aria-expanded="false">작업 GPT</button><div id="project-import"></div><button id="undo" title="실행 취소">↶ 취소</button
           ><button id="redo" title="다시 실행">↷ 재실행</button><button id="play">▶ 테스트 플레이</button
           ><button id="save" class="accent">저장 · 게임 반영</button>
         </div>
@@ -50,6 +50,7 @@
         <div class="tool-group" aria-label="검수와 배포"><span>검수와 배포</span><button data-tab="quality">검수·빌드</button><button data-tab="network">네트워크 검사</button><button data-tab="versions">버전 · 백업</button></div>
       </nav>
       <section id="content"></section>
+      <aside id="gpt-dock" aria-label="작업 GPT 패널" hidden></aside>
       <output id="note" role="status"></output>
     </main>
     <dialog id="game">
@@ -78,7 +79,7 @@
     <script src="/characters.js"></script>
     <script src="/shot-view.js"></script><script src="/stories.js"></script><script src="/shot-editor.js"></script>
     <script src="/flows.js"></script>
-    <script src="/interface.js"></script><script src="/screen-tools.js"></script><script src="/design-plan.js"></script><script src="/personal-gpt.js"></script><script src="/studio-gpt.js"></script><script src="/studio-layout.js"></script>
+    <script src="/interface.js"></script><script src="/screen-tools.js"></script><script src="/design-plan.js"></script><script src="/personal-gpt.js"></script><script src="/studio-gpt.js"></script><script src="/gpt-dock.js"></script><script src="/studio-layout.js"></script>
     <script src="/game.js"></script>
     <script src="/export.js"></script>
     <script src="/roadmap.js"></script>

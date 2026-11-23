@@ -1202,3 +1202,20 @@ body { font-size:16px; }
 .gpt-account code,.gpt-delivery code,.gpt-account output { display:block; padding:.55rem .65rem; user-select:all; background:#0b1c25; color:#d5eeea; border-radius:.35rem; }
 .gpt-account a,.gpt-delivery a { display:inline-flex; align-items:center; min-height:2.5rem; color:#9de4d7; }
 .gpt-account :focus-visible,.gpt-delivery :focus-visible { outline:2px solid #81d8cb; outline-offset:2px; }
+
+#gpt-dock[hidden],#gpt-work-toggle[hidden]{display:none}
+#gpt-dock{grid-area:gpt;align-self:start;position:sticky;top:.45rem;max-height:calc(100dvh - 1rem);overflow:auto;overscroll-behavior:contain;border:1px solid #4b7d79;background:#11242d;border-radius:.7rem;padding:.75rem;scrollbar-gutter:stable}
+#gpt-dock>.row{justify-content:space-between;position:sticky;top:-.76rem;z-index:2;background:#11242d;border-bottom:1px solid #36555a;margin:0;padding:.45rem 0}
+#gpt-dock h2{font-size:1.13rem;margin:0}
+#gpt-dock .gpt-compose .row{align-items:start}
+#gpt-dock .control{display:grid;gap:.25rem;margin:.4rem 0;min-width:0}
+#gpt-dock .gpt-account,#gpt-dock .gpt-delivery{padding:.55rem .65rem}
+#gpt-dock .gpt-work-context{font-size:.92rem;color:#b7cecf}
+@media(min-width:1101px){
+ #editor.gpt-docked:not([hidden]){grid-template-columns:148px minmax(0,1fr) clamp(320px,30vw,470px);grid-template-areas:"bar bar bar" "rail body gpt" "rail message gpt"}
+ #editor.gpt-docked #content .layout{grid-template-columns:minmax(0,1fr)}
+}
+@media(max-width:1100px){
+ #gpt-dock{position:fixed;z-index:12;inset:auto .45rem max(.35rem,env(safe-area-inset-bottom)) auto;width:min(29rem,calc(100% - .9rem));max-height:55dvh;box-shadow:0 10px 42px #020a15ba}
+ #editor.gpt-docked{padding-bottom:57dvh}
+}

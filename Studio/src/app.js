@@ -149,6 +149,7 @@ function draw() {
     balance: drawBalance,
     versions: drawVersions,
   })[tab]();
+  drawGptDock();
   const hasInspector=!!$('#content .inspector');
   $('#inspector-switch').hidden=!hasInspector;
   if (!hasInspector) $('#editor').classList.remove('inspect-mode');
@@ -457,6 +458,8 @@ async function openEditor() {
     const prefs=readStudioLayout();applyStudioLayout(prefs);
     const section = new URLSearchParams(location.search).get('tool') || prefs.first;
     if ([...$('#tabs').querySelectorAll('[data-tab]')].some((n) => n.dataset.tab === section)) tab = section;
+    const requestedScreen=new URLSearchParams(location.search).get('screen');
+    if(tab==='assistant'&&requestedScreen&&named(r.project.layouts||[],requestedScreen))layoutId=requestedScreen;
     loadRecord(r);
     if (access.reviewRequired && !access.owner) $('#save').textContent = '소유자 검토 요청';
     if (location.pathname !== '/play')
@@ -511,6 +514,7 @@ $('#login').onsubmit = async (e) => {
   }
 };
 $('#studio-layout').onclick=editStudioLayout;
+$('#gpt-work-toggle').onclick=toggleGptDock;
 $('#project-import').append(filePicker('프로젝트 파일 선택',true,bringProjectFiles,false,pickLocalFromToolbar));
 $('#tabs').onclick=e=>{const b=e.target.closest('[data-tab]');if(b)goTool(b.dataset.tab);};
 $('#tool-menu').onclick=()=>{
