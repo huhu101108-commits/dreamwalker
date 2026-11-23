@@ -36,7 +36,7 @@ async function studioGptMcp(req,env) {
     }
     if(name==='dreamwalker_submit_reply') {
       await finishPersonalGpt(env,arg.request_id,'chatgpt','',{message:arg.message,changes:arg.changes});
-      return content('답변을 스튜디오로 보냈어요. 화면 변경안은 소유자가 검토한 뒤 적용할 수 있어요.');
+      return content('답변을 스튜디오로 보냈어요. [드림워커에서 답변과 변경안 검토하기](https://dreamwalker-snowfield-studio.congenialcockatoo.chatgpt.site/?tool=assistant)');
     }
     return fail(-32602,'Unknown tool');
   }catch(e){return content(e.status?e.message:'요청을 처리하지 못했어요. 다시 시도하세요.',true);}

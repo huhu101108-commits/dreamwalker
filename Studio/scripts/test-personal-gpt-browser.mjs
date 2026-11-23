@@ -6,7 +6,7 @@ export async function testPersonalGptBrowser(page,guest,origin,guestOrigin){
   await page.goto(origin+'/?tool=assistant');
   const field=name=>page.getByLabel(name,{exact:true});
   const btn=name=>page.getByRole('button',{name,exact:true});
-  const status=async()=>(await(await page.request.get(origin+'/api/studio-gpt')).json()).personal;
+  const status=()=>page.evaluate(async()=>{const r=await fetch('/api/studio-gpt');if(!r.ok)throw Error('Account settings HTTP '+r.status);return (await r.json()).personal;});
   const send=async prompt=>{await field('GPT에 요청할 내용').fill(prompt);await btn('GPT에 보내기').click();};
   const rpc=async (p,url,name,args)=>(await(await p.request.post(url+'/mcp',{data:{jsonrpc:'2.0',id:1,method:'tools/call',params:{name,arguments:args}}})).json()).result;
   await field('사용 방식').waitFor();assert.equal(await field('사용 방식').inputValue(),'chatgpt');

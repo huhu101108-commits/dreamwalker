@@ -50,8 +50,8 @@ function scheduleStudioGpt() {
   if(active||p?.prefs.mode==='codex')
     gptPollTimer=setTimeout(()=>refreshStudioGpt(),active?2400:p?.device?.online?18000:4500);
 }
-document.addEventListener('visibilitychange',()=>{if(!document.hidden&&tab==='assistant'&&access?.owner)refreshStudioGpt();});
-window.addEventListener('focus',()=>{if(tab==='assistant'&&access?.owner&&Date.now()-gptCheckedAt>1500)refreshStudioGpt();});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&typeof tab!=='undefined'&&tab==='assistant'&&access?.owner)refreshStudioGpt();});
+window.addEventListener('focus',()=>{if(typeof tab!=='undefined'&&tab==='assistant'&&access?.owner&&Date.now()-gptCheckedAt>1500)refreshStudioGpt();});
 async function ownerGptSubmit(op,body) {
   try {return await api('personal-gpt/'+op,body);}finally{if(checkingGpt)await checkingGpt;await refreshStudioGpt(true);}
 }
