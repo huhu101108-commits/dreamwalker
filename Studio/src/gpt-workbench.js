@@ -119,8 +119,8 @@
       }
     }catch(e){status(e.message);}finally{linkRequest=false;buttons();}
   };
-  by('compose').onsubmit=async e=>{
-    e.preventDefault();if(by('send').disabled)return;
+  by('send').onclick=async()=>{
+    if(by('send').disabled)return;
     busy=true;buttons();const selected=view.screen.id,prompt=by('prompt').value.trim(),id=Array.from(crypto.getRandomValues(new Uint8Array(16)),v=>v.toString(16).padStart(2,'0')).join('');
     try{
       const history=room(selected).slice(-10).map(({role,text})=>({role,text:text.slice(0,3500)}));
@@ -149,7 +149,8 @@
     }catch(e){by('check-status').textContent=e.message;}finally{busy=false;buttons();}
   };
   by('screens').onchange=()=>refresh(by('screens').value).catch(e=>status(e.message));
-  by('prompt').oninput=()=>buttons();by('refresh').onclick=()=>refresh().catch(e=>status(e.message));
+  by('prompt').oninput=()=>buttons();
+  by('prompt').onkeydown=e=>{if(e.key==='Enter'&&!e.isComposing&&(e.ctrlKey||e.metaKey)){e.preventDefault();by('send').click();}};by('refresh').onclick=()=>refresh().catch(e=>status(e.message));
   document.addEventListener('visibilitychange',()=>{if(!document.hidden&&ready)refresh().catch(e=>status(e.message));else watchAnswer();});
   window.addEventListener('pagehide',()=>{clearTimeout(answerTimer);clearTimeout(linkTimer);linkKey='';});
   (async()=>{try{await host.connect();ready=true;await refresh();}catch(e){status(e.message);buttons();}})();

@@ -8,8 +8,8 @@ const {seed,designContext,planDesign,problem,packNativeWorld,removeMenuProgram,r
  vm.runInContext('({seed,designContext,planDesign,problem,packNativeWorld,removeMenuProgram,resetUIReferences,FieldRun,localFileBytes,writeDeviceOriginal})',v);
 const project=seed(),menu=project.layouts.find(l=>l.kind==='menu'),initial=JSON.stringify(project);
 const context=designContext(project,menu);
-const dialogue=structuredClone(project), scene=dialogue.stories[0], line=scene.nodes[0];
-line.text='여기서 열차를 기다릴까?';line.speakerName='역무원';line.choices=[{label:'기다린다',to:''},{label:'돌아간다',to:''}];
+const line={id:'line',text:'여기서 열차를 기다릴까?',speakerName:'역무원',choices:[{label:'기다린다',to:''},{label:'돌아간다',to:''}]};
+const scene={id:'platform',name:'설원 승강장',nodes:[line]}, dialogue={...project,stories:[scene]};
 const projectWork=vm.runInContext('studioWorkContext',v)(dialogue,'stories',{story:scene.id,line:line.id});
 const details=Object.fromEntries(projectWork.fields.map(f=>[f.name,f.value]));
 assert.equal(details['말하는 인물'],'역무원');assert.equal(details['현재 대사'],line.text);assert.equal(details['선택지'],'기다린다 / 돌아간다');
