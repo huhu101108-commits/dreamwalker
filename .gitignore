@@ -29,3 +29,4 @@ Thumbs.db
 
 # Handwritten portable contract test project.
 !Studio/scripts/native-check/StudioContract.csproj
+Studio/scripts/native-check/[Bb]in/
