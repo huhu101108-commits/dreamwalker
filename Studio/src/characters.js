@@ -218,13 +218,14 @@ function drawCharacters() {
             c.name +
               ' 캐릭터를 삭제할까요? 시작 캐릭터는 ' +
               other.name +
-              '로 바뀌고 기존 대사의 화자는 내레이션으로 바뀌어요.',
+              '로 바뀌고 기존 대사의 화자는 내레이션으로 바뀌어요. 이 캐릭터 전용 전투 규칙도 삭제돼요.',
           )
         )
           return;
         edit(() => {
           resetUIReferences(project, 'character', c.id);
           project.characters = project.characters.filter((v) => v !== c);
+          project.combatRules = (project.combatRules || []).filter(rule => rule.actor !== c.id);
           for (const s of project.scenes) if (s.characterId === c.id) s.characterId = other.id;
           for (const story of project.stories)
             for (const n of story.nodes) if (n.speaker === c.id) n.speaker = '';

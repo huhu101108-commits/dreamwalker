@@ -19,6 +19,7 @@ namespace Dreamwalker.Demo
 
         private void OnGUI()
         {
+            if (StudioOnlineArena.Visible) return;
             if (instructions == null)
             {
                 instructions = new GUIStyle(GUI.skin.label)

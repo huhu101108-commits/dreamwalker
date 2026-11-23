@@ -194,6 +194,10 @@ async function api(req, env, path) {
   if (!post && path === '/api/runtime' && new URL(req.url).searchParams.get('since') === String(cur.rev))
     return new Response(null, { status: 204, headers });
   if (old) for (const version of [cur, ...cur.history]) version.project = migrateProject(version.project);
+  if (path === '/api/arena-release') {
+    if (!post || !owner || session.data.scope !== 'edit') err(403,'소유자만 온라인 규칙을 게시할 수 있어요.');
+    return publishArenaRelease(env,cur,body);
+  }
   if (!post && path === '/api/runtime') {
     if (session.data.scope === 'edit') return json({ rev: cur.rev, project: cur.project });
     const world = packNativeWorld(cur.project);
@@ -311,6 +315,7 @@ export default {
   async fetch(req, env) {
     try {
       const path = new URL(req.url).pathname;
+      if (path.startsWith('/api/arena/')) return await arenaApi(req,env,path.slice(11));
       if (path.startsWith('/api/')) return await api(req, env, path);
       if (path in FILES) {
         const [mime, data, etag] = FILES[path];

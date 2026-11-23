@@ -11,7 +11,7 @@ namespace Dreamwalker.Demo
 {
 public sealed class StudioConnection : MonoBehaviour
 {
-    private const string Origin = "https://dreamwalker-snowfield-studio.congenialcockatoo.chatgpt.site";
+    internal const string Origin = "https://dreamwalker-snowfield-studio.congenialcockatoo.chatgpt.site";
     [Serializable]
     private class Login
     {
@@ -65,7 +65,8 @@ public sealed class StudioConnection : MonoBehaviour
     }
 
     private static bool Supported(StudioRelease release) =>
-        release?.project?.schema == 3 || release?.project?.schema == 4;
+        release?.project != null && release.project.combatContract <= 1 &&
+        (release.project.schema == 3 || release.project.schema == 4);
 
     private void PlayContent(StudioRelease release)
     {
@@ -77,13 +78,16 @@ public sealed class StudioConnection : MonoBehaviour
 
     private void OnGUI()
     {
+        if (StudioOnlineArena.Visible) return;
         GUI.depth = -100;
         float width = Mathf.Min(245, Screen.width);
-        GUILayout.BeginArea(new Rect(Screen.width - width, 0, width, expanded ? 245 : 30));
+        GUILayout.BeginArea(new Rect(Screen.width - width, 0, width, expanded ? 300 : 30));
         if (GUILayout.Button(expanded ? "Close Studio" : "Dreamwalker Studio"))
             expanded = !expanded;
         if (expanded)
         {
+            if (GUILayout.Button("Online friendly match"))
+                (GetComponent<StudioOnlineArena>() ?? gameObject.AddComponent<StudioOnlineArena>()).Open();
             if (world != null && GUILayout.Button("Return to combat demo"))
                 CloseWorld();
             if (world == null && Supported(bundled) && GUILayout.Button("Play bundled content"))

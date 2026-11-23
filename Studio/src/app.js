@@ -137,7 +137,7 @@ function draw() {
   }
   ({
     desk: drawDesk, assets: drawAssets, quality: drawQuality, assistant: drawStudioGpt, device: drawDeviceFiles,
-    scene: drawMaps,
+    rules: drawCombatRules, scene: drawMaps,
     characters: drawCharacters,
     stories: drawStories,
     roadmap: drawRoadmap,

@@ -38,7 +38,9 @@ public class StudioPlayerSave
     public StudioMapMemory[] maps;
     public StudioFoeMemory[] foes;
     public StudioBagEntry[] bag;
-    public StudioEquipEntry[] gear;
+    public StudioEquipEntry[] gear, kills;
+    public int combatTick;
+    public StudioActorRules[] combatStates;
 }
 public sealed partial class StudioWorld
 {
@@ -113,9 +115,33 @@ public sealed partial class StudioWorld
     private StudioItem Item(string id) => Array.Find(Project.items ?? Array.Empty<StudioItem>(),
                                                      v => v.id == id);
 
+    private int combatTick;
+    private List<StudioActorRules> combatStates = new List<StudioActorRules>();
+    private readonly Dictionary<string,string> kills = new Dictionary<string,string>();
+    private StudioActorRules RuleState()
+    {
+        var state = combatStates.Find(s => s.actor == Actor.id);
+        if (state == null) { state = new StudioActorRules { actor = Actor.id }; combatStates.Add(state); }
+        return state;
+    }
+    private int CombatEvent(string moment)
+    {
+        int hp = Health;
+        int damage = RuleState().Apply(Project.combatRules, moment, combatTick, ref hp, Actor.health);
+        Health = hp;
+        return damage;
+    }
+    private void ReceiveDamage(int amount)
+    {
+        Health = Math.Max(0, Health - RuleState().Absorb(amount));
+        CombatEvent("hurt");
+    }
     private void ResetProgress()
     {
         mapHistory.Clear();
+        kills.Clear();
+        combatStates.Clear();
+        combatTick = 0;
         mapsDone.Clear();
         storiesDone.Clear();
         rewards.Clear();
@@ -158,6 +184,9 @@ public sealed partial class StudioWorld
         var snapshot = new StudioPlayerSave {
             version = 1,
             hp = Health,
+            combatTick = combatTick,
+            combatStates = combatStates.ToArray(),
+            kills = new List<KeyValuePair<string,string>>(kills).ConvertAll(p => new StudioEquipEntry { key=p.Key, id=p.Value }).ToArray(),
             x = (body.position.x - OriginX) / UnitX,
             y = body.position.y / UnitY,
             map = Map.id,
@@ -221,6 +250,11 @@ public sealed partial class StudioWorld
         foreach (var m in saved.maps ?? Array.Empty<StudioMapMemory>())
             if (m != null && Project.Map(m.id) != null)
                 mapHistory[m.id] = m;
+        combatTick = Math.Max(0, saved.combatTick);
+        foreach (var state in saved.combatStates ?? Array.Empty<StudioActorRules>())
+            if (state != null && state.counters != null && Project.Character(state.actor) != null) combatStates.Add(state);
+        foreach (var entry in saved.kills ?? Array.Empty<StudioEquipEntry>())
+            if (entry?.key != null) kills[entry.key] = entry.id ?? "";
         mapsDone.UnionWith(saved.cleared ?? Array.Empty<string>());
         storiesDone.UnionWith(saved.stories ?? Array.Empty<string>());
         rewards.UnionWith(saved.rewards ?? Array.Empty<string>());
@@ -277,7 +311,14 @@ public sealed partial class StudioWorld
     {
         foreach (var q in Project.quests ?? Array.Empty<StudioQuest>())
         {
-            if (!(q.kind == "clear" ? mapsDone : storiesDone).Contains(q.target) || !rewards.Add(q.id))
+            bool complete = q.kind == "clear" ? mapsDone.Contains(q.target) : q.kind == "story" && storiesDone.Contains(q.target);
+            if (q.kind == "kill" && q.goal > 0)
+            {
+                int count = 0;
+                foreach (var tag in kills.Values) if (q.target == "*" || tag == q.target) count++;
+                complete = count >= q.goal;
+            }
+            if (!complete || !rewards.Add(q.id))
                 continue;
             bag.TryGetValue(q.reward, out int n);
             bag[q.reward] = Math.Min(999999, n + q.count);

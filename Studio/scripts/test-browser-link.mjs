@@ -8,9 +8,12 @@ import { BUCKET, ownerDigest, previewOwnerHeaders, worker } from './worker-fixtu
 import { testDeviceDesigner } from './test-device-designer-browser.mjs';
 import { testDialogueBrowser } from './test-dialogue-browser.mjs';
 import { testDeskBrowser } from './test-desk-browser.mjs';
+import {arenaFixture} from './arena-fixture.mjs';
+import {testArenaBrowser} from './test-arena-browser.mjs';
 import { testTouchAuthoring } from './test-touch-authoring.mjs';
 const { chromium } = createRequire(import.meta.url)('playwright-core');
 
+const duelStore=arenaFixture();
 async function fixture(identity) {
   const server = createServer(async (req, res) => {
     try {
@@ -20,7 +23,7 @@ async function fixture(identity) {
         method: req.method, headers: { ...req.headers, ...identity },
         body: req.method === 'POST' ? Buffer.concat(chunks) : undefined,
       });
-      const response = await worker.fetch(request, { BUCKET, STUDIO_OWNER_EMAIL_SHA256: ownerDigest });
+      const response = await worker.fetch(request, { BUCKET, DB:duelStore.DB, STUDIO_OWNER_EMAIL_SHA256: ownerDigest });
       res.writeHead(response.status, Object.fromEntries(response.headers));
       res.end(Buffer.from(await response.arrayBuffer()));
     } catch { res.writeHead(500); res.end(); }
@@ -78,8 +81,10 @@ try {
   await testDeskBrowser(host);
   await testDialogueBrowser(host);
   await testDeviceDesigner(host);
+  await testArenaBrowser(host,guest,'http://127.0.0.1:'+servers[0].address().port,'http://127.0.0.1:'+teammate.address().port);
   assert.deepEqual(errors, []);
 } finally {
   await Promise.allSettled(browsers.map(browser => browser.close()));
   for (const server of servers) { server.closeAllConnections(); server.close(); }
+  duelStore.close();
 }

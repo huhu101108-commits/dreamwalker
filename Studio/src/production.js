@@ -168,7 +168,7 @@ function drawRPG() {
     }),
   );
   for (const q of project.quests) {
-    const kinds = { clear: '맵 출구 통과' };
+    const kinds = { clear: '맵 출구 통과', kill:'적 처치 누적' };
     if (project.stories.length) kinds.story = '대화 완료';
     quests.append(
       box(
@@ -177,15 +177,16 @@ function drawRPG() {
         selectField('완료 조건', q.kind, kinds, (v) =>
           edit(() => {
             q.kind = v;
-            q.target = (v === 'clear' ? project.scenes : project.stories)[0].id;
+            q.target = v === 'kill' ? '*' : (v === 'clear' ? project.scenes : project.stories)[0].id;
+            if (v === 'kill') q.goal = q.goal || 5;
           }),
         ),
-        bindSelect(
+        ...(q.kind==='kill' ? [bindText('적 분류 (*는 전체)',q,'target'),bindNumber('필요 처치 수',q,'goal',1,999,1)] : [bindSelect(
           '조건 대상',
           q,
           'target',
           optionMap(q.kind === 'clear' ? project.scenes : project.stories),
-        ),
+        )]),
         bindSelect('보상 장비', q, 'reward', optionMap(project.items)),
         bindNumber('보상 수량', q, 'count', 1, 999, 1),
         action('의뢰 삭제', () => edit(() => project.quests.splice(project.quests.indexOf(q), 1))),

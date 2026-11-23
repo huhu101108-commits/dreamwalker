@@ -23,6 +23,8 @@ public class StudioProject
     public StudioFrontScreens frontScreens;
     public StudioItem[] items;
     public StudioQuest[] quests;
+    public int combatContract;
+    public StudioCombatRule[] combatRules;
     public StudioMap Map(string id) => Array.Find(scenes, v => v.id == id);
     public StudioCharacter Character(string id) => Array.Find(characters, v => v.id == id);
     public StudioStory Story(string id) => Array.Find(stories, v => v.id == id);
@@ -91,7 +93,7 @@ public class StudioStep
 [Serializable]
 public class StudioEnemy
 {
-    public string style;
+    public string style, tag;
     public float hurtWidth=.7f,hurtHeight=1.6f;
     public int windup = 18, recovery = 30, phase = 50;
     public int health, damage = 8;
@@ -213,7 +215,7 @@ internal static class StudioOutline
     }
 }
 [Serializable] public class StudioItem { public string id, name, slot; public int power; }
-[Serializable] public class StudioQuest { public string id, name, kind, target, reward; public int count; }
+[Serializable] public class StudioQuest { public string id, name, kind, target, reward; public int count, goal; }
 [Serializable] public class StudioClip { public string key, fx, cue, sound; public int cueTick; public StudioFrame[] frames; }
 [Serializable] public class StudioFrame { public string image; public int ticks; }
 }

@@ -5,6 +5,9 @@ const files = {};
 for (const [path, name, type] of [
   ['/', 'index.html', 'text/html; charset=utf-8'],
   ['/play', 'index.html', 'text/html; charset=utf-8'],
+  ['/arena','arena.html','text/html; charset=utf-8'],
+  ['/arena.css','arena.css','text/css'],
+  ['/arena-client.js','arena-client.js','text/javascript'],
   ['/device','device-local.html','text/html; charset=utf-8'],
   ['/device-files', 'device-files.html', 'text/html; charset=utf-8'],
   ['/style.css', 'style.css', 'text/css'],
@@ -14,7 +17,7 @@ for (const [path, name, type] of [
 for (const name of [
   'app',
   'file-wire', 'device-files', 'file-import', 'desk', 'asset-desk', 'scene-tools',
-  'production',
+  'production', 'combat-editor',
   'network-test',
   'model',
   'simulation',
@@ -63,7 +66,7 @@ fs.writeFileSync(
     'const SOURCE_BASE=' +
     JSON.stringify(sourceBase) +
     ';\n' +
-    ['model','design-plan','gpt-service', 'github-runner', 'android-service', 'link-test-service', 'file-relay-service', 'server']
+    ['model','design-plan','gpt-service', 'github-runner', 'android-service', 'link-test-service', 'file-relay-service', 'arena-simulation', 'arena-service', 'server']
       .map((n) => read('src/' + n + '.js'))
       .join('\n'),
 );

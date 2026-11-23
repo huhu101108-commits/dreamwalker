@@ -4,6 +4,14 @@ public static class Verify
 {
     public static string Run()
     {
+        var state = new StudioActorRules { actor = "snow" };
+        var rule = new StudioCombatRule { id="r", actor="snow", enabled=true, @event="hit", every=2, hpBelow=50, cooldown=4,
+            effects=new[] { new StudioRuleEffect { kind="damage", amount=7 }, new StudioRuleEffect { kind="shield", amount=3 } } };
+        int health=50;
+        int[] expected = {0,7,0,0,0,7};
+        for (int i=0;i<expected.Length;i++)
+            if (state.Apply(new[]{rule},"hit",i+1,ref health,100)!=expected[i]) throw new Exception("combat rule at "+i);
+        if (state.Absorb(8)!=2 || state.shield!=0) throw new Exception("combat shield");
         foreach (int face in new[] { -1, 1 })
         {
             int hp = 100, first = 0;

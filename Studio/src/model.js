@@ -580,6 +580,7 @@ function seed() {
     sourceFiles: [],
     items: [],
     quests: [],
+    combatRules: [],
     customJson: '{}',
     tuning: tuningDefaults(),
     characters: [newCharacter('baekseol', '백설', true)],
@@ -597,6 +598,7 @@ function withProductionDefaults(doc) {
   const d = structuredClone(doc);
   if (d.items === undefined) d.items = [];
   if (d.quests === undefined) d.quests = [];
+  if (d.combatRules === undefined) d.combatRules = [];
   for (const key of ['startupTicks', 'activeTicks', 'recoveryTicks'])
     if (!(key in d.tuning)) d.tuning[key] = FIELDS[key][4];
   for (const m of d.scenes)
@@ -913,6 +915,7 @@ function sceneObjectOK(d,s,o) {
             !integer(o.enemy.damage, 0, 999) ||
             !num(o.enemy.speed, 0, 30) ||
             !num(o.enemy.sight, 0, 150) ||
+            (o.enemy.tag !== undefined && !signalKey(o.enemy.tag,true)) ||
             !num(o.enemy.reach, 0, 30) ||
             !num(o.enemy.interval, 0.05, 30) ||
             (o.enemy.hurtWidth !== undefined && !num(o.enemy.hurtWidth, 0.1, 12)) ||
@@ -1088,6 +1091,59 @@ function inspectScreens(doc) {
   return { errors, warnings: [...new Set(warnings)] };
 }
 
+const COMBAT_EVENTS = { hit: '공격 적중', hurt: '피격', kill: '적 처치' };
+const COMBAT_EFFECTS = { damage: '추가 피해', heal: '자신 회복', shield: '보호막 획득' };
+function newCombatRule() {
+  return {id:uid(), name:'새 전투 규칙', enabled:true, actor:'', event:'hit', every:1,
+    hpBelow:100, cooldown:0, effects:[{kind:'damage',amount:3}]};
+}
+function validateCombatRules(rules, actors) {
+  if (!rows(rules,0,48)) return '전투 규칙 ID와 개수를 확인하세요.';
+  for (const r of rules) {
+    if (!textValue(r.name,50,true) || typeof r.enabled !== 'boolean' || !has(COMBAT_EVENTS,r.event) ||
+        (r.actor !== '' && !named(actors,r.actor)) || !integer(r.every,1,999) ||
+        !integer(r.hpBelow,1,100) || !integer(r.cooldown,0,3600) || !Array.isArray(r.effects) ||
+        r.effects.length < 1 || r.effects.length > 8 || r.effects.some(e => !e || !has(COMBAT_EFFECTS,e.kind) ||
+          !integer(e.amount,1,9999) || (e.kind === 'damage' && r.event !== 'hit')))
+      return '전투 규칙의 발동 조건과 효과를 확인하세요.';
+  }
+  return '';
+}
+function combatMemory() { return {count:{},ready:{},shield:0}; }
+// Each event is delivered once. Eligible occurrences count even during cooldown.
+// Damage modifiers resolve before contact; hurt and kill recovery cannot revive a defeated actor.
+function combatEvent(rules, memory, event, actor, tick, hp, maximum) {
+  let damage=0, heal=0;
+  if (hp<=0) return {damage,heal};
+  for (const r of rules) {
+    if (!r.enabled || r.event!==event || (r.actor && r.actor!==actor) || hp*100>maximum*r.hpBelow) continue;
+    const k='r_'+r.id;
+    const count=(memory.count[k]||0)+1;
+    memory.count[k]=count%r.every;
+    if (count%r.every || tick<(memory.ready[k]||0)) continue;
+    memory.ready[k]=tick+r.cooldown;
+    for (const effect of r.effects) {
+      if (effect.kind==='damage') damage+=effect.amount;
+      else if (effect.kind==='heal') heal+=effect.amount;
+      else memory.shield=Math.min(9999,memory.shield+effect.amount);
+    }
+  }
+  return {damage,heal};
+}
+function absorbCombatDamage(memory, amount) {
+  const blocked=Math.min(memory.shield,amount);
+  memory.shield-=blocked;
+  return amount-blocked;
+}
+function combatProfile(project) {
+  const t=project.tuning;
+  return {version:1,hz:60,startup:t.startupTicks,active:t.activeTicks,recovery:t.recoveryTicks,
+    damage:t.damage,reach:Math.round(t.reach*100),run:Math.round(t.runSpeed*100),
+    jump:Math.round(t.jumpSpeed*100),dash:Math.round(t.dashSpeed*100),dashTicks:Math.max(1,Math.round(t.dashDuration*60)),actors:project.characters.map(c=>({
+      id:c.id,name:c.name,hp:c.health,attack:Math.round(c.attackScale*100),speed:Math.round(c.speedScale*100),jump:Math.round(c.jumpScale*100)})),
+    rules:structuredClone(project.combatRules||[])};
+}
+
 const GEAR_SLOTS = {
   weapon: '무기',
   head: '머리',
@@ -1119,6 +1175,8 @@ function poseAt(clip, ticks, loop) {
   return clip.frames.at(-1);
 }
 function productionProblem(d) {
+  const ruleError=validateCombatRules(d.combatRules === undefined ? [] : d.combatRules,d.characters);
+  if (ruleError) return ruleError;
   if (!rows(d.items || [], 0, 200) || !rows(d.quests || [], 0, 200))
     return '아이템·의뢰 ID와 개수를 확인하세요.';
   const items = d.items || [];
@@ -1128,8 +1186,9 @@ function productionProblem(d) {
   for (const q of d.quests || [])
     if (
       !textValue(q.name, 50, true) ||
-      !['clear', 'story'].includes(q.kind) ||
-      !(q.kind === 'clear' ? named(d.scenes, q.target) : named(d.stories, q.target)) ||
+      !['clear', 'story', 'kill'].includes(q.kind) ||
+      !(q.kind === 'kill' ? (q.target === '*' || signalKey(q.target)) && integer(q.goal,1,999) :
+        q.kind === 'clear' ? named(d.scenes, q.target) : named(d.stories, q.target)) ||
       !named(items, q.reward) ||
       !integer(q.count, 1, 999)
     )
@@ -1209,6 +1268,8 @@ function playableWorld(project) {
 }
 function packNativeWorld(project) {
   const world = playableWorld(project);
+  world.combatContract = 1;
+  world.combatRules = project.combatRules || [];
   world.characters = project.characters.map(({ clips, ...c }) => ({
     ...c,
     motionClips: Object.entries(clips || {}).map(([key, clip]) => ({ key, ...clip })),

@@ -357,6 +357,7 @@ function drawMaps() {
     b.append(
       heading('이 적의 전투 설정'),
       bindText('적 이름', o, 'label'),
+      bindText('처치 의뢰용 적 분류', o.enemy, 'tag'),
       numberField('피격 상자 폭 (m)', o.enemy.hurtWidth || 0.7, 0.1, 12, 0.05, (v) =>
         edit(() => (o.enemy.hurtWidth = v), false, o.enemy),
       ),

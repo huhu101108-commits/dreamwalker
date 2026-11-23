@@ -509,10 +509,15 @@ public sealed partial class StudioWorld : MonoBehaviour
     {
         if (e == null || e.target.Health <= 0)
             return;
-        if (e.target.TakeDamage(Mathf.Max(1, Mathf.FloorToInt(damage * (1 + (float)GearPower() / Project.tuning.damage) * Actor.attackScale + .5f)),
-                                CombatFaction.Player, Vector2.zero) &&
-            stack)
-            AddStack(e);
+        int baseDamage = Mathf.Max(1, Mathf.FloorToInt(damage * (1 + (float)GearPower() / Project.tuning.damage) * Actor.attackScale + .5f));
+        if (!e.target.TakeDamage(baseDamage + CombatEvent("hit"), CombatFaction.Player, Vector2.zero)) return;
+        if (stack) AddStack(e);
+        if (e.target.Health == 0)
+        {
+            CombatEvent("kill");
+            kills[Map.id + "/" + e.id] = e.config.tag ?? "";
+            GrantRewards();
+        }
     }
     private bool Fire(string signal, string key = "", float previous = 101)
     {
@@ -911,6 +916,7 @@ public sealed partial class StudioWorld : MonoBehaviour
     {
         if (!Running || Paused)
             return;
+        combatTick++;
         float previousHp = Health * 100f / Actor.health;
         int previousFoes = Remaining;
         float priorClock = clock;
@@ -954,7 +960,7 @@ public sealed partial class StudioWorld : MonoBehaviour
                 if (e.state == "windup")
                 {
                     if (--e.stateTicks <= 0) {
-                        if (close) { Health = Math.Max(0,Health-e.config.damage*(phaseTwo?2:1)); lastDamage=clock; }
+                        if (close) { ReceiveDamage(e.config.damage * (phaseTwo ? 2 : 1)); lastDamage=clock; }
                         e.state="recovery"; e.stateTicks=Math.Max(1,e.config.recovery);
                     }
                 }
@@ -969,7 +975,7 @@ public sealed partial class StudioWorld : MonoBehaviour
             if (e.config.damage > 0 && Mathf.Abs(dx) < e.config.reach * UnitX &&
                 Mathf.Abs(pos.y - p.y) < 8 * UnitY && clock - lastDamage > e.config.interval)
             {
-                Health = Math.Max(0, Health - e.config.damage);
+                ReceiveDamage(e.config.damage);
                 lastDamage = clock;
             }
         }
@@ -1033,6 +1039,7 @@ public sealed partial class StudioWorld : MonoBehaviour
     }
     private void Update()
     {
+        if (StudioOnlineArena.Visible) return;
         if (!Running) return;
         if (ShowingFront && front == Project.frontScreens?.loading)
         {
@@ -1056,6 +1063,7 @@ public sealed partial class StudioWorld : MonoBehaviour
     }
     private void OnGUI()
     {
+        if (StudioOnlineArena.Visible) return;
         if (!Running) return;
         screenView.Draw(); DrawDiagnostics();
         if (!Paused || CurrentLayout == null || (!HasOverlay && Line?.shot?.layers != null) ||

@@ -1,0 +1,164 @@
+function arenaDb(env) {
+  if (!env.DB) err(503,'친선전 저장소가 준비되지 않았어요.');
+  return env.DB;
+}
+const arenaQuery = (db,sql,...args) => db.prepare(sql).bind(...args);
+let defaultArenaRelease;
+async function activeArenaRelease(db) {
+  const row=await db.prepare('SELECT revision,digest,profile FROM dw_releases WHERE slot=1').first();
+  if (row) return {revision:row.revision,release:row.digest,profile:JSON.parse(row.profile)};
+  if (!defaultArenaRelease) {
+    const profile=combatProfile(seed());
+    defaultArenaRelease={revision:0,release:await hash(JSON.stringify(profile)),profile};
+  }
+  return defaultArenaRelease;
+}
+async function publishArenaRelease(env, cur, body) {
+  if (body.rev!==cur.rev) err(409,'공유 버전이 바뀌었어요. 새로 열고 다시 게시하세요.');
+  const profile=combatProfile(cur.project), data=JSON.stringify(profile), digest=await hash(data);
+  const write=await arenaQuery(arenaDb(env),
+    'INSERT INTO dw_releases(slot,revision,digest,profile) VALUES(1,?,?,?) ON CONFLICT(slot) DO UPDATE SET revision=excluded.revision,digest=excluded.digest,profile=excluded.profile WHERE dw_releases.revision<=excluded.revision',
+    cur.rev,digest,data).run();
+  if (!write.meta.changes) err(409,'새 버전이 이미 게시됐어요.');
+  return json({revision:cur.rev,release:digest});
+}
+function arenaToken(req) {
+  const bearer=req.headers.get('authorization') || '';
+  const value=bearer.startsWith('Bearer ') ? bearer.slice(7) :
+    (/(?:^|; *)dw_arena=([a-f0-9]{48})(?:;|$)/.exec(req.headers.get('cookie')||'')||[])[1];
+  return /^[a-f0-9]{48}$/.test(value||'') ? value : '';
+}
+async function arenaPlayer(db,req) {
+  const token=arenaToken(req);
+  return token ? arenaQuery(db,'SELECT id,credits,medals,wins FROM dw_players WHERE credential=?',await hash(token)).first() : null;
+}
+const roomCode = value => typeof value==='string' && /^[2-9A-HJ-NP-Z]{8}$/.test(value);
+function newRoomCode() {
+  const alphabet='23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+  return Array.from(crypto.getRandomValues(new Uint8Array(8)),v=>alphabet[v%alphabet.length]).join('');
+}
+async function arenaUpdate(db, code, player, operation, body={}) {
+  for (let attempt=0;attempt<6;attempt++) {
+    const row=await arenaQuery(db,'SELECT * FROM dw_rooms WHERE code=?',code).first();
+    if (!row) err(404,'방 코드를 확인하세요.');
+    let seat=row.p0===player ? 0 : row.p1===player ? 1 : -1;
+    if (seat<0 && operation!=='join') err(403,'참가한 방만 열 수 있어요.');
+    const s=JSON.parse(row.state), now=Date.now(), previousTick=s.tick, previousStatus=s.status;
+    arenaAdvance(s,now);
+    let changed=s.tick!==previousTick || s.status!==previousStatus, guest=row.p1;
+    if (operation==='join' && seat<0) {
+      if (s.status!=='waiting') err(409,'이미 시작했거나 종료된 방이에요.');
+      seat=1; guest=player; arenaJoin(s,body.actor,now); changed=true;
+    } else if (operation==='leave' && s.status!=='finished') {
+      arenaFinish(s,-1,'left'); changed=true;
+    } else if (operation==='input' && s.status==='playing' && body.seq>s.players[seat].seq) {
+      arenaCommand(s,seat,body); changed=true;
+    }
+    if (changed) {
+      let result;
+      try {
+        result=await arenaQuery(db,'UPDATE dw_rooms SET p1=?,status=?,version=version+1,state=?,winner=?,reason=? WHERE code=? AND version=?',
+          guest,s.status,JSON.stringify(s),s.winner,s.reason,code,row.version).run();
+      } catch(e) {
+        if (String(e).includes('dw_seats.player')) err(409,'참가 중인 방이 있어요.');
+        throw e;
+      }
+      if (!result.meta.changes) continue;
+    }
+    return arenaSnapshot(row,s,seat,now);
+  }
+  err(409,'방 정보가 바뀌었어요. 다시 연결하세요.');
+}
+async function arenaCurrent(db, player) {
+  const link=await arenaQuery(db,'SELECT code FROM dw_seats WHERE player=?',player).first();
+  if (!link) return null;
+  const room=await arenaUpdate(db,link.code,player,'read');
+  return room.status==='finished'?null:room;
+}
+async function arenaMarket(db, player, op, b) {
+  if (op!=='market') {
+    if (typeof b.id!=='string' || !/^[a-f0-9-]{36}$/.test(b.id)) err(400,'거래 번호를 확인하세요.');
+    try {
+      if (op==='sell') {
+        if (!integer(b.price,1,9999)) err(400,'거래가는 1~9999 크레딧이에요.');
+        const previous=await arenaQuery(db,'SELECT seller,price FROM dw_listings WHERE id=?',b.id).first();
+        if (previous && (previous.seller!==player || previous.price!==b.price)) err(409,'이미 사용한 거래 번호예요.');
+        if (!previous) await arenaQuery(db,'INSERT INTO dw_listings(id,seller,price,created) VALUES(?,?,?,?)',b.id,player,b.price,Date.now()).run();
+      } else {
+        const buy=op==='buy';
+        const result=buy ? await arenaQuery(db,"UPDATE dw_listings SET status='sold',buyer=? WHERE id=? AND status='open' AND seller!=?",player,b.id,player).run() :
+          await arenaQuery(db,"UPDATE dw_listings SET status='cancelled' WHERE id=? AND status='open' AND seller=?",b.id,player).run();
+        if (!result.meta.changes) {
+          const row=await arenaQuery(db,'SELECT status,seller,buyer FROM dw_listings WHERE id=?',b.id).first();
+          if (!(buy ? row?.status==='sold' && row.buyer===player : row?.status==='cancelled' && row.seller===player)) err(409,'거래할 수 없는 매물이에요.');
+        }
+      }
+    } catch(e) {
+      if (String(e).includes('no_medal')) err(409,'판매할 광산 휘장이 부족해요.');
+      if (String(e).includes('no_credit')) err(409,'구매 크레딧이 부족해요.');
+      throw e;
+    }
+  }
+  const rows=await arenaQuery(db,"SELECT id,price,seller=? AS mine FROM dw_listings WHERE status='open' AND seller!=? ORDER BY created DESC LIMIT 60",player,player).all();
+  const own=await arenaQuery(db,"SELECT id,price,1 AS mine FROM dw_listings WHERE status='open' AND seller=? ORDER BY created DESC",player).all();
+  const wallet=await arenaQuery(db,'SELECT credits,medals,wins FROM dw_players WHERE id=?',player).first();
+  return json({wallet,listings:[...own.results,...rows.results].map(v=>({...v,mine:!!v.mine}))});
+}
+async function arenaApi(req,env,op) {
+  const db=arenaDb(env), post=req.method==='POST';
+  if ((op==='status' || op==='me' || op==='market') ? req.method!=='GET' : !post) err(405,'요청 방식을 확인하세요.');
+  if (post && req.headers.get('origin') && req.headers.get('origin')!==new URL(req.url).origin) err(403,'허용되지 않은 출처예요.');
+  let b={};
+  if (post) {
+    if (!req.headers.get('content-type')?.startsWith('application/json')) err(415,'JSON 요청이 필요해요.');
+    b=JSON.parse(new TextDecoder().decode(await limitedFileBody(req,4096)));
+    if (!b || Array.isArray(b) || typeof b!=='object') err(400,'요청 형식을 확인하세요.');
+  }
+  if (op==='status') {
+    const r=await activeArenaRelease(db);
+    return json({protocol:1,hz:60,release:r.release,revision:r.revision,actors:r.profile.actors.map(({id,name})=>({id,name}))});
+  }
+  let player=await arenaPlayer(db,req);
+  if (op==='session') {
+    if (player) return json(b.native===true ? {ok:true,token:arenaToken(req)} : {ok:true});
+    const token=random(), id=crypto.randomUUID();
+    await arenaQuery(db,'INSERT INTO dw_players(id,credential) VALUES(?,?)',id,await hash(token)).run();
+    return json(b.native===true ? {ok:true,token} : {ok:true},201,{'set-cookie':'dw_arena='+token+'; Path=/api/arena/; Max-Age=31536000; Secure; HttpOnly; SameSite=Strict'});
+  }
+  if (!player) err(401,'기기 게스트로 입장하세요.');
+  if (op==='me') {
+    const room=await arenaCurrent(db,player.id);
+    const wallet=await arenaQuery(db,'SELECT credits,medals,wins FROM dw_players WHERE id=?',player.id).first();
+    return json({room,wallet});
+  }
+  if (['market','sell','buy','cancel'].includes(op)) return arenaMarket(db,player.id,op,b);
+  if (!['create','join','room','input','leave'].includes(op)) err(404,'서비스 경로를 찾을 수 없어요.');
+  if (op==='input' && (!integer(b.seq,1,2147483647) || !integer(b.axis,-1,1) || !integer(b.press,0,7))) err(400,'조작 입력을 확인하세요.');
+  if (op==='create' || op==='join') {
+    if (b.actor!==undefined && b.actor!=='' && !validId(b.actor)) err(400,'캐릭터 선택을 확인하세요.');
+    const existing=await arenaCurrent(db,player.id);
+    if (existing) {
+      if (op==='create' || b.code===existing.code) return json(existing);
+      err(409,'현재 방을 나간 뒤 참가하세요.');
+    }
+  }
+  if (op==='create') {
+    const r=await activeArenaRelease(db);
+    const s=arenaStart(r.profile,b.actor,Date.now());
+    for(let i=0;i<4;i++) {
+      const code=newRoomCode();
+      try {
+        await arenaQuery(db,'INSERT INTO dw_rooms(code,p0,status,state,release_id,revision) VALUES(?,?,?,?,?,?)',
+          code,player.id,s.status,JSON.stringify(s),r.release,r.revision).run();
+        return json(arenaSnapshot({code,release_id:r.release,revision:r.revision},s,0,Date.now()),201);
+      } catch(e) {
+        if (String(e).includes('dw_rooms.code')) continue;
+        if (String(e).includes('dw_seats.player')) { const current=await arenaCurrent(db,player.id); if (current) return json(current); }
+        throw e;
+      }
+    }
+    err(503,'새 방 코드를 다시 요청하세요.');
+  }
+  if (!roomCode(b.code)) err(400,'방 코드는 8자리예요.');
+  return json(await arenaUpdate(db,b.code,player.id,op,b));
+}

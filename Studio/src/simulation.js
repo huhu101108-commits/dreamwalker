@@ -102,6 +102,9 @@ class FieldRun {
     this.bag = new Map();
     this.gear = new Map();
     this.progressVersion = 0;
+    this.combatTick = 0;
+    this.combatState = {};
+    this.kills = new Map();
     this.mapMemory = new Map();
     this.enter(mapId || world.startMap);
     this.fire('start');
@@ -170,6 +173,7 @@ class FieldRun {
     this.rememberMap();
     return {
       version: 1,
+      combatTick:this.combatTick, combatState:structuredClone(this.combatState), kills:[...this.kills],
       result: this.result,
       map: this.map.id,
       actor: this.characterId,
@@ -212,6 +216,20 @@ class FieldRun {
     )
       return false;
     const pairs = (xs) => (Array.isArray(xs) ? xs.filter((x) => Array.isArray(x) && x.length === 2) : []);
+    this.combatTick=Number.isSafeInteger(data.combatTick) && data.combatTick>=0 ? data.combatTick : 0;
+    this.combatState={};
+    for (const actor of this.world.characters) {
+      const key='a_'+actor.id, src=data.combatState?.[key];
+      if (!src) continue;
+      const mem=this.combatState[key]=combatMemory();
+      if(integer(src.shield,0,9999)) mem.shield=src.shield;
+      for(const rule of this.world.combatRules||[]) {
+        const k='r_'+rule.id;
+        if(integer(src.count?.[k],0,998)) mem.count[k]=src.count[k];
+        if(integer(src.ready?.[k],0,this.combatTick+3600)) mem.ready[k]=src.ready[k];
+      }
+    }
+    this.kills=new Map(pairs(data.kills).filter(([k,v])=>typeof k==='string' && k.length<=101 && signalKey(v,true)));
     this.clearedMaps = new Set(Array.isArray(data.cleared) ? data.cleared : []);
     this.rewards = new Set(Array.isArray(data.rewards) ? data.rewards : []);
     const items = this.world.items || [];
@@ -368,7 +386,8 @@ class FieldRun {
     for (const q of this.world.quests || []) {
       if (
         this.rewards.has(q.id) ||
-        !(q.kind === 'clear' ? this.clearedMaps : this.completedStories).has(q.target)
+        !(q.kind==='kill' ? [...this.kills.values()].filter(tag=>q.target==='*'||tag===q.target).length>=q.goal :
+          (q.kind === 'clear' ? this.clearedMaps : this.completedStories).has(q.target))
       )
         continue;
       this.rewards.add(q.id);
@@ -479,6 +498,7 @@ class FieldRun {
       this.completedStories.clear();
       this.clearedMaps.clear();
       this.rewards.clear();
+      this.combatTick=0; this.combatState={}; this.kills.clear();
       this.bag.clear();
       this.gear.clear();
       this.progressVersion++;
@@ -642,15 +662,31 @@ class FieldRun {
       .filter((e) => e.hp > 0 && Math.abs(e.x - h.x) <= range && Math.abs(e.y - h.y) < 19)
       .sort((a, b) => Math.abs(a.x - h.x) - Math.abs(b.x - h.x));
   }
+  get combatMemory() { return this.combatState['a_'+this.characterId] ||= combatMemory(); }
+  applyCombatEvent(event) {
+    const result=combatEvent(this.world.combatRules||[],this.combatMemory,event,this.characterId,this.combatTick,this.hero.hp,this.character.health);
+    this.hero.hp=Math.min(this.character.health,this.hero.hp+result.heal);
+    return result.damage;
+  }
+  hurtHero(amount) {
+    this.hero.hp=Math.max(0,this.hero.hp-absorbCombatDamage(this.combatMemory,amount));
+    this.applyCombatEvent('hurt');
+  }
   hit(e, amount, stack = true) {
     if (!e || e.hp <= 0) return;
     const damage = Math.max(
       1,
       Math.round(amount * (1 + this.gearPower() / this.t.damage) * this.character.attackScale),
     );
-    e.hp = Math.max(0, e.hp - damage);
+    const applied=damage+this.applyCombatEvent('hit');
+    e.hp = Math.max(0, e.hp - applied);
+    if (!e.hp) {
+      this.applyCombatEvent('kill');
+      this.kills.set(this.map.id+'/'+e.id,e.enemy?.tag||'');
+      this.grantRewards();
+    }
     if (stack && this.character.passive === 'frost') e.stacks = Math.min(this.t.frostMax, e.stacks + 1);
-    this.events.push({ type: 'hit', text: '−' + Math.max(1, Math.round(damage)), x: e.x, y: e.y });
+    this.events.push({ type: 'hit', text: '−' + applied, x: e.x, y: e.y });
   }
   skill() {
     const a = this.sequence;
@@ -794,6 +830,7 @@ class FieldRun {
     if (this.paused) return;
     const priorClock = this.clock;
     this.clock += dt;
+    this.combatTick++;
     if (this.rulesByEvent.has('elapsed') && this.fire('elapsed', '', priorClock) && this.paused) return;
     const h = this.hero,
       t = this.t;
@@ -844,7 +881,7 @@ class FieldRun {
         if (e.state === 'windup') {
           if (--e.remaining <= 0) {
             if (close && e.enemy.damage) {
-              h.hp = Math.max(0, h.hp - e.enemy.damage * (enraged ? 2 : 1));
+              this.hurtHero(e.enemy.damage * (enraged ? 2 : 1));
               h.lastHit = this.clock;
             }
             e.state = 'recovery';
@@ -866,7 +903,7 @@ class FieldRun {
         Math.abs(h.y - e.y) < 8 &&
         this.clock - h.lastHit > e.enemy.interval
       ) {
-        h.hp = Math.max(0, h.hp - e.enemy.damage);
+        this.hurtHero(e.enemy.damage);
         h.lastHit = this.clock;
       }
     }
