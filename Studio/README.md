@@ -68,6 +68,8 @@ Unity 프로젝트의 전투 데모를 열고 **Dreamwalker Studio** 버튼으�
 
 Studio 폴더에서 Node 22 이상과 bash, unzip이 있는 환경으로 npm test를 실행한다. 테스트가 Worker를 빌드한 뒤 모델 마이그레이션, 참조 무결성, 전투·대화·출구·메뉴, 암호·공유 버전 충돌, 이미지 권한, Unity ZIP의 CRC와 이미지 내용을 검사한다.
 
+Unity 스크립트 컴파일은 라이선스 없이 `node scripts/unity-compile-check.mjs --fetch <캐시 폴더>`로 확인한다. `ProjectVersion.txt`의 Unity 버전에 맞는 공식 Linux 에디터 압축에서 관리 어셈블리만 내려받고, .NET 8 C# 컴파일러로 에디터 런타임·에디터 전용(Editor 폴더)·Android 플레이어 세 구성을 컴파일한다. 설치된 Unity가 있으면 `<Unity>/Editor/Data` 경로를 직접 넘긴다. 플레이 모드 실행과 화면 확인은 Unity 에디터에서 한다.
+
 프로젝트의 schema 값은 4다. v3 프로젝트와 버전 기록도 읽을 때 업그레이드한다. 장면과 캐릭터 등은 안정적인 ID로 연결한다. 기존 형식의 맵과 수치, 업로드한 백설과 배경 이미지는 읽을 때 변환한다. 이미지는 로그인한 사용자가 접근하는 R2에 내용 해시로 저장한다. Unity 기본 소스를 갱신할 때는 Studio에서 node scripts/sync-unity.mjs .. 를 실행한다. 서버는 저장하기 전에 참조 ID와 신규 이미지의 존재를 검사한다. 사용자 제작 데이터와 팀 암호는 소스 저장소에 넣지 않는다.
 
 배포 환경에는 R2 바인딩 BUCKET과 소유자 이메일을 소문자화한 SHA-256 값 STUDIO_OWNER_EMAIL_SHA256이 필요하다. 소유자 확인 값은 호스팅의 비밀 환경 변수로 설정한다.

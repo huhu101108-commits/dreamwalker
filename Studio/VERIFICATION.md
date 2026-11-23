@@ -60,7 +60,8 @@
 - `npm test` 통과. PASS 51건 중 4건이 새 검사다: 선택 항목 검증과 이전 프로젝트 호환, 연출 연결 정리·미디어 참조·프리셋·로드맵, 웹 실행기의 게이지·컷인 정지 틱·캐릭터별 세이브, 보스 바·스킬 버튼 표시, Worker 저장의 에셋 확인과 3자 병합.
 - `dotnet run --project Studio/scripts/native-check/StudioContract.csproj` 통과. 새 항목은 웹 검사와 같은 `character-stage.json`으로 표정 선택 순서, 프로필 치환, 게이지 저장·이전 세이브, 컷인 정지 틱, 대사 데이터와 로드맵 표정 유지를 확인한다.
 - `test-browser-link.mjs`(샌드박스 Chromium 두 프로세스)에서 새 흐름을 포함한 17개 흐름이 통과했다. 새 흐름은 1280×800 터치 화면의 검수 사본에서 실행하고, 내보낸 웹 빌드로 실제 공격·컷인·보스 바·재사용 대기 배지를 확인한 뒤 저장·재열기로 값을 대조한다. `testDeviceDesigner`는 이 Chromium에서 사본 파일 이름이 `download`로 나와 실패했으며, 변경 전 `2d0874b`에서도 같다.
-- Unity 에디터 컴파일·플레이 모드와 갤럭시 탭 실기기 확인은 실행하지 않았다. Unity 화면 코드(컷인·게이지·보스 바·표정·화자 강조 표시)는 에디터에서 처음 열 때 컴파일과 표시를 확인한다.
+- Unity 6000.0.23f1 공식 Linux 에디터 압축의 엔진·에디터 어셈블리로 모든 Unity 스크립트를 컴파일했다(`unity-compile-check.mjs`). 이 검사에서 제작 브랜치 `6bf3ce8`부터 있던 `StudioControlView.cs`의 지역 변수 이름 중복(CS0136)을 발견해 고쳤다. 이 오류 때문에 기존 제작 브랜치의 Unity 프로젝트는 에디터에서 스크립트 컴파일이 실패했다. 수정 후 에디터 런타임 23개, Editor 폴더 6개, Android 플레이어 23개 스크립트가 오류·경고 없이 컴파일된다. 새 Unity 화면 코드에 일부러 넣은 API 오타와 없는 멤버 호출을 이 검사가 잡는 것도 확인했다.
+- Unity 에디터 플레이 모드와 갤럭시 탭 실기기 확인은 실행하지 않았다. 에디터 실행에는 Unity 계정 라이선스 활성화가 필요하다. 컷인·게이지·보스 바·표정·화자 강조의 실제 화면은 에디터에서 확인한다.
 
 ## 실행 환경별 증거
 
@@ -69,6 +70,7 @@
 | Node·격리 Worker·SQLite | 이전 프로젝트와 팀 버전, 권한, 데이터 병합, 전투 규칙, 대사 분기, 프리셋, 파일 전송, 보상 1회, 친선전·경쟁전 검증 모드 | Studio 디렉터리에서 `npm test` |
 | Chrome 두 프로세스·터치 모사 | 실제 파일 입력 컨트롤, 다른 창에서 반환, 미리보기, 화면·조작, 플레이, 저장·재실행, 오프라인 HTML·ZIP 및 두 클라이언트 | 저장소의 Tablet studio contracts 워크플로 `Check owner entry and two-browser WebRTC` |
 | .NET 8 | Unity 프로젝트와 공용인 C# 데이터·규칙·입력·대사 코드, 순서·적중·세이브 상태와 가져오기 충돌 분류 | `dotnet run --project Studio/scripts/native-check/StudioContract.csproj` |
+| Unity 스크립트 컴파일 | 프로젝트 Unity 버전의 엔진·에디터 어셈블리로 에디터 런타임, Editor 폴더, Android 플레이어 스크립트 컴파일 | Studio 디렉터리에서 `node scripts/unity-compile-check.mjs --fetch <캐시>`. 저장소의 Tablet studio contracts 워크플로 `unity-scripts` 작업 |
 | Unity 에디터 | 실제 장면, 카메라·물리·폰트·오디오·플레이 모드와 대사 저장소 | Unity 6000.0.23f1에서 전체 프로젝트를 열고 위 입력 기록을 재생한다. 같은 구간을 직접 플레이하고 변경 파일을 재가져온다. |
 | Android APK·갤럭시 탭 | 첫 설치·업데이트·최초 실행·엔딩, OS 파일 선택 창, 화면 회전, 멀티터치, 소리·발열·프레임 시간 | Android Build Support가 있는 연결 실행기에서 해당 버전 APK를 만든다. 같은 서명으로 설치·업데이트하고 별도 테스트 기기의 기존 진행을 복원한다. |
 | 실제 두 기기·회선 | RTT 분포, 지터, 끊김 후 실제 응답과 물리 조작감 | 같은 버전의 두 클라이언트를 다른 회선에서 연결하고 맵·버전·단말을 기록한다. |

@@ -104,7 +104,7 @@ internal sealed partial class StudioScreenView
                 if(!string.IsNullOrEmpty(w.shortcut))PollButton(w.shortcut,Physical(w.shortcut,true),Physical(w.shortcut),w,ref horizontal);
                 if(start!=Layout)return;
                 int pad=w.gesture.pad;
-                if(pad>=0&&pad<16){bool held=PadPressed(pad);bool began=held&&!lastPad[pad];lastPad[pad]=held;PollButton("pad"+pad,held,began,w,ref horizontal);}
+                if(pad>=0&&pad<16){bool held=PadPressed(pad);bool padBegan=held&&!lastPad[pad];lastPad[pad]=held;PollButton("pad"+pad,held,padBegan,w,ref horizontal);}
                 if(start!=Layout)return;
                 continue;
             }
