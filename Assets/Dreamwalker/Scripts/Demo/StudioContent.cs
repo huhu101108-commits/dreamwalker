@@ -152,8 +152,18 @@ public class StudioShotLayer
     public float x, y, w, h, opacity, fillOpacity, size, radius;
     public int columns;
     public bool visible, locked, flip;
+    public StudioChoiceSlot[] slots;
+    public bool manualChoices;
+    public StudioChoiceSlot Slot(int count,int index){
+        if(slots!=null)foreach(var s in slots)if(s.index==index)return s;
+        int cols=ChoiceColumns(count), rows=(count+cols-1)/cols;
+        return new StudioChoiceSlot{index=index,x=index%cols*100f/cols+1,y=index/cols*100f/rows+1,w=100f/cols-2,h=100f/rows-2,
+            fill=fill,color=color,press="#36656e",radius=radius};
+    }
     public int ChoiceColumns(int count) => Math.Max(1, Math.Min(Math.Min(4, columns), count));
 }
+[Serializable]
+public class StudioChoiceSlot { public int index; public float x,y,w,h,radius; public string fill,color,press; }
 [Serializable]
 public class StudioChoice
 {
@@ -179,6 +189,7 @@ public class StudioWidget
     public StudioVertex[] points;
     public StudioControlSpec control;
     public StudioStickStyle stick;
+    public StudioItemSkin itemSkin;
     public string shortcut;
     public bool hotspot;
     public bool showValue, enableValue;
@@ -189,6 +200,7 @@ public class StudioWidget
 
 namespace Dreamwalker.Demo
 {
+[Serializable] public class StudioItemSkin { public string color,fill,press,edge; public float radius,width; public int size; }
 [Serializable] public class StudioStickStyle { public int thumb, dead; public string knob, ring; }
 [Serializable] public class StudioControlSpec
 {

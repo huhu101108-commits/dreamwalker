@@ -58,7 +58,7 @@ internal sealed partial class StudioScreenView
     {
         stickOffset = Vector2.ClampMagnitude((pos - rect.center) / Mathf.Max(1, rect.width * .38f), 1);
         float x = stickOffset.x;
-        float dead=(widget.stick?.dead ?? 14) / 100f;
+        float dead=(widget.stick!=null && widget.stick.thumb>=15 ? widget.stick.dead : 14) / 100f;
         return Mathf.Abs(x) <= dead ? 0 : Mathf.Sign(x) * (Mathf.Abs(x) - dead) / (1-dead);
     }
     private static bool Hit(StudioWidget w, Rect r, Vector2 pos) =>
@@ -309,7 +309,7 @@ internal sealed partial class StudioScreenView
         }
     }
 
-    private void DrawLine(Rect rect, GUIStyle style)
+    private void DrawLine(StudioWidget w, Rect rect, GUIStyle style)
     {
         var node = world.Line;
         if (node == null)
@@ -337,22 +337,23 @@ internal sealed partial class StudioScreenView
         string text = (!string.IsNullOrEmpty(node.speakerName) ? node.speakerName : speaker != null ? speaker.name : "내레이션") + "\n" + node.text;
         float contentWidth = Mathf.Max(16, rect.width - 22),
               textHeight = style.CalcHeight(new GUIContent(text), contentWidth) + 8;
-        float buttonHeight = Mathf.Max(34, style.fontSize * 2.2f);
+        float itemSize=w.itemSkin!=null && w.itemSkin.size>=8 ? Mathf.Clamp(w.itemSkin.size*Mathf.Min(Screen.width/800f,1.4f),8,90) : style.fontSize;
+        float buttonHeight = Mathf.Max(34, itemSize * 2.2f);
         float contentHeight = textHeight + Mathf.Max(1, node.choices.Length) * (buttonHeight + 4);
         dialogueScroll = GUI.BeginScrollView(rect, dialogueScroll, new Rect(0, 0, contentWidth, contentHeight));
         GUI.Label(new Rect(0, 0, contentWidth, textHeight), text, style);
         int clicked = -2;
         if (node.choices.Length == 0)
         {
-            if (GUI.Button(new Rect(0, textHeight, contentWidth, buttonHeight), string.IsNullOrEmpty(node.nextLabel) ? "다음 →" : node.nextLabel, style))
+            if (ItemButton(w,new Rect(0, textHeight, contentWidth, buttonHeight), string.IsNullOrEmpty(node.nextLabel) ? "다음 →" : node.nextLabel, style))
                 clicked = -1;
         }
         else
             for (int i = 0; i < node.choices.Length; i++)
             {
                 var r = new Rect(0, textHeight + i * (buttonHeight + 4), contentWidth, buttonHeight);
-                Fill(r, new Color(.15f, .25f, .35f));
-                if (GUI.Button(r, node.choices[i].label, style))
+                if (w.itemSkin==null || w.itemSkin.size==0)Fill(r, new Color(.15f, .25f, .35f));
+                if (ItemButton(w,r,node.choices[i].label,style))
                     clicked = i;
             }
         GUI.EndScrollView();
@@ -379,6 +380,19 @@ internal sealed partial class StudioScreenView
     private int DrawShotChoices(StudioShotLayer layer, StudioLine line, Rect rect, GUIStyle style, Color fill, float radius)
     {
         int count = Mathf.Max(1, line.choices.Length), columns = layer.ChoiceColumns(count);
+        if(layer.manualChoices){
+            int answer=-2;
+            for(int i=0;i<count;i++){
+                var s=layer.Slot(count,i);
+                var area=new Rect(rect.x+s.x*rect.width/100,rect.y+s.y*rect.height/100,s.w*rect.width/100,s.h*rect.height/100);
+                Color baseColor=StudioWorld.Tint(s.fill,fill);baseColor.a=fill.a;
+                if(GUIUtility.hotControl!=0 && area.Contains(Event.current.mousePosition))baseColor=StudioWorld.Tint(s.press,baseColor);
+                GUI.DrawTexture(area,Texture2D.whiteTexture,ScaleMode.StretchToFill,true,0,baseColor,0,Mathf.Min(area.width,area.height)*s.radius/100);
+                string text=line.choices.Length>0?line.choices[i].label:string.IsNullOrEmpty(line.nextLabel)?"다음":line.nextLabel;
+                if(GUI.Button(area,text,Style(style.fontSize,layer.align,StudioWorld.Tint(s.color,Color.white))))answer=line.choices.Length>0?i:-1;
+            }
+            return answer;
+        }
         float gap = style.fontSize * .35f, rowHeight = Mathf.Max(20, style.fontSize * 1.9f);
         int rows = (count + columns - 1) / columns;
         float height = rows * (rowHeight + gap) - gap;
@@ -489,7 +503,7 @@ internal sealed partial class StudioScreenView
                 var color = StudioWorld.Tint(w.stick?.ring ?? w.color,Color.white);
                 GUI.DrawTexture(ring, Texture2D.whiteTexture, ScaleMode.StretchToFill, true, 0, color, 2, ring.width/2);
                 var offset = heldStick == w || (!Application.isMobilePlatform && Time.unscaledTime-mouseHeldAt < .06f) ? stickOffset : Vector2.zero;
-                float thumb=(w.stick?.thumb ?? 38)/100f;
+                float thumb=(w.stick!=null && w.stick.thumb>=15 ? w.stick.thumb : 38)/100f;
                 var center = ring.center + offset*ring.width*(w.stick == null ? .32f : (1-thumb)*.5f);
                 float radius = ring.width*thumb*.5f;
                 color=StudioWorld.Tint(w.stick?.knob ?? w.color,Color.white);
@@ -533,7 +547,7 @@ internal sealed partial class StudioScreenView
             }
             if (w.type == "dialogue")
             {
-                DrawLine(r, style);
+                DrawLine(w,r, style);
                 continue;
             }
             if (w.type == "image" || w.type == "portrait")

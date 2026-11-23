@@ -13,13 +13,23 @@ export async function testPresetDesigner(page,origin){
     await field('화면 이름').fill('설산 등록 화면');await button(p,'＋ 입력 추가').click();
     await field('표시 문구').fill('탐험가 이름');await field('입력값 이름').fill('호출명');
     await field('입력 안내 문구').fill('이름을 입력');await saveNamed('UI 요소','설원 이름칸');
+    for(const [mode,label,x,y] of [['number','인원',2,3],['toggle','알림',62,28],['range','음량',2,50],['choice','노선',55,50]]){
+      await button(p,'＋ 입력 추가').click();await field('입력 방식').selectOption(mode);
+      await field('표시 문구').fill(label);await field('입력값 이름').fill(label);
+      await field('너비 (%)').fill('34');await field('왼쪽 (%)').fill(String(x));await field('위쪽 (%)').fill(String(y));
+      if(mode==='choice'){await field('선택 항목 (한 줄에 하나)').fill('광산\n철도');await button(p,'선택 항목 반영').click();}
+    }
     await field('추가할 요소').selectOption('text');await button(p,'＋ 요소 추가').click();
-    await field('표시 문구').fill('환영해, {입력:호출명}');
+    await field('표시 문구').fill('환영해, {입력:호출명} · {입력:인원}/{입력:알림}/{입력:음량}/{입력:노선}');
     await field('위쪽 (%)').fill('16');
     await button(p,'＋ 버튼 추가').click();await field('표시 문구').fill('설원 확인');
     await field('버튼 동작').selectOption('flagOn');await field('변경할 상태 이름').fill('확인함');
     await field('버튼 단축키').selectOption('KeyF');await field('그림 위에 투명 클릭 영역으로 사용').check();
     await field('위쪽 (%)').fill('64');
+    await button(p,'＋ 버튼 추가').click();await field('표시 문구').fill('접수 완료');
+    const shown=p.getByText('버튼 표시 · 활성 조건',{exact:true});
+    if(!await field('표시 조건 상태 (비우면 항상)').isVisible())await shown.click();
+    await field('표시 조건 상태 (비우면 항상)').fill('확인함');await field('위쪽 (%)').fill('7');
     await saveNamed('화면 디자인','설원 접수 양식');
     await button(await pick('화면 디자인'),'프리셋으로 새 화면 만들기').click();
     const copied=await field('작업 화면').inputValue();
@@ -29,9 +39,14 @@ export async function testPresetDesigner(page,origin){
     const embedded=await p.locator('dialog.source-player[open]').count()>0,game=embedded?p.frameLocator('dialog.source-player iframe'):p;
     const overlay=game.locator('#overlay'),name=overlay.getByRole('textbox',{name:'탐험가 이름'});
     await name.fill('눈길');await name.press('f');assert.equal(await name.inputValue(),'눈길f');
-    await name.press('Enter');await overlay.getByText('환영해, 눈길f',{exact:true}).waitFor();
+    await name.press('Enter');await overlay.getByText('환영해, 눈길f · 0/false/50/광산',{exact:true}).waitFor();
+    assert.equal(await button(overlay,'접수 완료').count(),0);
+    const people=overlay.getByRole('spinbutton',{name:'인원'});await people.fill('7');await people.press('Enter');
+    await overlay.getByRole('checkbox',{name:'알림'}).check();await overlay.getByRole('slider',{name:'음량'}).press('End');
+    await overlay.getByRole('combobox',{name:'노선'}).selectOption('철도');
+    await overlay.getByText('환영해, 눈길f · 7/true/100/철도',{exact:true}).waitFor();
     const hot=button(overlay,'설원 확인');await hot.waitFor();assert.equal(await hot.evaluate(n=>getComputedStyle(n).opacity),'0');
-    await hot.focus();await hot.press('f');await overlay.getByText('환영해, 눈길f',{exact:true}).waitFor();
+    await hot.focus();await hot.press('f');await button(overlay,'접수 완료').waitFor();
     await (embedded?p.locator('dialog.source-player[open]>.bar button'):button(p.locator('#game'),'편집기로')).click();
     await button(p,'스튜디오 배치').click();
     const dialog=p.getByRole('dialog'),ink=dialog.getByLabel('입력칸 바탕색');
@@ -40,6 +55,7 @@ export async function testPresetDesigner(page,origin){
     await dialog.getByLabel('제작실 배치 프리셋 이름').fill('태블릿 설정');await button(dialog,'새 프리셋 저장').click();
     await button(dialog,'이 기기에 적용').click();
     assert.equal(await p.locator('#editor').evaluate(n=>n.style.getPropertyValue('--studio-entry')),'#243c49');
+    assert.equal(await field('화면 이름').evaluate(n=>getComputedStyle(n).backgroundColor),'rgb(36, 60, 73)');
     const saving=p.waitForResponse(r=>r.url().endsWith('/api/save'));
     await p.locator('#save').click();const response=await saving;assert.equal(response.status(),200,await response.text());
     await p.reload();await p.locator('#editor').waitFor();

@@ -16,6 +16,8 @@ internal sealed partial class StudioScreenView
     private StudioLayout fieldLayout;
     private string draftText, rangeValue;
     private Vector2 choiceScroll;
+    private readonly HashSet<string> usedKeys=new HashSet<string>();
+    private int usedFrame=-1;
     private static readonly string[] SkillCodes={"Digit1","Digit2","Digit3","Digit4","Digit5","Digit6","Digit7","Digit8","Digit9","Digit0","Minus","Equal"};
     private static readonly Dictionary<string,PhysicalKey> keyCache=new Dictionary<string,PhysicalKey>();
     private static bool Physical(string code,bool held=false)
@@ -41,7 +43,7 @@ internal sealed partial class StudioScreenView
     private bool MaskGameKey(string code)
     {
         if(!world.Running || world.Project==null || world.Map==null)return false;
-        if(editingField!=null || openChoices!=null)return true;
+        if(editingField!=null || openChoices!=null || (usedFrame==Time.frameCount && usedKeys.Contains(code)))return true;
         if(ActiveShot!=null || Layout?.elements==null)return false;
         foreach(var w in Layout.elements)if(w.shortcut==code && world.Visible(w) && world.Enabled(w))return true;
         return false;
@@ -59,6 +61,7 @@ internal sealed partial class StudioScreenView
             bool movement=w.action=="left" || w.action=="right";
             if(movement && Physical(w.shortcut,true))horizontal+=w.action=="left"?-1:1;
             if(!Physical(w.shortcut))continue;
+            if(usedFrame!=Time.frameCount){usedFrame=Time.frameCount;usedKeys.Clear();}usedKeys.Add(w.shortcut);
             world.Activate(w,!movement);
             if(start!=Layout)return;
         }
@@ -155,6 +158,19 @@ internal sealed partial class StudioScreenView
             if(string.IsNullOrEmpty(after) && editingField!=w && !string.IsNullOrEmpty(spec.hint))GUI.Label(area,spec.hint,style);
         }
         GUI.enabled=wasEnabled;
+    }
+    internal GUIStyle ItemStyle(StudioWidget w,GUIStyle fallback){
+        var s=w.itemSkin;
+        return s==null||s.size<8?fallback:Style(Mathf.Clamp(Mathf.RoundToInt(s.size*Mathf.Min(Screen.width/800f,1.4f)),8,90),w.align,StudioWorld.Tint(s.color,Color.white));
+    }
+    internal bool ItemButton(StudioWidget w,Rect area,string label,GUIStyle style,bool nativeDefault=false){
+        var s=w.itemSkin;
+        if(s==null||s.size<8)return nativeDefault?GUI.Button(area,label):GUI.Button(area,label,style);
+        float radius=Mathf.Min(area.width,area.height)*s.radius/100;
+        Color fill=StudioWorld.Tint(GUIUtility.hotControl!=0&&area.Contains(Event.current.mousePosition)?s.press:s.fill,Color.gray);
+        GUI.DrawTexture(area,Texture2D.whiteTexture,ScaleMode.StretchToFill,true,0,fill,0,radius);
+        if(s.width>0)GUI.DrawTexture(area,Texture2D.whiteTexture,ScaleMode.StretchToFill,true,0,StudioWorld.Tint(s.edge,Color.gray),s.width,radius);
+        return GUI.Button(area,label,ItemStyle(w,style));
     }
     private void DrawChoices()
     {

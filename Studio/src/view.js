@@ -225,6 +225,12 @@ function newWidgetView(w,play=false) {
     justifyContent: { left: 'flex-start', center: 'center', right: 'flex-end' }[w.align],
     fontSize: 'clamp(8px,' + w.fontSize / 8 + 'cqw,' + w.fontSize * 1.4 + 'px)',
   });
+  if(w.itemSkin){
+    node.classList.add('item-skin');const s=w.itemSkin;
+    for(const key of ['color','fill','press','edge'])node.style.setProperty('--item-'+key,s[key]);
+    node.style.setProperty('--item-radius',s.radius+'%');node.style.setProperty('--item-width',s.width+'px');
+    node.style.setProperty('--item-font','clamp(8px,'+s.size/8+'cqw,'+s.size*1.4+'px)');
+  }
   if(w.type==='button'){styleButton(node,w);if(w.hotspot)node.classList.add('hotspot');if(w.shortcut)node.title=w.shortcut;}
   if(w.type==='input'){
     styleButton(node,w);node.style.setProperty('--input-accent',w.pressedColor);
@@ -309,10 +315,10 @@ function updateWidget(n, w, state) {
   } else if (w.type === 'enemies') n.textContent = (w.text || '남은 적') + ' ' + state.enemies;
   else if (w.type === 'character') n.textContent = w.text || c.name;
   else if (w.type === 'map') n.textContent = w.text || state.map.name;
-  else if (w.type === 'inventory') n.textContent = '보유 장비 · 장착 변경';
+  else if (w.type === 'inventory'){n.replaceChildren(el('button','보유 장비 · 장착 변경'));}
   else if (w.type === 'quests') n.textContent = '의뢰 목록 · 진행 상태';
-  else if (w.type === 'text') n.textContent = state.inputs?controlText(w.text,state.inputs):w.text;
-  else if (w.type === 'button') n.textContent = (state.inputs?controlText(w.text,state.inputs):w.text) || getActionLabel(w.action, c);
+  else if (w.type === 'text') n.textContent = state.inputs?controlText(w.text,state.inputs,state.inputDefaults):w.text;
+  else if (w.type === 'button') n.textContent = (state.inputs?controlText(w.text,state.inputs,state.inputDefaults):w.text) || getActionLabel(w.action, c);
 }
 const defaultMix = () => ({music:65,fx:85,voice:100});
 function gameAudio(world,host) {

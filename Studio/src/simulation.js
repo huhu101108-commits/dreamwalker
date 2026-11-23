@@ -89,6 +89,7 @@ class FieldRun {
     this.keys = new Set();
     this.stickAxis = 0;
     this.inputValues = new Map();
+    this.inputDefaults = controlDefaults(world);
     this.rulesByEvent = new Map();
     for (const layout of world.layouts)
       for (const rule of layout.rules) {
@@ -463,7 +464,7 @@ class FieldRun {
     return true;
   }
   displayText(text){
-    return controlText(text,this.inputValues);
+    return controlText(text,this.inputValues,this.inputDefaults);
   }
   activate(w) {
     if (

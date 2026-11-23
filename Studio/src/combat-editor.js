@@ -4,6 +4,12 @@ function drawCombatRules() {
   const rules = project.combatRules;
   const rule = named(rules, selectedCombatRule) || rules[0];
   main.append(heading('전투 규칙', '발동 조건과 효과를 조합해 필드 전투와 친선전에 적용하세요.'));
+  main.append(presetPanel('rule',rule?()=>rule:null,p=>{
+    if(rules.length>=48)throw Error('전투 규칙 공간이 부족해요.');
+    if(p.data.actor&&!named(project.characters,p.data.actor))throw Error('이 규칙의 대상 캐릭터가 삭제됐어요.');
+    const next={...structuredClone(p.data),id:uid()};
+    edit(()=>{rules.push(next);selectedCombatRule=next.id;});
+  },{applyTitle:'프리셋으로 전투 규칙 추가'}));
   for (const item of rules) {
     const button = action(item.name + ' · ' + COMBAT_EVENTS[item.event] + (item.enabled ? '' : ' · 꺼짐'), () => {
       selectedCombatRule = item.id;

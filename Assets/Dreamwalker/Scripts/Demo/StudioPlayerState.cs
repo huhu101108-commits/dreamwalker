@@ -49,6 +49,7 @@ public sealed partial class StudioWorld
     private readonly HashSet<string> mapsDone = new HashSet<string>(), storiesDone = new HashSet<string>(),
                                      rewards = new HashSet<string>();
     private readonly Dictionary<string,string> formValues = new Dictionary<string,string>();
+    private readonly Dictionary<string,string> formDefaults = new Dictionary<string,string>();
     internal string FieldValue(StudioWidget w) {
         string key = w.control.Name(CurrentLayout.id,w.id);
         return formValues.TryGetValue(key,out string value) ? w.control.Value(value) ?? w.control.initial : w.control.initial;
@@ -56,7 +57,7 @@ public sealed partial class StudioWorld
     internal string FieldText(string text) {
         if (string.IsNullOrEmpty(text) || !text.Contains("{입력:")) return text;
         return System.Text.RegularExpressions.Regex.Replace(text,@"\{입력:([a-zA-Z0-9_가-힣-]{1,50})\}",
-            m => formValues.TryGetValue(m.Groups[1].Value,out string value) ? value : "");
+            m => formValues.TryGetValue(m.Groups[1].Value,out string value) || formDefaults.TryGetValue(m.Groups[1].Value,out value) ? value : "");
     }
     internal void CommitField(StudioWidget w,string raw) {
         if (!Visible(w) || !Enabled(w) || Array.IndexOf(CurrentLayout.elements,w)<0) return;
@@ -155,7 +156,9 @@ public sealed partial class StudioWorld
     }
     private void ResetProgress()
     {
-        formValues.Clear();
+        formValues.Clear();formDefaults.Clear();
+        foreach(var layout in Project.layouts)foreach(var w in layout.elements)
+            if(w.type=="input" && !string.IsNullOrEmpty(w.control?.key) && !formDefaults.ContainsKey(w.control.key))formDefaults[w.control.key]=w.control.initial;
         mapHistory.Clear();
         kills.Clear();
         combatStates.Clear();
@@ -385,7 +388,7 @@ public sealed partial class StudioWorld
             GUI.Label(area, inventory ? "보유 장비 없음" : "등록된 의뢰 없음", style);
             return;
         }
-        float line = Mathf.Max(32, style.fontSize * 2);
+        float line = Mathf.Max(32, (inventory ? screenView.ItemStyle(widget,style).fontSize : style.fontSize) * 2);
         float width = Mathf.Max(24, area.width - 18);
         widgetScroll[key] = GUI.BeginScrollView(area, scroll, new Rect(0, 0, width, count * line));
         int i = 0;
@@ -399,7 +402,7 @@ public sealed partial class StudioWorld
                 var old = Item(equipped);
                 string label = item.name + " ×" + p.Value + " · " +
                                (equipped == item.id ? "장착 해제" : (old?.power ?? 0) + " → " + item.power);
-                if (GUI.Button(new Rect(0, i++ * line, width, line), label))
+                if (screenView.ItemButton(widget,new Rect(0, i++ * line, width, line), label, style,true))
                     ToggleGear(item);
             }
         else

@@ -1239,3 +1239,13 @@ body { font-size:16px; }
 .ui-canvas .widget-input>*{pointer-events:none}
 #overlay .hotspot:not(:focus-visible){opacity:0}.ui-preview.hotspot{outline:2px dashed currentColor;outline-offset:-3px}
 
+
+.shot-options.free-choices{display:block;position:absolute;inset:0}
+.shot-options.free-choices button{position:absolute;min-height:0;min-width:0;overflow:auto;padding:0 .16em}
+.shot-options.free-choices button:active{background-color:var(--option-pressed)!important}
+
+
+.widget.item-skin button{background:var(--item-fill);color:var(--item-color);font-size:var(--item-font);border:var(--item-width) solid var(--item-edge);border-radius:var(--item-radius)}
+.widget.item-skin button:active{background:var(--item-press)}
+.ui-preview .sample-dialogue button,.ui-preview.widget-inventory button{pointer-events:none}
+

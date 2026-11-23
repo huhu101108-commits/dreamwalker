@@ -549,7 +549,7 @@ function validShot(shot) {
   if(!shot || !rows(shot.layers,1,24)) return false;
   const choices=shot.layers.filter(p=>p.kind==='choices');
   if(choices.length!==1 || !choices[0].visible || choices[0].opacity<10) return false;
-  return shot.layers.every(p=>has(SHOT_KINDS,p.kind) && textValue(p.title,60) && textValue(p.caption,400) && imageRef(p.image) &&
+  return shot.layers.every(p=>has(SHOT_KINDS,p.kind) && (p.slots===undefined||(p.kind==='choices'&&validChoiceSlots(p.slots))) && textValue(p.title,60) && textValue(p.caption,400) && imageRef(p.image) &&
     num(p.x,-100,100) && num(p.y,-100,100) && num(p.w,1,200) && num(p.h,1,200) &&
     (p.kind!=='choices' || (p.x>=0 && p.y>=0 && p.w>=12 && p.h>=6 && p.x+p.w<=100.001 && p.y+p.h<=100.001)) &&
     ['visible','locked','flip'].every(k=>typeof p[k]==='boolean') && color(p.color) && color(p.fill) &&
@@ -687,6 +687,7 @@ function validMenuStep(d,s) {
 function validScreenWidget(d,w) {
   return !!w && !(!has(WIDGETS, w.type) ||
         (w.type === 'input' && !validInputSpec(w.control)) ||
+        (w.itemSkin!==undefined && (!['dialogue','inventory'].includes(w.type)||!validItemSkin(w.itemSkin))) ||
         (w.shortcut !== undefined && (w.type !== 'button' || !validShortcut(w.shortcut))) ||
         (w.hotspot !== undefined && (w.type !== 'button' || typeof w.hotspot !== 'boolean')) ||
         (w.stick !== undefined && (w.type !== 'joystick' || !validStick(w.stick))) ||
@@ -1284,6 +1285,7 @@ function playableWorld(project) {
 }
 function packNativeWorld(project) {
   const world = playableWorld(project);
+  world.stories=world.stories.map(s=>({...s,nodes:s.nodes.map(n=>n.shot?{...n,shot:{...n.shot,layers:n.shot.layers.map(l=>l.slots?{...l,manualChoices:true}:l)}}:n)}));
   world.combatContract = 1;
   world.combatRules = project.combatRules || [];
   world.characters = project.characters.map(({ clips, ...c }) => ({
@@ -1395,13 +1397,19 @@ function validInputSpec(c){
 }
 function controlKey(w,screenId){return w.control.key||screenId+'/'+w.id;}
 function readControl(w,screenId,values){return controlValue(w.control,values.get(controlKey(w,screenId))??w.control.initial)??w.control.initial;}
-function controlText(text,values){
-  return (text||'').replace(/\{입력:([a-zA-Z0-9_가-힣-]{1,50})\}/g,(_,name)=>values.get(name)??'');
+function controlDefaults(doc){
+  const values=new Map();
+  for(const layout of doc.layouts)for(const w of layout.elements)
+    if(w.type==='input' && w.control.key && !values.has(w.control.key))values.set(w.control.key,w.control.initial);
+  return values;
+}
+function controlText(text,values,defaults){
+  return (text||'').replace(/\{입력:([a-zA-Z0-9_가-힣-]{1,50})\}/g,(_,name)=>values.get(name)??defaults?.get(name)??'');
 }
 const validShortcut=key=>typeof key==='string' && /^(?:Key[A-Z]|Digit[0-9]|Space|Enter|Arrow(?:Up|Down|Left|Right)|Minus|Equal)?$/.test(key);
 const stickDefaults=()=>({thumb:38,dead:14,knob:'#c5eef1',ring:'#c5eef1'});
 const validStick=s=>!!s && integer(s.thumb,15,75) && integer(s.dead,0,80) && color(s.knob) && color(s.ring);
-const PRESET_KINDS={layout:'화면 디자인',widget:'UI 요소',shot:'대사 구도',tuning:'전투 수치',workspace:'제작실 배치'};
+const PRESET_KINDS={rule:'전투 규칙',layout:'화면 디자인',widget:'UI 요소',shot:'대사 구도',tuning:'전투 수치',workspace:'제작실 배치'};
 const studioPaintDefaults=()=>({surface:'#233847',entry:'#152b38',ink:'#eef4f6',line:'#57808a',accent:'#a0e7d4',radius:7,height:40});
 function validWorkspace(p){
   const t=p?.paint;
@@ -1434,6 +1442,7 @@ function validStudioPreset(doc,p){
   if(!has(PRESET_KINDS,p.kind)||!textValue(p.name,60,true)||!p.data||typeof p.data!=='object')return false;
   const data=p.data;
   if(p.kind==='tuning')return Object.entries(FIELDS).every(([k,[,min,max,step]])=>num(data[k],min,max)&&(step!==1||Number.isInteger(data[k])));
+  if(p.kind==='rule')return (data.actor===''||validId(data.actor)) && !validateCombatRules([{...data,actor:''}],[]);
   if(p.kind==='shot')return validShot(data);
   if(p.kind==='workspace')return validWorkspace(data);
   const layout=p.kind==='layout';
@@ -1450,6 +1459,12 @@ function validStudioPreset(doc,p){
   });
 }
 const paintFields=['color','background','opacity','fontSize','align','radius','borderWidth','borderColor','pressedColor','imageFit','image','shape','points'];
+function itemSkinFrom(w){
+  return {color:w.color,fill:w.background,press:w.pressedColor,edge:w.borderColor,width:w.borderWidth,radius:w.radius,size:w.fontSize};
+}
+function validItemSkin(s){
+  return !!s && ['color','fill','press','edge'].every(k=>color(s[k])) && num(s.radius,0,50) && num(s.width,0,12) && integer(s.size,8,64);
+}
 function applyWidgetPaint(target,source){
   for(const key of paintFields){
     if(Object.hasOwn(source,key))target[key]=structuredClone(source[key]);
@@ -1472,3 +1487,16 @@ function applyUIPreset(doc,p,layout,target,styleOnly=false){
   if(data.shortcut&&layout.elements.some(w=>w.shortcut===data.shortcut))delete data.shortcut;
   data.id=uid();layout.elements.push(data);return data.id;
 }
+
+function validChoiceSlots(slots){
+  return Array.isArray(slots)&&slots.length<=6&&new Set(slots.map(s=>s?.index)).size===slots.length&&slots.every(s=>s&&integer(s.index,0,5)&&
+    num(s.x,0,95)&&num(s.y,0,95)&&num(s.w,5,100-s.x+.001)&&num(s.h,5,100-s.y+.001)&&color(s.fill)&&color(s.color)&&color(s.press)&&integer(s.radius,0,50));
+}
+function choiceSlot(layer,count,index){
+  const saved=layer.slots?.find(s=>s.index===index);if(saved)return saved;
+  const cols=Math.min(layer.columns||1,count),rows=Math.ceil(count/cols);
+  const tenth=v=>Math.round(v*10)/10;
+  return {index,x:tenth(index%cols*100/cols+1),y:tenth(Math.floor(index/cols)*100/rows+1),w:tenth(100/cols-2),h:tenth(100/rows-2),
+    fill:layer.fill,color:layer.color,press:'#36656e',radius:Math.round(layer.radius)};
+}
+

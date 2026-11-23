@@ -54,6 +54,13 @@ function makeShotView(world,line,map,advance,design=false) {
         });
         entry.labels=signature;
       }
+      content.classList.toggle('free-choices',!!p.slots);
+      for(const [i,b] of [...content.children].entries()){
+        if(!p.slots){b.removeAttribute('style');continue;}
+        const s=choiceSlot(p,labels.length,i);shotBounds(b,s);
+        b.style.color=s.color;b.style.backgroundColor=rgba(s.fill,p.fillOpacity);
+        b.style.borderRadius=s.radius+'%';b.style.setProperty('--option-pressed',s.press);
+      }
     } else if(content) {
       const value=p.kind==='name'?person():p.kind==='text'?line.text:p.caption;
       if(content.textContent!==value) content.textContent=value;

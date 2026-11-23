@@ -415,7 +415,7 @@ function launchGame(mapId, screenId = '', inspection = false) {
       }
   }
   function paintHUD() {
-    const state = { inputs:run.inputValues, character: run.character, hp: run.hero.hp, map: run.map, enemies: run.enemiesLeft, loading: run.loadingFraction };
+    const state = { inputs:run.inputValues, inputDefaults:run.inputDefaults, character: run.character, hp: run.hero.hp, map: run.map, enemies: run.enemiesLeft, loading: run.loadingFraction };
     const stamp = state.hp + '|' + state.enemies + '|' + run.progressVersion + '|' + Math.round(100 * state.loading);
     if (hudStamp !== stamp) {
       for (const { w, n } of widgets)

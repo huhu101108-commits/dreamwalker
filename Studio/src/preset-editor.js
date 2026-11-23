@@ -19,7 +19,9 @@ function presetPanel(kind,read,apply,options={}){
   name.oninput=()=>presetNames.set(kind,name.value);
   const redraw=options.refresh||draw;
   function change(fn){edit(fn,false);redraw();}
-  const fresh=action('새 프리셋 저장',()=>change(()=>writePreset(kind,name.value,read,options.origin)));
+  const fresh=action('새 프리셋 저장',()=>{
+    change(()=>writePreset(kind,name.value,read,options.origin));note('프리셋을 초안에 저장했어요. 다른 기기에서도 쓰려면 공유 저장하세요.');persistDraft();
+  });
   fresh.disabled=!read;block.append(row(titled(title+' 프리셋 이름',name),fresh));
   if(chosen){
     block.append(selectField('저장한 '+title,chosen.id,optionMap(entries),id=>{selectedPresets.set(kind,id);redraw();}));
@@ -99,3 +101,55 @@ function stickInspector(w,parent){
     numberField('반응하지 않는 중심 범위 (%)',s.dead,0,80,1,v=>set('dead',v)),
     colorField('손잡이 색',s.knob,v=>set('knob',v)),colorField('바깥 링 색',s.ring,v=>set('ring',v)));
 }
+
+let editingChoiceIndex=0;
+function drawChoiceSlots(parent,layer,line,repaint){
+  const labels=line.choices.length?line.choices.map(c=>c.label):[line.nextLabel||'다음'];
+  parent.append(checkField('선택 버튼을 개별 배치',!!layer.slots,v=>edit(()=>{
+    if(v)layer.slots=[];else delete layer.slots;
+  })));
+  if(!layer.slots)return;
+  const form=box('control-grid');
+  function fields(){
+    form.replaceChildren();
+    const index=Math.min(editingChoiceIndex,labels.length-1),s=choiceSlot(layer,labels.length,index);
+    form.append(selectField('디자인할 선택 버튼',String(index),Object.fromEntries(labels.map((label,i)=>[i,(i+1)+'. '+label])),v=>{editingChoiceIndex=Number(v);fields();}));
+    function update(key,value){
+      const next={...choiceSlot(layer,labels.length,index),[key]:value};
+      if(!validChoiceSlots([next]))return;
+      edit(()=>{layer.slots=layer.slots.filter(row=>row.index!==index).concat(next);},false);repaint();
+    }
+    for(const [key,label,min,max] of [['x','왼쪽',0,100-s.w],['y','위쪽',0,100-s.h],['w','너비',5,100-s.x],['h','높이',5,100-s.y]]){
+      const field=numberField('개별 버튼 '+label+' (%)',s[key],min,Math.round(max*10)/10,.1,v=>update(key,v));
+      field.lastElementChild.onblur=()=>{const current=choiceSlot(layer,labels.length,index);
+        const limits=[100-current.w,100-current.h,100-current.x,100-current.y];
+        form.querySelectorAll('input[type=number]').forEach((n,i)=>{if(i<4)n.max=Math.round(limits[i]*10)/10;});};form.append(field);
+    }
+    form.append(colorField('개별 버튼 바탕색',s.fill,v=>update('fill',v)),colorField('개별 버튼 글자색',s.color,v=>update('color',v)),
+      colorField('개별 버튼 누를 때 색',s.press,v=>update('press',v)),numberField('개별 버튼 둥글기 (%)',s.radius,0,50,1,v=>update('radius',v)),
+      action('이 버튼 자동 배치로 복원',()=>{edit(()=>{layer.slots=layer.slots.filter(row=>row.index!==index);},false);repaint();fields();}));
+  }
+  fields();parent.append(form);
+}
+
+
+function itemSkinInspector(w,parent){
+  const card=el('details');card.dataset.persist='inside-controls';
+  card.append(el('summary',w.type==='dialogue'?'대화 선택 버튼 디자인':'장비 선택 버튼 디자인'),
+    checkField('내부 버튼 모양 직접 지정',!!w.itemSkin,on=>edit(()=>{if(on)w.itemSkin=itemSkinFrom(w);else delete w.itemSkin;})));
+  if(w.itemSkin){
+    const s=w.itemSkin;
+    const redraw=()=>{const node=document.querySelector('.ui-preview.selected');if(!node)return;
+      const ref=newWidgetView(w);for(const k of ['color','fill','press','edge','radius','width','font'])node.style.setProperty('--item-'+k,ref.style.getPropertyValue('--item-'+k));};
+    card.append(box('control-grid',bindColor('내부 버튼 글자색',s,'color',redraw),bindColor('내부 버튼 바탕색',s,'fill',redraw),
+      bindColor('내부 버튼 눌림색',s,'press',redraw),bindColor('내부 버튼 테두리 색',s,'edge',redraw),
+      bindNumber('내부 버튼 글자 크기',s,'size',8,64,1,redraw),bindNumber('내부 버튼 테두리 두께',s,'width',0,12,1,redraw),
+      bindNumber('내부 버튼 둥글기 (%)',s,'radius',0,50,1,redraw)));
+    const buttons=(project.work?.presets||[]).filter(p=>p.kind==='widget'&&p.data.type==='button');
+    if(buttons.length)card.append(selectField('저장한 버튼 모양 사용','',{'':'버튼 프리셋 선택',...optionMap(buttons)},id=>{
+      const source=named(buttons,id);if(source)edit(()=>{w.itemSkin=itemSkinFrom(source.data);});
+    }));
+  }
+  parent.append(card);
+}
+

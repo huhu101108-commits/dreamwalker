@@ -137,7 +137,7 @@ function drawShotEditor(main,side,story,line) {
       details.append(propColor('글자 색','color'),propNumber('글자 크기 · 800px 기준','size',8,100),
         selectField('글자 정렬',active.align,{left:'왼쪽',center:'가운데',right:'오른쪽'},v=>appearance('align',v)));
       if(active.kind==='caption') details.append(propText('자유 문구 내용','caption',400,true));
-      if(active.kind==='choices') details.append(propNumber('선택지 열 수','columns',1,4));
+      if(active.kind==='choices'){details.append(propNumber('선택지 열 수','columns',1,4));drawChoiceSlots(details,active,line,()=>view.update(active));}
     }else{
       const target=active;
       details.append(selectField('이미지 맞춤',target.fit,{contain:'전체 보이기',cover:'채우기',stretch:'영역에 맞추기'},v=>appearance('fit',v)),

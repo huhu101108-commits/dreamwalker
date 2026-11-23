@@ -20,7 +20,11 @@ const copy=m.applyUIPreset(p,part,second);assert.notEqual(copy,button.id);assert
 const oldAction=second.elements.at(-1).action;
 m.applyUIPreset(p,part,second,second.elements.at(-1),true);assert.equal(second.elements.at(-1).action,oldAction);
 const refs=m.seed();refs.work=structuredClone(p.work);assert(m.imageRefs(refs).includes(hash));assert(!m.imageRefs(m.packNativeWorld(refs)).includes(hash));
-const native=m.packNativeWorld(p);assert(!native.work);assert.equal(native.layouts[0].elements.find(w=>w.type==='input').control.key,'호출명');
+const layer=shot.data.layers.find(l=>l.kind==='choices');layer.slots=[{index:0,x:20,y:10,w:60,h:70,fill:'#234455',color:'#eefaff',press:'#7d3633',radius:20}];
+p.stories.push({id:'lines',name:'설산',nodes:[{id:'greet',text:'길을 골라 줘.',speaker:'',choices:[],shot:structuredClone(shot.data)}]});
+const native=m.packNativeWorld(p);assert.equal(native.stories[0].nodes[0].shot.layers.find(l=>l.kind==='choices').manualChoices,true);
+const badSlot=structuredClone(shot);badSlot.data.layers.find(l=>l.kind==='choices').slots[0].w=99;assert(!m.validStudioPreset(p,badSlot));
+assert(!native.work);assert.equal(native.layouts[0].elements.find(w=>w.type==='input').control.key,'호출명');
 const missing=structuredClone(part);missing.data.target='lost-screen';assert(m.validStudioPreset(p,missing));const before=JSON.stringify(second);
 assert.throws(()=>m.applyUIPreset(p,missing,second));assert.equal(JSON.stringify(second),before);
 const damaged=structuredClone(p);damaged.work.presets[0].data.elements[0].w=-1;assert(m.problem(damaged));

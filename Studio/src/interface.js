@@ -146,7 +146,7 @@ function drawInterface() {
     if (v.id === elementId) n.classList.add('selected');
     if (!v.visible) n.classList.add('ghost');
     if (v.type === 'dialogue')
-      n.append(box('sample-dialogue', el('strong', c.name), el('span', '대사와 선택지가 표시되는 영역')));
+      n.append(box('sample-dialogue', el('strong', c.name), el('span', '대사와 선택지가 표시되는 영역'),el('button','다음')));
     else updateWidget(n, boundMenuButton(project,v), sample);
     const handle = v.id === elementId && !v.editorLocked ? el('i') : null;
     if (handle) {
@@ -305,6 +305,7 @@ function drawInterface() {
   }
   b.append(g);
   if(w.type==='input')inputInspector(w,b);
+  if(['dialogue','inventory'].includes(w.type))itemSkinInspector(w,b);
   if(w.type==='joystick')stickInspector(w,b);
   if(w.type==='button')clickInspector(l,w,b);
   if (w.type === 'button') {

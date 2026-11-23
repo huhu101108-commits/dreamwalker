@@ -109,9 +109,14 @@ export async function testDialogueBrowser(page){
   await button('다음 대사').click();await button('구도 붙여넣기').click();
   await number('레이어 가로 위치 (%)',22.4);
   await button('이전 대사').click();assert.deepEqual(await bounds(text),exact);
+  await field('편집할 레이어').selectOption(await stage.locator('.shot-choices').getAttribute('data-layer-id'));
+  await field('선택 버튼을 개별 배치').check();
+  await number('개별 버튼 너비 (%)',55);await number('개별 버튼 왼쪽 (%)',23);
+  assert.equal((await bounds(stage.locator('.shot-options button').first()))[0],'23%');
   await button('이 줄 재생').click();
   const reader=page.locator('#readerArea');
   assert.deepEqual(await bounds(reader.locator('.shot-text')),exact);
+  assert.equal((await bounds(reader.getByRole('button',{name:'눈길로'})))[0],'23%');
   await reader.getByRole('button',{name:'눈길로'}).click();
   assert.equal((await bounds(reader.locator('.shot-text')))[0],'22.4%');
   await reader.getByRole('button',{name:'발자국 따라가기'}).click();
@@ -150,6 +155,7 @@ export async function testDialogueBrowser(page){
     await screen.getByRole('button',{name:'게임 시작'}).click();await screen.getByRole('button',{name:'이 캐릭터로 시작'}).click();
     await screen.getByText(lineText,{exact:true}).waitFor();assert.deepEqual(await bounds(screen.locator('.shot-text')),exact);
     assert.match(await screen.locator('.shot-backdrop img').getAttribute('src'),/^data:image\//);
+    assert.equal((await bounds(screen.getByRole('button',{name:'눈길로'})))[0],'23%');
     await screen.getByRole('button',{name:'눈길로'}).click();
     assert.equal((await bounds(screen.locator('.shot-text')))[0],'22.4%');
     await screen.getByRole('button',{name:'발자국 따라가기'}).click();await screen.locator('.stick-ring').waitFor();
