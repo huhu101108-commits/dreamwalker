@@ -5,7 +5,7 @@ function drawShotEditor(main,side,story,line) {
   const header=row(heading('이 줄의 화면 구성'));
   panel.append(header);
   function useShot(shot) {
-    edit(()=>{line.shot=structuredClone(shot);if(line.stageTrack)line.stageTrack.cues=line.stageTrack.cues.filter(c=>!c.target||named(line.shot.layers,c.target));shotSelected=line.shot.layers.find(p=>p.kind==='text')?.id || line.shot.layers[0].id;});
+    edit(()=>{line.shot=fitShotStaging(project,structuredClone(shot));if(line.stageTrack)line.stageTrack.cues=line.stageTrack.cues.filter(c=>!c.target||named(line.shot.layers,c.target));shotSelected=line.shot.layers.find(p=>p.kind==='text')?.id || line.shot.layers[0].id;});
   }
   function replaceLayout(shot) {
     if(!line.shot || confirm('이 줄의 화면 구도를 바꿀까요? 실행 취소로 복원할 수 있어요.')) useShot(shot);
@@ -65,6 +65,30 @@ function drawShotEditor(main,side,story,line) {
   const addType=el('select');
   for(const k of ['art','caption','panel','portrait']) addType.add(new Option(SHOT_KINDS[k],k));
   tools.append(titled('추가할 요소',addType),action('레이어 추가',()=>add(addType.value)));
+  // Cast members keep their place across lines; the speaker is lit and the others dim when focus is on.
+  const castRow=row(checkField('화자 강조 · 말하지 않는 인물 어둡게',!!line.shot.focus,v=>edit(()=>{if(v)line.shot.focus=true;else delete line.shot.focus;})));
+  if(project.characters.length){
+    let who=line.speaker||project.characters[0].id;
+    castRow.append(selectField('무대에 세울 인물',who,optionMap(project.characters),v=>{who=v;}),action('인물 레이어 추가',()=>placeCast(who)));
+  }
+  panel.insertBefore(castRow,layout);
+  function placeCast(actorId){
+    if(layers.length>=24) return note('한 줄에 레이어 24개까지 사용할 수 있어요.');
+    const actor=named(project.characters,actorId);if(!actor)return;
+    const seats=[{x:1,y:6,w:42,h:94},{x:57,y:6,w:42,h:94},{x:29,y:6,w:42,h:94}];
+    const cast=layers.filter(p=>p.actor);
+    const taken=seats.find(s=>!cast.some(p=>Math.abs(p.x-s.x)<8))||seats[cast.length%3];
+    const p={...newShotLayer('art'),...taken,actor:actor.id,title:actor.name};
+    if(line.speaker===actor.id&&line.expression)p.expression=line.expression;
+    const portrait=layers.find(v=>v.kind==='portrait'&&v.visible);
+    edit(()=>{
+      const at=layers.findIndex(v=>v.kind==='panel');
+      layers.splice(at<0?layers.length:at,0,p);
+      if(!cast.length&&portrait)portrait.visible=false;
+      shotSelected=p.id;
+    });
+    if(!cast.length&&portrait)note('화자 초상 레이어를 숨기고 인물 레이어로 무대를 구성했어요. 다시 보이려면 레이어에서 화자 초상을 켜세요.');
+  }
   function appearance(k,value,group){
     edit(()=>{active[k]=value;},false,group);
     view.update(active);show(active,false);
@@ -140,6 +164,20 @@ function drawShotEditor(main,side,story,line) {
       if(active.kind==='choices'){details.append(propNumber('선택지 열 수','columns',1,4));drawChoiceSlots(details,active,line,()=>view.update(active));}
     }else{
       const target=active;
+      if(target.kind==='portrait')details.append(lineExpressionField(line));
+      if(target.kind==='art'){
+        details.append(selectField('이 레이어의 인물',target.actor||'',{'':'인물 연결 안 함',...optionMap(project.characters)},v=>edit(()=>{
+          const before=target.actor&&named(project.characters,target.actor);
+          delete target.expression;
+          if(v){if(!target.title||target.title===before?.name)target.title=named(project.characters,v).name;target.actor=v;}
+          else{if(before&&target.title===before.name)target.title='';delete target.actor;}
+        })));
+        const member=target.actor&&named(project.characters,target.actor);
+        if(member?.expressions?.length)details.append(selectField('인물 표정',target.expression||'',{'':'기본 초상',...Object.fromEntries(member.expressions.map(x=>[x.id,x.name]))},v=>edit(()=>{
+          if(v)target.expression=v;else delete target.expression;
+        })));
+        if(member)details.append(el('small',target.image?'레이어 이미지를 연결하면 인물 그림 대신 그 이미지가 보여요. 화자 강조는 그대로 적용돼요.':'인물 그림은 선택한 표정, 대화용 초상화, 전신 이미지 순서로 표시돼요.'));
+      }
       details.append(selectField('이미지 맞춤',target.fit,{contain:'전체 보이기',cover:'채우기',stretch:'영역에 맞추기'},v=>appearance('fit',v)),
         checkField('이미지 좌우 반전',target.flip,v=>appearance('flip',v)),
         assetField('레이어 이미지',target.image,v=>edit(()=>{target.image=v;}),target.kind==='backdrop'));

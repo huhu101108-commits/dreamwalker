@@ -1,7 +1,22 @@
 // The editor, story preview and playable web builds use the same percentage coordinate system.
+
+// The speaker's face for a line: explicit line image, chosen expression, then the character portrait.
+function lineFaceUrl(world,line) {
+  const speaker=named(world.characters,line.speaker);
+  return imageUrl(line.portrait)||(speaker?imageUrl(actorFaceRef(speaker,line.expression))||characterUrl(speaker,true):'');
+}
+// A free image layer bound to a cast member shows that member's chosen expression or default face.
+function castLayerUrl(world,p) {
+  const actor=p.actor&&named(world.characters,p.actor);
+  return actor?imageUrl(actorFaceRef(actor,p.expression))||characterUrl(actor,true):'';
+}
+function shotDimmed(line,p) {
+  return !!(line.shot?.focus && p.actor && line.speaker && p.actor!==line.speaker);
+}
 function shotImage(world,line,map,p) {
   if(p.image) return imageUrl(p.image);
-  if(p.kind==='portrait') return imageUrl(line.portrait)||characterUrl(named(world.characters,line.speaker),true);
+  if(p.kind==='portrait') return lineFaceUrl(world,line);
+  if(p.kind==='art' && p.actor) return castLayerUrl(world,p);
   if(p.kind==='backdrop') {
     const url=imageUrl(line.backdrop || map.backdrop);
     return url || (map.floorMode==='drawn'?'':typeof GAME_DATA==='undefined'?'/stage.webp':GAME_DATA.images['/stage.webp']);
@@ -25,6 +40,7 @@ function makeShotView(world,line,map,advance,design=false) {
     const {node,img,content}=entry;
     shotBounds(node,p);node.hidden=!p.visible;
     node.style.opacity=p.opacity/100;
+    node.classList.toggle('shot-dim',shotDimmed(line,p));
     node.style.color=p.color;
     node.style.textAlign=p.align;
     node.style.setProperty('--shot-font',(p.size/8)+'cqw');

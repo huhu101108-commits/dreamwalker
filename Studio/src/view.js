@@ -268,14 +268,35 @@ function newWidgetView(w,play=false) {
     node.style.backgroundColor = 'transparent';
     node.append(ring);
   }
-  if (w.type === 'hp' || w.type === 'loading') {
+  if (w.type === 'hp' || w.type === 'loading' || w.type === 'energy' || w.type === 'boss') {
     const fill = el('span'),
       label = el('span');
     fill.className = 'hp-fill';
     label.className = 'hp-label';
     node.append(fill, label);
+    if (w.type === 'boss') {
+      const mark = el('i');
+      mark.className = 'boss-phase';
+      mark.setAttribute('aria-hidden', 'true');
+      node.append(mark);
+    }
   }
+  if (w.type === 'button' && w.meter) node.classList.add('skill-meter');
   return node;
+}
+// Cooldown shade and gauge charge on a skill button. Values are quantized so steady frames do not touch the DOM.
+function paintSkillMeter(node, meter) {
+  const wait = meter ? Math.round(meter.waitFraction * 40) / 40 : 0,
+    charge = meter ? Math.round(meter.charge * 40) / 40 : 1;
+  const seconds = meter && meter.wait > 0 ? (meter.wait >= 10 ? Math.ceil(meter.wait) : Math.ceil(meter.wait * 10) / 10).toString() : '';
+  const key = wait + '|' + charge + '|' + seconds + '|' + (meter?.cost || 0);
+  if (node.meterKey === key) return;
+  node.meterKey = key;
+  node.style.setProperty('--meter-wait', wait * 100 + '%');
+  node.style.setProperty('--meter-charge', charge * 100 + '%');
+  node.dataset.wait = seconds;
+  node.classList.toggle('meter-charging', !!meter?.cost && charge < 1);
+  node.classList.toggle('meter-ready', !!meter && !seconds && charge >= 1);
 }
 function showInputValue(node,w,value){
   const field=node.querySelector('input, select');if(!field)return;
@@ -311,8 +332,21 @@ function updateWidget(n, w, state) {
     const percent = Math.round(100 * (state.loading ?? 0.6));
     n.querySelector('.hp-fill').style.width = percent + '%';
     n.querySelector('.hp-label').textContent = (w.text || '로딩') + ' ' + percent + '%';
+  } else if (w.type === 'energy') {
+    const e = state.energy;
+    n.querySelector('.hp-fill').style.width = (e ? clamp((e.now / e.max) * 100, 0, 100) : 0) + '%';
+    n.querySelector('.hp-label').textContent = (profileText(w.text, c) || '스킬 게이지') + '　' + (e ? e.now + ' / ' + e.max : '없음');
+    n.classList.toggle('gauge-full', !!e && e.now >= e.max);
+  } else if (w.type === 'boss') {
+    const b = state.boss;
+    n.hidden = !b;
+    if (b) {
+      n.querySelector('.hp-fill').style.width = clamp((b.hp / b.max) * 100, 0, 100) + '%';
+      n.querySelector('.hp-label').textContent = (w.text || b.label || '보스') + '　' + Math.ceil(b.hp) + ' / ' + b.max;
+      n.style.setProperty('--boss-phase', clamp(b.phase, 1, 99) + '%');
+    }
   } else if (w.type === 'portrait') {
-    const url = characterUrl(c, true);
+    const url = imageUrl(actorFaceRef(c)) || characterUrl(c, true);
     n.style.backgroundImage = '';
     cssImage(n, url);
     n.textContent = url ? '' : c.name;
@@ -321,15 +355,15 @@ function updateWidget(n, w, state) {
     const title=n.querySelector('.input-title'),field=n.querySelector('input,select');
     title.textContent=w.text;title.hidden=!w.text;field.setAttribute('aria-label',w.text||w.control.hint||CONTROL_MODES[w.control.mode]);
   } else if (w.type === 'enemies') n.textContent = (w.text || '남은 적') + ' ' + state.enemies;
-  else if (w.type === 'character') n.textContent = w.text || c.name;
+  else if (w.type === 'character') n.textContent = profileText(w.text, c) || c.name;
   else if (w.type === 'map') n.textContent = w.text || state.map.name;
   else if (w.type === 'inventory'){n.replaceChildren(el('button','보유 장비 · 장착 변경'));}
   else if (w.type === 'quests') n.textContent = '의뢰 목록 · 진행 상태';
-  else if (w.type === 'text') n.textContent = state.inputs?controlText(w.text,state.inputs,state.inputDefaults):w.text;
+  else if (w.type === 'text') n.textContent = profileText(state.inputs?controlText(w.text,state.inputs,state.inputDefaults):w.text, c);
   else if (w.type === 'button'){
     const s=w.states,disabled=n.disabled||state.previewState==='disabled',selected=state.previewState==='selected'||(s?.flag&&state.flags?.has(s.flag));
     const mark=s?(disabled?s.disabledMark:selected?s.selectedMark:''):'';
-    n.textContent=(mark?mark+' ':'')+((state.inputs?controlText(w.text,state.inputs,state.inputDefaults):w.text)||getActionLabel(w.action,c));
+    n.textContent=(mark?mark+' ':'')+(profileText(state.inputs?controlText(w.text,state.inputs,state.inputDefaults):w.text,c)||getActionLabel(w.action,c));
     if(s){
       n.style.backgroundColor=disabled?s.disabled:selected?s.selected:w.background+Math.round(w.opacity*2.55).toString(16).padStart(2,'0');
       if(s.flag)n.setAttribute('aria-pressed',String(!!selected));
@@ -351,8 +385,9 @@ function gameAudio(world,host) {
     if (!ref) {stop(kind);return;}
     if(tracks.get(kind)?.token===token) return;
     stop(kind);
-    const channel=kind==='stageFx'?'fx':kind,mode=mix[channel+'Mode'];
-    const player=new Audio(imageUrl(ref));player.loop=mode==='loop'||(mode!=='once'&&kind==='music');player.volume=(mix[channel]??100)/100;
+    // A skill shout uses the voice volume but always plays once.
+    const channel=kind==='stageFx'?'fx':kind==='castVoice'?'voice':kind,mode=mix[channel+'Mode'];
+    const player=new Audio(imageUrl(ref));player.loop=kind!=='castVoice'&&(mode==='loop'||(mode!=='once'&&kind==='music'));player.volume=(mix[channel]??100)/100;
     const t={player,token}; tracks.set(kind,t); tryPlay(t);
   }
   const resume=()=>{for(const t of tracks.values()) if(t.player.paused) tryPlay(t);};

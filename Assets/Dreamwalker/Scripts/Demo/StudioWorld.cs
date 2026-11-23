@@ -13,7 +13,7 @@ public sealed partial class StudioWorld : MonoBehaviour
     internal const float UnitX = 1f / 3.5f, UnitY = .16f, OriginX = 1000f;
     private class Foe
     {
-        public string id, state;
+        public string id, state, label;
         public int stateTicks;
         public CombatTarget target;
         public StudioEnemy config;
@@ -96,6 +96,49 @@ public sealed partial class StudioWorld : MonoBehaviour
     private float clock, started, nextHit, lastDamage;
     private StudioObject pendingExit;
     private StudioScreenView screenView;
+    private readonly StudioCastClock castClock = new StudioCastClock();
+    private string shoutText;
+    private float shoutUntil;
+    internal StudioCastClock Cast => castClock;
+    internal bool ShoutVisible => !string.IsNullOrEmpty(shoutText) && clock < shoutUntil && Story == null;
+    internal string ShoutText => shoutText;
+    internal int Energy => Actor != null && Actor.HasEnergy ? RuleState().Energy(Actor.energy) : 0;
+    internal Vector2 HeroScreen()
+    {
+        var p = view != null ? view.WorldToScreenPoint(transform.position + Vector3.up * 2.6f) : Vector3.zero;
+        return new Vector2(p.x, Screen.height - p.y);
+    }
+    // Remaining cooldown and gauge charge for one skill slot, for skill buttons that show a meter.
+    internal bool SkillMeter(string action, out float wait, out float waitFraction, out float charge, out int cost)
+    {
+        wait = waitFraction = 0; charge = 1; cost = 0;
+        if (Actor == null || action == null || !action.StartsWith("skill", StringComparison.Ordinal) ||
+            !int.TryParse(action.Substring(5), out int slot) || slot < 1 || slot > Actor.skills.Length || slot > cooldowns.Length)
+            return false;
+        var used = Actor.skills[slot - 1];
+        if (used == null || used.mechanic == "none") return false;
+        float total = used.cooldown >= 0 ? used.cooldown : Project.tuning.Cooldown(used.mechanic);
+        wait = Mathf.Max(0, cooldowns[slot - 1] - clock);
+        waitFraction = total > 0 ? Mathf.Min(1, wait / total) : 0;
+        cost = Mathf.Max(0, used.cost);
+        if (cost > 0) charge = Actor.HasEnergy ? Mathf.Min(1, (float)Energy / cost) : 0;
+        return true;
+    }
+    // The boss bar follows the nearest living boss once it has noticed the hero or taken damage.
+    internal bool Boss(out string label, out int hp, out int max, out int phase)
+    {
+        label = ""; hp = max = phase = 0;
+        float gap = float.PositiveInfinity, hero = transform.position.x;
+        foreach (var e in foes)
+        {
+            if (e.target.Health <= 0 || e.config.style != "boss") continue;
+            int full = e.config.health > 0 ? e.config.health : Project.tuning.hp;
+            float d = Mathf.Abs(e.target.transform.position.x - hero);
+            if ((d > e.config.sight * UnitX && e.target.Health >= full) || d >= gap) continue;
+            gap = d; label = e.label ?? ""; hp = e.target.Health; max = full; phase = e.config.phase > 0 ? e.config.phase : 50;
+        }
+        return max > 0;
+    }
 
     public void Play(StudioProject project, StudioConnection connection)
     {
@@ -235,6 +278,8 @@ public sealed partial class StudioWorld : MonoBehaviour
         deferExit = false;
         Map = map;
         sceneAge=restoring?float.PositiveInfinity:0;
+        castClock.Clear();
+        shoutUntil = 0;
         sceneRoot = new GameObject("Studio map - " + map.name);
         clock = 0;
         lastDamage = float.NegativeInfinity;
@@ -330,7 +375,9 @@ public sealed partial class StudioWorld : MonoBehaviour
     {
         float fraction = preserveHealth && Actor != null ? (float)Health / Actor.health : 1;
         Actor = character;dodgeStart=-1;
+        castClock.Clear();
         if (Actor.motionClips != null) foreach (var clip in Actor.motionClips) Connection.Sound(clip.sound);
+        foreach (var authored in Actor.skills) if (authored != null && authored.HasCast) Connection.Sound(authored.cast.voice);
         Health = Mathf.Clamp(Mathf.CeilToInt(fraction * Actor.health), 1, Actor.health);
         var t = Project.tuning;
         motor.ApplyStudioMovement(t.runSpeed * Actor.speedScale, t.jumpSpeed * Actor.jumpScale, t.dashSpeed,
@@ -432,7 +479,7 @@ public sealed partial class StudioWorld : MonoBehaviour
             collider.isTrigger = true;
             collider.enabled = true;
         }
-        foes.Add(new Foe { id = data.id, target = target, config = config });
+        foes.Add(new Foe { id = data.id, target = target, config = config, label = data.label });
         Remaining++;
     }
     private void LoadParts()
@@ -547,9 +594,11 @@ public sealed partial class StudioWorld : MonoBehaviour
             return;
         int baseDamage = Mathf.Max(1, Mathf.FloorToInt(damage * (1 + (float)GearPower() / Project.tuning.damage) * Actor.attackScale + .5f));
         if (!e.target.TakeDamage(baseDamage + CombatEvent("hit",e.config.tag??""), CombatFaction.Player, Vector2.zero)) return;
+        if (Actor.HasEnergy) RuleState().Gain(Actor.energy, Actor.energy.hit);
         if (stack) AddStack(e);
         if (e.target.Health == 0)
         {
+            if (Actor.HasEnergy) RuleState().Gain(Actor.energy, Actor.energy.kill);
             CombatEvent("kill",e.config.tag??"");
             kills[Map.id + "/" + e.id] = e.config.tag ?? "";
             GrantRewards();
@@ -808,6 +857,7 @@ public sealed partial class StudioWorld : MonoBehaviour
         slot--;
         var next = Actor.skills[slot];
         if(next.mechanic=="none" || clock<cooldowns[slot])return;
+        if(next.cost>0 && (!Actor.HasEnergy || RuleState().Energy(Actor.energy)<next.cost))return;
         if(slash.IsAttacking){if(slash.StudioStrike==null||!slash.StudioStrike.Cancel(slash.StudioTick))return;slash.ResetStudioAttack();}
         skill = next;
         activeSkillKey = action;
@@ -834,6 +884,13 @@ public sealed partial class StudioWorld : MonoBehaviour
         }
         targets.Sort((a, b) => Mathf.Abs(a.target.transform.position.x - skillOrigin.x)
                                    .CompareTo(Mathf.Abs(b.target.transform.position.x - skillOrigin.x)));
+        if(next.cost>0) RuleState().Spend(Actor.energy,next.cost);
+        if (next.HasCast)
+        {
+            castClock.Begin(Actor, next);
+            QueueCastVoice(next.cast.voice);
+            if (!next.cast.cutin && !string.IsNullOrEmpty(next.cast.line)) { shoutText = next.cast.line; shoutUntil = clock + 1.6f; }
+        }
         Fire("skill", action);
         cooldowns[slot] = clock + (next.cooldown >= 0 ? next.cooldown : t.Cooldown(next.mechanic));
         SyncControls();
@@ -1016,6 +1073,8 @@ public sealed partial class StudioWorld : MonoBehaviour
     {
         if (!Running || Paused)
             return;
+        if (castClock.Step())
+            return;
         combatTick++;
         if(eventMachine!=null){foreach(string key in eventMachine.Due(combatTick))Fire("timer",key);if(Paused)return;}
         float previousHp = Health * 100f / Actor.health;
@@ -1172,7 +1231,7 @@ public sealed partial class StudioWorld : MonoBehaviour
     {
         if (StudioOnlineArena.Visible) return;
         if (!Running) return;
-        screenView.Draw(); DrawSceneTransition(); DrawDiagnostics();
+        screenView.Draw(); screenView.DrawCast(); DrawSceneTransition(); DrawDiagnostics();
         if (!Paused || CurrentLayout == null || (!HasOverlay && Line?.shot?.layers != null) ||
             (ShowingFront && front == Project.frontScreens?.loading)) return;
         bool recovery = Array.Exists(CurrentLayout.elements, w => Visible(w) && Enabled(w) &&

@@ -16,7 +16,30 @@ namespace Dreamwalker.Demo
     {
         public string actor;
         public int shield,dodgeReady;
+        public int energy;
+        public bool energySet;
         public List<StudioRuleCounter> counters = new List<StudioRuleCounter>();
+
+        // Each character keeps its own skill gauge. Older saves start from the authored value.
+        public int Energy(StudioEnergy gauge)
+        {
+            if (gauge == null || gauge.max <= 0) return 0;
+            if (!energySet) { energy = gauge.start; energySet = true; }
+            energy = Math.Max(0, Math.Min(gauge.max, energy));
+            return energy;
+        }
+        public void Gain(StudioEnergy gauge, int amount)
+        {
+            if (gauge == null || gauge.max <= 0 || amount <= 0) return;
+            energy = Math.Min(gauge.max, Energy(gauge) + amount);
+        }
+        public bool Spend(StudioEnergy gauge, int cost)
+        {
+            if (cost <= 0) return true;
+            if (gauge == null || gauge.max <= 0 || Energy(gauge) < cost) return false;
+            energy -= cost;
+            return true;
+        }
 
         public int Absorb(int amount)
         {

@@ -1,0 +1,191 @@
+{
+ "characters": [
+  {
+   "id": "snow",
+   "name": "백설",
+   "portrait": "asset:a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+   "sprite": "",
+   "expressions": [
+    {
+     "id": "smile",
+     "name": "웃음",
+     "image": "asset:b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2"
+    },
+    {
+     "id": "plain",
+     "name": "기본",
+     "image": ""
+    }
+   ],
+   "profile": [
+    {
+     "id": "team",
+     "label": "소속",
+     "value": "북서부 순찰대"
+    },
+    {
+     "id": "likes",
+     "label": "좋아하는 것",
+     "value": "따뜻한 차"
+    }
+   ],
+   "energy": {
+    "max": 100,
+    "start": 10,
+    "hit": 30,
+    "hurt": 5,
+    "kill": 0
+   },
+   "skills": [
+    {
+     "name": "절대영도",
+     "mechanic": "nova",
+     "power": 1,
+     "cooldown": -1,
+     "cost": 100,
+     "cast": {
+      "cutin": true,
+      "freeze": true,
+      "ticks": 20,
+      "image": "",
+      "color": "#1d3b57",
+      "caption": "",
+      "line": "얼어붙어라!",
+      "voice": "asset:d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4"
+     }
+    },
+    {
+     "name": "빙화연격",
+     "mechanic": "flurry",
+     "power": 1,
+     "cooldown": -1,
+     "cast": {
+      "cutin": false,
+      "freeze": false,
+      "ticks": 30,
+      "image": "",
+      "color": "#2a4f6a",
+      "caption": "",
+      "line": "간다!",
+      "voice": ""
+     }
+    }
+   ]
+  },
+  {
+   "id": "rain",
+   "name": "단비",
+   "portrait": "",
+   "sprite": "",
+   "expressions": [
+    {
+     "id": "calm",
+     "name": "차분함",
+     "image": "asset:c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3"
+    }
+   ],
+   "skills": [
+    {
+     "name": "물결",
+     "mechanic": "shot",
+     "power": 1,
+     "cooldown": -1
+    }
+   ]
+  }
+ ],
+ "story": {
+  "id": "talk",
+  "name": "설원의 대화",
+  "nodes": [
+   {
+    "id": "one",
+    "speaker": "snow",
+    "expression": "smile",
+    "text": "내가 앞장설게.",
+    "choices": [],
+    "shot": {
+     "focus": true,
+     "layers": [
+      {
+       "id": "left",
+       "kind": "art",
+       "actor": "snow",
+       "expression": "smile",
+       "x": 1,
+       "y": 6,
+       "w": 42,
+       "h": 94
+      },
+      {
+       "id": "right",
+       "kind": "art",
+       "actor": "rain",
+       "x": 57,
+       "y": 6,
+       "w": 42,
+       "h": 94
+      }
+     ]
+    }
+   }
+  ]
+ },
+ "expect": {
+  "faces": [
+   [
+    "snow",
+    "smile",
+    "asset:b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2"
+   ],
+   [
+    "snow",
+    "plain",
+    "asset:a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1"
+   ],
+   [
+    "snow",
+    "",
+    "asset:a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1"
+   ],
+   [
+    "snow",
+    "missing",
+    "asset:a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1"
+   ],
+   [
+    "rain",
+    "",
+    "asset:c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3"
+   ],
+   [
+    "rain",
+    "calm",
+    "asset:c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3"
+   ]
+  ],
+  "profileText": [
+   "{프로필:소속} · {프로필:좋아하는 것}{프로필:없는 항목}",
+   "북서부 순찰대 · 따뜻한 차"
+  ],
+  "energy": {
+   "start": 10,
+   "afterHits": [
+    40,
+    70,
+    100,
+    100
+   ],
+   "refusedAt": 70,
+   "afterSpend": 0,
+   "afterHurt": 5
+  },
+  "freezeTicks": 20,
+  "plainCastTicks": 0,
+  "dimmed": {
+   "one": [
+    "right"
+   ]
+  }
+ }
+}

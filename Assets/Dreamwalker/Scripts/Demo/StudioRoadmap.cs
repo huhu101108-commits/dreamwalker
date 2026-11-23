@@ -61,7 +61,7 @@ public class StudioRoadmap
                               line.choices,
                               c => new StudioChoice{label=c.label,to=string.IsNullOrEmpty(c.to)?end:prefix+c.to,flag=c.flag,on=c.on});
                 lines.Add(new StudioLine { id = prefix + line.id, text = line.text, speaker = line.speaker,
-                                           speakerName = line.speakerName, side = line.side, portrait = line.portrait,
+                                           speakerName = line.speakerName, side = line.side, portrait = line.portrait, expression = line.expression,
                                            backdrop = line.backdrop, voice = line.voice, shot = line.shot, stageTrack=line.stageTrack?.WithPrefix(prefix), layout = line.layout, nextLabel = line.nextLabel, choices = answers });
             }
         }

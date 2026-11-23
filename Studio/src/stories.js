@@ -2,7 +2,7 @@ function dialogueContent(world, cursor, advance) {
   const n = cursor.node,
     c = named(world.characters, n.speaker),
     wrap = box('dialogue-content');
-  const face = imageUrl(n.portrait) || (c && characterUrl(c, true));
+  const face = c ? lineFaceUrl(world, n) : imageUrl(n.portrait);
   if (n.side === 'right') wrap.classList.add('face-right');
   if (face && n.side !== 'hidden') {
     const img = el('img');
@@ -197,7 +197,13 @@ function drawStories() {
   );
   b.append(
     heading('대사 속성'),
-    bindSelect('화자', n, 'speaker', { '': '내레이션', ...optionMap(project.characters) }),
+    selectField('화자', n.speaker, { '': '내레이션', ...optionMap(project.characters) }, (v) =>
+      edit(() => {
+        n.speaker = v;
+        fitLineExpression(project, n);
+      }),
+    ),
+    lineExpressionField(n),
     bindText('대사 내용', n, 'text', 1200, true),
     heading('이 줄의 연출'),
     soundField('이 줄의 음성',n,'voice'),
@@ -286,6 +292,23 @@ function drawStories() {
   );
 }
 
+// The speaker's expression for one line. Characters without expressions keep their portrait.
+function lineExpressionField(line, label = '화자 표정') {
+  const speaker = named(project.characters, line.speaker);
+  if (!speaker) return document.createDocumentFragment();
+  const faces = speaker.expressions || [];
+  if (!faces.length) {
+    const hint = el('small', speaker.name + '의 표정은 캐릭터 탭의 «표정 세트»에서 추가할 수 있어요.');
+    hint.className = 'muted';
+    return hint;
+  }
+  return selectField(label, line.expression || '', { '': '기본 초상', ...Object.fromEntries(faces.map((x) => [x.id, x.name])) }, (v) =>
+    edit(() => {
+      if (v) line.expression = v;
+      else delete line.expression;
+    }),
+  );
+}
 function stageTrackEditor(story,line){
   const panel=el('details');panel.dataset.persist='stage-track';
   panel.append(el('summary','대사 시간표 · 분기 검수'));

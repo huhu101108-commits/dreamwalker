@@ -59,9 +59,10 @@ public sealed partial class StudioWorld
         if(!string.IsNullOrEmpty(text)&&eventMachine!=null&&text.Contains("{변수:"))
             text=System.Text.RegularExpressions.Regex.Replace(text,@"\{변수:(?:(save|session|map):)?([a-zA-Z0-9_가-힣-]{1,50})\}", m=>
                 eventMachine.Value(m.Groups[1].Success?m.Groups[1].Value:"save",m.Groups[2].Value).ToString(System.Globalization.CultureInfo.InvariantCulture));
-        if (string.IsNullOrEmpty(text) || !text.Contains("{입력:")) return text;
-        return System.Text.RegularExpressions.Regex.Replace(text,@"\{입력:([a-zA-Z0-9_가-힣-]{1,50})\}",
-            m => formValues.TryGetValue(m.Groups[1].Value,out string value) || formDefaults.TryGetValue(m.Groups[1].Value,out value) ? value : "");
+        if (!string.IsNullOrEmpty(text) && text.Contains("{입력:"))
+            text = System.Text.RegularExpressions.Regex.Replace(text,@"\{입력:([a-zA-Z0-9_가-힣-]{1,50})\}",
+                m => formValues.TryGetValue(m.Groups[1].Value,out string value) || formDefaults.TryGetValue(m.Groups[1].Value,out value) ? value : "");
+        return Actor != null ? Actor.ProfileText(text) : text;
     }
     internal void CommitField(StudioWidget w,string raw) {
         if (!Visible(w) || !Enabled(w) || Array.IndexOf(CurrentLayout.elements,w)<0) return;
@@ -78,7 +79,29 @@ public sealed partial class StudioWorld
     private bool playedCue,shownEffect;
     private SpriteRenderer motionFx;
     private float fxUntil;
-    private AudioSource cuePlayer, musicPlayer, voicePlayer;
+    private AudioSource cuePlayer, musicPlayer, voicePlayer, castVoicePlayer;
+    private string pendingCastVoice;
+    private float castVoiceUntil;
+    private void QueueCastVoice(string reference)
+    {
+        pendingCastVoice = string.IsNullOrEmpty(reference) ? null : reference;
+        castVoiceUntil = Time.unscaledTime + 1;
+    }
+    // A skill shout plays once at the voice volume; a clip that is still loading may start within one second.
+    private void PlayCastVoice()
+    {
+        if (string.IsNullOrEmpty(pendingCastVoice)) return;
+        if (Time.unscaledTime > castVoiceUntil) { pendingCastVoice = null; return; }
+        var clip = Connection.Sound(pendingCastVoice);
+        if (clip == null) return;
+        pendingCastVoice = null;
+        SoundChannel(ref castVoicePlayer);
+        castVoicePlayer.Stop();
+        castVoicePlayer.clip = clip;
+        castVoicePlayer.loop = false;
+        castVoicePlayer.volume = Mathf.Clamp01((Project.mix?.voice ?? 100) / 100f);
+        castVoicePlayer.Play();
+    }
     private string currentMusic;
     private StudioLine speakingLine;
     private bool musicStarted, voiceStarted;
@@ -110,6 +133,7 @@ public sealed partial class StudioWorld
             speakingLine = line;
             voiceStarted = false;
         }
+        PlayCastVoice();
         StartTrack(ref musicPlayer, music, ref musicStarted, Project.mix?.musicMode!="once", Project.mix?.music ?? 65);
         StartTrack(ref voicePlayer, line?.voice, ref voiceStarted, Project.mix?.voiceMode=="loop", Project.mix?.voice ?? 100);
     }
@@ -133,7 +157,7 @@ public sealed partial class StudioWorld
     }
     private void ReleaseSound()
     {
-        foreach (var player in new[]{musicPlayer,voicePlayer,cuePlayer,stageSound})
+        foreach (var player in new[]{musicPlayer,voicePlayer,cuePlayer,stageSound,castVoicePlayer})
             if (player != null) { player.Stop(); Destroy(player); }
         foreach (var clip in tones.Values) Destroy(clip);
         tones.Clear();
@@ -181,6 +205,7 @@ public sealed partial class StudioWorld
         if(dodgeStart>=0 && Actor.dodge.Guard(combatTick-dodgeStart))return;
         if(slash.IsAttacking && (slash.StudioStrike?.Guard(slash.StudioTick)??false))return;
         Health = Math.Max(0, Health - RuleState().Absorb(amount));
+        if (Actor.HasEnergy) RuleState().Gain(Actor.energy, Actor.energy.hurt);
         CombatEvent("hurt");
     }
     private void ResetProgress()
@@ -228,7 +253,7 @@ public sealed partial class StudioWorld
     }
     private bool SaveProgress()
     {
-        if (!Running || Map == null || Health <= 0 || body.position.y < 0 || Story != null || skill != null || dodgeStart>=0 || pendingExit != null ||
+        if (!Running || Map == null || Health <= 0 || body.position.y < 0 || Story != null || skill != null || castClock.Active || dodgeStart>=0 || pendingExit != null ||
             (HasOverlay && string.IsNullOrEmpty(Result)))
             return false;
         RememberMap();

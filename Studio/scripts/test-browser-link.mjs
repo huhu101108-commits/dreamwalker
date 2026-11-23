@@ -23,6 +23,7 @@ import { testRuleAuthoring } from './test-rule-authoring-browser.mjs';
 import { testScreenWorkflow } from './test-screen-workflow-browser.mjs';
 import { testPortablePipeline } from './test-portable-browser.mjs';
 import { testTouchAuthoring } from './test-touch-authoring.mjs';
+import { testCharacterStage } from './test-character-stage-browser.mjs';
 const { chromium } = createRequire(import.meta.url)('playwright-core');
 
 const duelStore=arenaFixture();
@@ -96,7 +97,7 @@ try {
     [testSceneMediaBrowser,host,origin],[testScreenWorkflow,host,origin],[testRuleAuthoring,host,origin],[testStoryProbeBrowser,host,origin],
     [testTouchAuthoring,host],[testDeskBrowser,host],[testDialogueBrowser,host],[testDeviceDesigner,host],
     [testPersonalGptBrowser,host,guest,origin,peerOrigin],[testGptWorkbenchBrowser,host,origin,guest.context().browser()],
-    [testPresetDesigner,host,origin],[testArenaBrowser,host,guest,origin,peerOrigin]
+    [testPresetDesigner,host,origin],[testCharacterStage,host,origin],[testArenaBrowser,host,guest,origin,peerOrigin]
   ];
   const failures=[];
   for(const [run,...args] of workflows){

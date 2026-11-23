@@ -132,6 +132,8 @@ class FieldRun {
     this.combatState = {};
     this.kills = new Map();
     this.mapMemory = new Map();
+    this.cast = null;
+    this.castSerial = 0;
     this.enter(mapId || world.startMap, directEntry ? 'restore' : 'travel');
     if (!directEntry) this.fire('start');
   }
@@ -195,7 +197,7 @@ class FieldRun {
     if (
       this.presentation || this.hero.hp <= 0 || this.hero.y < 0 ||
       this.dialogue ||
-      this.evade || this.sequence ||
+      this.evade || this.sequence || this.cast ||
       this.pendingTravel ||
       (this.layers.length && this.result !== 'clear')
     )
@@ -258,6 +260,7 @@ class FieldRun {
       const mem=this.combatState[key]=combatMemory();
       if(integer(src.shield,0,9999)) mem.shield=src.shield;
       if(actor.dodge?.enabled&&integer(src.dodgeReady,0,this.combatTick+36000))mem.dodgeReady=src.dodgeReady;
+      if(actor.energy&&integer(src.energy,0,actor.energy.max))mem.energy=src.energy;
       for(const rule of this.world.combatRules||[]) {
         const k='r_'+rule.id;
         if(integer(src.count?.[k],0,998)) mem.count[k]=src.count[k];
@@ -329,6 +332,7 @@ class FieldRun {
     this.serial++;
     this.characterId = this.map.characterId;
     this.evade=null;
+    this.cast=null;
     const memory = mode === 'restart' ? null : this.mapMemory.get(id);
     this.seen = new Set(memory?.seen || []);
     this.layers = [];
@@ -549,6 +553,7 @@ class FieldRun {
     const ratio = this.hero.hp / this.character.health;
     this.characterId = c.id;
     this.evade=null;
+    this.cast=null;
     this.hero.hp = Math.ceil(ratio * c.health);
     this.sequence = null;
     this.stroke = null;
@@ -711,7 +716,7 @@ class FieldRun {
       this.keys.add(action);
       return;
     }
-    if(this.evade)return;
+    if(this.evade||this.cast?.freeze)return;
     if(action==='dodge'){
       const d=this.character.dodge;
       if(!d?.enabled||this.sequence||this.combatTick<(this.combatMemory.dodgeReady||0))return;
@@ -741,6 +746,8 @@ class FieldRun {
     }
     const index=skillSlot(action),s=this.character.skills[index];
     if(!s||s.mechanic==='none')return;
+    const cost=s.cost>0?s.cost:0,gauge=cost?this.energyMemory():null;
+    if(cost&&(!gauge||gauge.energy<cost))return;
     if(this.stroke){if(!this.character.strike||!strikeWindow(this.character.strike,'cancel',this.stroke.tick))return;this.stroke=null;}
     const type = s.mechanic,
       range =
@@ -766,9 +773,52 @@ class FieldRun {
       y: h.y,
       face: h.face,
     };
+    if(cost)gauge.energy-=cost;
     this.cool[action] = this.clock + skillCooldown(s, t);
+    if(s.cast){
+      // A freezing cut-in holds the whole field, enemies and timers included, for exactly its authored ticks.
+      const c=s.cast;
+      this.cast={serial:++this.castSerial,actor:this.characterId,slot:index,age:0,ticks:c.cutin?c.ticks:0,freeze:c.cutin&&c.freeze};
+      this.events.push({type:'cast',serial:this.cast.serial,actor:this.characterId,slot:index,x:h.x,y:h.y});
+    }
     this.fire('skill', action);
     this.events.push({ type: 'skill', text: s.name, x: h.x, y: h.y });
+  }
+  // Each character keeps its own gauge across maps and switches; a character without one reports null.
+  energyMemory(actor=this.character){
+    const e=actor?.energy;
+    if(!e)return null;
+    const mem=this.combatState['a_'+actor.id]||=combatMemory();
+    mem.energy=Number.isInteger(mem.energy)?clamp(mem.energy,0,e.max):e.start;
+    return mem;
+  }
+  get energy(){
+    const mem=this.energyMemory();
+    return mem?{now:mem.energy,max:this.character.energy.max}:null;
+  }
+  gainEnergy(kind){
+    const amount=this.character.energy?.[kind];
+    if(!amount)return;
+    const mem=this.energyMemory();
+    mem.energy=Math.min(this.character.energy.max,mem.energy+amount);
+  }
+  skillMeter(action){
+    const s=this.character.skills[skillSlot(action)];
+    if(!s||s.mechanic==='none')return null;
+    const total=skillCooldown(s,this.t),wait=Math.max(0,(this.cool[action]||0)-this.clock),cost=s.cost>0?s.cost:0;
+    const gauge=cost?this.energyMemory():null;
+    return {wait,waitFraction:total>0?Math.min(1,wait/total):0,cost,charge:cost?(gauge?Math.min(1,gauge.energy/cost):0):1};
+  }
+  // The boss bar follows the nearest living boss once it has noticed the hero or taken damage.
+  get boss(){
+    let best=null,gap=Infinity;
+    for(const e of this.foes){
+      if(e.hp<=0||e.enemy.style!=='boss')continue;
+      const d=Math.abs(e.x-this.hero.x);
+      if((d>e.enemy.sight&&e.hp>=e.maxHp)||d>=gap)continue;
+      best=e;gap=d;
+    }
+    return best&&{id:best.id,label:best.label||'',hp:best.hp,max:best.maxHp,phase:best.enemy.phase||50};
   }
   near(range) {
     const h = this.hero;
@@ -786,6 +836,7 @@ class FieldRun {
     if(this.evade&&strikeWindow(this.character.dodge,'inv',this.combatTick-this.evade.start))return;
     if(this.character.strike&&this.stroke&&strikeWindow(this.character.strike,'inv',this.stroke.tick))return;
     this.hero.hp=Math.max(0,this.hero.hp-absorbCombatDamage(this.combatMemory,amount));
+    this.gainEnergy('hurt');
     this.applyCombatEvent('hurt');
   }
   hit(e, amount, stack = true) {
@@ -797,7 +848,9 @@ class FieldRun {
     const applied=damage+this.applyCombatEvent('hit',e.enemy?.tag||'');
     e.hp = Math.max(0, e.hp - applied);
     this.onFieldHit?.(applied);
+    this.gainEnergy('hit');
     if (!e.hp) {
+      this.gainEnergy('kill');
       this.applyCombatEvent('kill',e.enemy?.tag||'');
       this.kills.set(this.map.id+'/'+e.id,e.enemy?.tag||'');
       this.grantRewards();
@@ -949,6 +1002,11 @@ class FieldRun {
     }
     if(this.dialogue && !this.customScreen && !this.presentation && this.dialogue.step(dt))this.advance();
     if (this.paused) return;
+    if(this.cast){
+      const c=this.cast;
+      if(c.age<c.ticks){c.age++;if(c.freeze)return;}
+      else this.cast=null;
+    }
     const priorClock = this.clock;
     this.clock += dt;
     this.combatTick++;
