@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {ownerModelField} from './test-personal-gpt-browser.mjs';
 
 // The isolated host speaks the public MCP Apps protocol. The real Worker owns all state.
 async function chatFixture(){
@@ -49,7 +50,7 @@ export async function testGptWorkbenchBrowser(page,origin,hostBrowser){
   await page.goto(origin+'/?tool=scene');
   await page.getByRole('button',{name:'작업 GPT',exact:true}).click();
   const dock=page.getByRole('complementary',{name:'작업 GPT 패널'});
-  await dock.getByLabel('사용 방식').selectOption('chatgpt');await dock.getByText('내 ChatGPT 대화에서 선택한 모델',{exact:true}).waitFor();
+  await (await ownerModelField(page,dock)).selectOption('chatgpt');await dock.getByText('내 ChatGPT 대화에서 선택한 모델',{exact:true}).waitFor();
   await page.getByLabel('맵 이름',{exact:true}).fill('GPT 검수용 설산');
   const editorField=await page.getByLabel('맵 이름',{exact:true}).elementHandle();
   const h=await openHost(hostBrowser,origin),ui=h.frameLocator('iframe');

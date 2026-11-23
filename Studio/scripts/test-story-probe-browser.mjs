@@ -49,12 +49,13 @@ export async function testStoryProbeBrowser(page,origin){
     await panel.getByLabel('대사 입력 기록 다시 열기',{exact:true}).setInputFiles(path);
     await status.filter({hasText:'대사 완료·저장·복구 후 보상 재검사 일치'}).waitFor();
     // A synthetic native result exercises the import UI. The Unity Play Mode result must be generated separately.
-    const reference=await p.evaluate(async spec=>{
-      const holder=document.createElement('div');document.body.append(holder);
-      try{const replay=await createStoryProbeFrame(holder,project);return await replay(spec);}finally{holder.remove();}
-    },spec);
+    const webDownload=p.waitForEvent('download');await click('웹 대사 결과 저장');
+    const webPath=join(dir,'web.json');await (await webDownload).saveAs(webPath);
+    const web=JSON.parse(await readFile(webPath,'utf8'));
+    assert.equal(web.format,'dreamwalker-story-web-result-v1');assert.equal(web.contentDigest,input.contentDigest);
+    assert.deepEqual(web.scenario,input.scenario);
     const result={format:'dreamwalker-story-result-v1',environment:'unity-editor-playmode',revision:input.revision,
-      contentDigest:input.contentDigest,scenario:spec,outcome:reference};
+      contentDigest:input.contentDigest,scenario:spec,outcome:web.outcome};
     const upload=value=>panel.getByLabel('Unity 대사 결과 선택',{exact:true}).setInputFiles({
       name:'synthetic-story-result.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(value))
     });

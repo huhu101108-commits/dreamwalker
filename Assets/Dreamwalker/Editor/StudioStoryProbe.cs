@@ -4,6 +4,7 @@ using System.Text;
 using Dreamwalker.Demo;
 using Dreamwalker.Player;
 using UnityEditor;
+using UnityEditor.SceneManagement;
 using UnityEngine;
 
 namespace Dreamwalker.Editor
@@ -36,6 +37,23 @@ public static class StudioStoryProbe
         if (new FileInfo(path).Length > 256_000) throw new InvalidDataException("256KB 이하의 입력 기록을 선택하세요.");
         return JsonUtility.FromJson<StudioStoryRequest>(File.ReadAllText(path, Encoding.UTF8));
     }
+    private static void QueueReplay(StudioRelease release, string input, string output)
+    {
+        if (UnityEngine.Object.FindFirstObjectByType<BaekseolMotor>() == null || Camera.main == null)
+            throw new InvalidOperationException("플레이어와 메인 카메라가 있는 데모 씬을 열고 다시 실행하세요.");
+        OutsideAssets(input);
+        OutsideAssets(output);
+        StudioWorld.ValidateStoryRequest(release, ReadRequest(input));
+        if (string.Equals(Path.GetFullPath(input), Path.GetFullPath(output), StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("입력 기록과 다른 파일에 결과를 저장하세요.");
+        SessionState.SetString(Prefix + "input", Path.GetFullPath(input));
+        SessionState.SetString(Prefix + "output", Path.GetFullPath(output));
+        SessionState.SetString(Prefix + "phase", "waiting");
+        SessionState.SetString(Prefix + "message", "");
+        SessionState.SetFloat(Prefix + "started", (float)EditorApplication.timeSinceStartup);
+        SessionState.SetString(StudioWorld.StoryProbeSlotKey, StudioWorld.StoryProbeSlotPrefix + Guid.NewGuid().ToString("N"));
+        EditorApplication.EnterPlaymode();
+    }
     [MenuItem(Menu)]
     public static void StartReplay()
     {
@@ -47,31 +65,47 @@ public static class StudioStoryProbe
         ClearJob();
         try
         {
-            if (UnityEngine.Object.FindFirstObjectByType<BaekseolMotor>() == null || Camera.main == null)
-                throw new InvalidOperationException("플레이어와 메인 카메라가 있는 데모 씬을 열고 다시 실행하세요.");
             var release = ReadRelease();
             string input = EditorUtility.OpenFilePanel("스튜디오에서 저장한 대사 입력 기록", "", "json");
             if (string.IsNullOrEmpty(input)) return;
-            OutsideAssets(input);
-            StudioWorld.ValidateStoryRequest(release, ReadRequest(input));
             string output = EditorUtility.SaveFilePanel("Unity 대사 검수 결과", Path.GetDirectoryName(input),
                 "Dreamwalker-Story-Result-v" + release.rev, "json");
             if (string.IsNullOrEmpty(output)) return;
-            OutsideAssets(output);
-            if (string.Equals(Path.GetFullPath(input), Path.GetFullPath(output), StringComparison.OrdinalIgnoreCase))
-                throw new InvalidDataException("입력 기록과 다른 파일에 결과를 저장하세요.");
-            SessionState.SetString(Prefix + "input", input);
-            SessionState.SetString(Prefix + "output", output);
-            SessionState.SetString(Prefix + "phase", "waiting");
-            SessionState.SetString(Prefix + "message", "");
-            SessionState.SetFloat(Prefix + "started", (float)EditorApplication.timeSinceStartup);
-            SessionState.SetString(StudioWorld.StoryProbeSlotKey, StudioWorld.StoryProbeSlotPrefix + Guid.NewGuid().ToString("N"));
-            EditorApplication.EnterPlaymode();
+            QueueReplay(release, input, output);
         }
         catch (Exception error)
         {
             if (!EditorApplication.isPlayingOrWillChangePlaymode) ClearJob();
             EditorUtility.DisplayDialog("대사 검수", error.Message, "확인");
+        }
+    }
+    private static string Argument(string[] args, string name)
+    {
+        int i = Array.IndexOf(args, name);
+        if (i < 0 || i + 1 >= args.Length || string.IsNullOrWhiteSpace(args[i + 1]))
+            throw new ArgumentException("대사 검수 경로를 지정하세요. " + name);
+        return args[i + 1];
+    }
+    // Unity -batchmode -projectPath <project> -executeMethod Dreamwalker.Editor.StudioStoryProbe.ReplayBatch
+    //       -dwStoryScene Assets/...unity -dwStoryInput <scenario.json> -dwStoryOutput <result.json>
+    public static void ReplayBatch()
+    {
+        if (!Application.isBatchMode) throw new InvalidOperationException("배치 검수는 -batchmode로 시작하세요.");
+        try
+        {
+            string[] args = Environment.GetCommandLineArgs();
+            if (Array.IndexOf(args, "-quit") >= 0) throw new ArgumentException("재생이 끝나면 자동 종료합니다. -quit 옵션을 빼세요.");
+            string scene = Argument(args, "-dwStoryScene");
+            if (AssetDatabase.LoadAssetAtPath<SceneAsset>(scene) == null) throw new FileNotFoundException("검수할 Unity 씬을 찾지 못했어요.", scene);
+            EditorSceneManager.OpenScene(scene);
+            ClearJob();
+            QueueReplay(ReadRelease(), Argument(args, "-dwStoryInput"), Argument(args, "-dwStoryOutput"));
+        }
+        catch (Exception error)
+        {
+            if (!EditorApplication.isPlayingOrWillChangePlaymode) ClearJob();
+            Debug.LogError(error.Message);
+            EditorApplication.Exit(1);
         }
     }
     private static void CheckPlayer()
@@ -92,14 +126,14 @@ public static class StudioStoryProbe
             string json = JsonUtility.ToJson(result, true);
             if (Encoding.UTF8.GetByteCount(json) > 4_000_000) throw new InvalidDataException("기록이 4MB를 넘었어요. 입력을 나누어 검수하세요.");
             File.WriteAllText(output, json, new UTF8Encoding(false));
-            EndSession("v" + result.revision + " 대사 입력 " + result.outcome.steps.Length + "건을 재생했어요. 스튜디오에서 이 결과 파일을 비교하세요.\n" + output);
+            EndSession("v" + result.revision + " 대사 입력 " + result.outcome.steps.Length + "건을 재생했어요. 스튜디오에서 이 결과 파일을 비교하세요.\n" + output, true);
         }
-        catch (Exception error) { EndSession("대사 검수 중단 · " + error.Message); }
+        catch (Exception error) { EndSession("대사 검수 중단 · " + error.Message, false); }
     }
-    private static void EndSession(string message)
+    private static void EndSession(string message, bool recorded)
     {
         SessionState.SetString(Prefix + "message", message);
-        SessionState.SetString(Prefix + "phase", "finished");
+        SessionState.SetString(Prefix + "phase", recorded ? "recorded" : "failed");
         EditorApplication.ExitPlaymode();
     }
     private static void OnPlayMode(PlayModeStateChange state)
@@ -107,9 +141,15 @@ public static class StudioStoryProbe
         // Keep the isolated key until the runtime's quit/destroy autosave has finished.
         if (state != PlayModeStateChange.EnteredEditMode || !StudioWorld.IsStoryProbeSlot(Slot)) return;
         string message = SessionState.GetString(Prefix + "message", "");
+        bool recorded = SessionState.GetString(Prefix + "phase", "") == "recorded";
         if (string.IsNullOrEmpty(message)) message = "검수 Play 세션을 종료했어요. 결과를 얻으려면 다시 재생하세요.";
         ClearJob();
-        EditorApplication.delayCall += () => EditorUtility.DisplayDialog("대사 검수", message, "확인");
+        if (Application.isBatchMode)
+        {
+            if (recorded) Debug.Log(message); else Debug.LogError(message);
+            EditorApplication.delayCall += () => EditorApplication.Exit(recorded ? 0 : 1);
+        }
+        else EditorApplication.delayCall += () => EditorUtility.DisplayDialog("대사 검수", message, "확인");
     }
     private static void ClearJob()
     {

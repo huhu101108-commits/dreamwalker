@@ -149,11 +149,19 @@ function validDodge(d){
   return d&&typeof d.enabled==='boolean'&&num(d.distance,0,30)&&integer(d.ticks,1,180)&&integer(d.cooldown,0,36000)&&
     ((d.invFrom===0&&d.invTo===0)||(integer(d.invFrom,1,d.ticks)&&integer(d.invTo,d.invFrom,d.ticks)));
 }
+function validHurtWindow(b,total){
+  return b&&integer(b.from,1,total)&&integer(b.to,b.from,total)&&num(b.x,-20,20)&&num(b.y,-20,20)&&num(b.w,.1,40)&&num(b.h,.1,40);
+}
+function enemyContact(strike,tick,face,dx,dy,range){
+  const b=strike?.hurt,vertical=8*.16;
+  if(!b||tick<b.from||tick>b.to)return Math.abs(dx)<range&&Math.abs(dy)<vertical;
+  return Math.abs(dx+face*b.x)<=range+b.w/2&&Math.abs(dy+b.y)<=vertical+b.h/2;
+}
 function validStrike(s){
   if(!s||!integer(s.startup,1,90)||!integer(s.active,1,90)||!integer(s.recovery,1,180)||!integer(s.buffer,0,360)||
     !['sweep','box'].includes(s.shape)||!num(s.x,-20,20)||!num(s.y,-20,20)||!num(s.w,.1,40)||!num(s.h,.1,40)||!integer(s.repeat,0,90))return false;
   const total=s.startup+s.active+s.recovery;
-  return ['combo','inv','cancel'].every(k=>(s[k+'From']===0&&s[k+'To']===0)||
+  return (s.hurt===undefined||validHurtWindow(s.hurt,total))&&['combo','inv','cancel'].every(k=>(s[k+'From']===0&&s[k+'To']===0)||
     (integer(s[k+'From'],1,total)&&integer(s[k+'To'],s[k+'From'],total)));
 }
 function strikeWindow(s,key,tick){return !!s&&s[key+'From']>0&&tick>=s[key+'From']&&tick<=s[key+'To'];}

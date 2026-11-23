@@ -261,7 +261,12 @@ function buildStoryProbe(details) {
     row(action('Unity용 대사 입력 저장',async()=>{
       const b=await binding();download({format:'dreamwalker-story-input-v1',revision:b.revision,contentDigest:b.contentDigest,
         scenario:structuredClone(spec)},'Dreamwalker-Story-Input-v'+b.revision+'.json');
-    }),inputPicker),el('p','같은 저장본의 전체 Unity 프로젝트를 열거나 검수 메뉴가 있는 프로젝트에 같은 콘텐츠 팩을 가져오세요. 데모 씬에서 Tools → Dreamwalker → 대사 분기·저장 재생을 실행하고 입력·결과 JSON은 Assets 밖에 보관하세요.'),
+    }),inputPicker,action('웹 대사 결과 저장',async()=>{
+      const b=await binding(),scenario=structuredClone(spec),replay=await runner();
+      const outcome=await replay(scenario);
+      download({format:'dreamwalker-story-web-result-v1',environment:'web-source-engine',revision:b.revision,
+        contentDigest:b.contentDigest,scenario,outcome},'Dreamwalker-Story-Web-v'+b.revision+'.json');
+    })),el('p','같은 저장본의 전체 Unity 프로젝트를 열거나 검수 메뉴가 있는 프로젝트에 같은 콘텐츠 팩을 가져오세요. 데모 씬에서 Tools → Dreamwalker → 대사 분기·저장 재생을 실행하고 입력·결과 JSON은 Assets 밖에 보관하세요.'),
     resultPicker,comparison,frameHost);
   refresh();
 }

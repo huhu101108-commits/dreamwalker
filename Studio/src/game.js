@@ -26,7 +26,7 @@ class ScreenInputClock {
 
 function launchGame(mapId, screenId = '', inspection = false) {
   const direct=inspection && typeof inspection==='object' && !inspection.fromStart && (inspection.storyId||inspection.objectId||inspection.screenId);
-  const ruleCapture=inspection?.traceRules&&!inspection.resume?new FieldRuleCapture():null;
+  const ruleCapture=inspection?.traceRules&&!inspection.resume&&typeof FieldRuleCapture==='function'?new FieldRuleCapture():null;
   const run = new FieldRun(structuredClone(project), mapId,!!direct,ruleCapture),
     modal = $('#game'),
     stage = $('#arena'),

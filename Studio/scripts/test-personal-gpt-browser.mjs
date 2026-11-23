@@ -1,6 +1,26 @@
 import assert from 'node:assert/strict';
 import {randomBytes} from 'node:crypto';
 
+// The live owner panel must use the real service response, including after another
+// workflow exercises the API-only transport or the owner collapses their settings.
+export async function ownerModelField(page,region=page){
+  await page.locator('#editor').waitFor();
+  const state=await page.evaluate(async()=>{
+    const status=await fetch('/api/status'),account=await fetch('/api/studio-gpt');
+    const auth=await status.json(),settings=await account.json();
+    return {status:account.status,owner:auth.owner,session:auth.ok,mode:settings.personal?.prefs.mode};
+  });
+  assert.equal(state.status,200,'owner account read must succeed');
+  assert(state.owner&&state.session,'expected a verified Studio owner session');
+  assert(['chatgpt','codex','api'].includes(state.mode),'owner response did not include personal GPT settings');
+  const card=region.locator('details.gpt-account'),summary=card.locator(':scope > summary');
+  await summary.waitFor();
+  if(!await card.evaluate(el=>el.open))await summary.click();
+  const mode=card.getByLabel('사용 방식',{exact:true});
+  await mode.waitFor();assert.equal(await mode.inputValue(),state.mode);
+  return mode;
+}
+
 export async function testPersonalGptBrowser(page,guest,origin,guestOrigin){
   await page.setViewportSize({width:820,height:1180});
   await page.goto(origin+'/?tool=assistant');
@@ -9,7 +29,7 @@ export async function testPersonalGptBrowser(page,guest,origin,guestOrigin){
   const status=()=>page.evaluate(async()=>{const r=await fetch('/api/studio-gpt');if(!r.ok)throw Error('Account settings HTTP '+r.status);return (await r.json()).personal;});
   const send=async prompt=>{await field('GPT에 요청할 내용').fill(prompt);await btn('GPT에 보내기').click();};
   const rpc=async (p,url,name,args)=>(await(await p.request.post(url+'/mcp',{data:{jsonrpc:'2.0',id:1,method:'tools/call',params:{name,arguments:args}}})).json()).result;
-  await field('사용 방식').waitFor();assert.equal(await field('사용 방식').inputValue(),'chatgpt');
+  assert.equal(await (await ownerModelField(page)).inputValue(),'chatgpt');
   const bounds=await page.locator('.gpt-account').boundingBox();assert(bounds.x>=0&&bounds.x+bounds.width<=822);
   await page.getByText('내가 만든 GPT로 열기',{exact:true}).click();
   const custom='https://chatgpt.com/g/g-dreamwalker-snow';
@@ -17,7 +37,7 @@ export async function testPersonalGptBrowser(page,guest,origin,guestOrigin){
   const saved=page.waitForResponse(r=>r.url().endsWith('/api/personal-gpt/settings'));
   await btn('GPT 주소 저장').click();assert.equal((await saved).status(),200);
   assert.equal((await status()).prefs.destination,custom);
-  await page.reload();await page.getByText('내가 만든 GPT로 열기',{exact:true}).click();
+  await page.reload();await ownerModelField(page);await page.getByText('내가 만든 GPT로 열기',{exact:true}).click();
   assert.equal(await field('내 GPT 주소 (선택)').inputValue(),custom);
   await send('현재 화면에 설산 작업 표지를 제안해 줘.');
   await page.getByRole('heading',{name:'내 ChatGPT로 요청 보내기'}).waitFor();

@@ -1002,7 +1002,7 @@ class FieldRun {
       if (e.enemy.style === 'guard' || e.enemy.style === 'boss') {
         const enraged = e.enemy.style === 'boss' && (e.hp / e.maxHp) * 100 <= (e.enemy.phase || 50);
         const range = e.enemy.reach * (enraged ? 1.5 : 1);
-        const close = Math.abs(delta) < range && Math.abs(h.y - e.y) < 8;
+        const close = this.character.strike?.hurt?enemyContact(this.character.strike,this.stroke?.tick||0,h.face,delta/3.5,(h.y-e.y)*.16,range/3.5):Math.abs(delta)<range&&Math.abs(h.y-e.y)<8;
         if (e.state === 'windup') {
           if (--e.remaining <= 0) {
             if (close && e.enemy.damage) {
@@ -1024,8 +1024,7 @@ class FieldRun {
         e.x += Math.sign(delta) * e.enemy.speed * (1 - slow) * dt;
       if (
         e.enemy.damage &&
-        Math.abs(delta) < e.enemy.reach &&
-        Math.abs(h.y - e.y) < 8 &&
+        (this.character.strike?.hurt?enemyContact(this.character.strike,this.stroke?.tick||0,h.face,delta/3.5,(h.y-e.y)*.16,e.enemy.reach/3.5):Math.abs(delta)<e.enemy.reach&&Math.abs(h.y-e.y)<8) &&
         this.clock - h.lastHit > e.enemy.interval
       ) {
         this.hurtHero(e.enemy.damage);

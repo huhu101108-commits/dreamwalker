@@ -148,10 +148,25 @@ function drawStrikeTimeline(main,actor){
   }
   root.append(form,el('small','구간에는 타격을 시작한 뒤 지난 틱을 입력하세요. 시작·끝을 모두 0으로 두면 그 구간을 끕니다. 재적중 간격 0은 한 공격당 한 번입니다.'),
     action('공격 타임라인 반영',()=>{
-      const next={shape:shape.value};for(const [key,i] of Object.entries(nodes))next[key]=i.valueAsNumber;
+      const next={...s,shape:shape.value};for(const [key,i] of Object.entries(nodes))next[key]=i.valueAsNumber;
       if(!validStrike(next))throw Error('준비·활성·회복 길이와 그 안의 시작·끝, 상자 크기를 확인하세요.');
       edit(()=>{actor.strike=next;});
     }));
+  root.append(checkField('공격 중 피격 상자 구간 사용',!!s.hurt,on=>edit(()=>{
+    if(on)s.hurt={from:1,to:s.startup+s.active+s.recovery,x:0,y:.8,w:.7,h:1.6};else delete s.hurt;
+  })));
+  if(s.hurt){
+    const hurtInputs={};
+    for(const [k,label] of Object.entries({from:'피격 상자 시작 틱',to:'피격 상자 끝 틱',x:'피격 상자 앞쪽 중심 (m)',y:'피격 상자 높이 중심 (m)',w:'자기 피격 상자 너비 (m)',h:'자기 피격 상자 높이 (m)'})){
+      const n=el('input');n.type='number';n.value=s.hurt[k];n.step=['from','to'].includes(k)?'1':'.1';
+      hurtInputs[k]=n;root.append(titled(label,n));
+    }
+    root.append(action('피격 상자 구간 반영',()=>{
+      const next={};for(const [key,n] of Object.entries(hurtInputs))next[key]=n.valueAsNumber;
+      if(!validHurtWindow(next,s.startup+s.active+s.recovery))throw Error('공격 길이 안의 구간과 피격 상자 크기를 확인하세요.');
+      edit(()=>s.hurt=next);
+    }));
+  }
 }
 const RULE_REASONS={run:'실행',action:'동작',condition:'조건 불충족',duplicate:'동일 틱 중복',target:'대상 불일치',once:'이미 실행',count:'필요 횟수 대기',cooldown:'재사용 대기',cancelled:'중지됨',cycle:'순환 차단',budget:'실행 상한'};
 function ruleReplayEditor(){

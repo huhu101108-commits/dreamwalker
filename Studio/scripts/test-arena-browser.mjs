@@ -3,6 +3,7 @@ import {execFile,spawnSync} from 'node:child_process';
 import {promisify} from 'node:util';
 import {fileURLToPath} from 'node:url';
 export async function testArenaBrowser(editor,guest,origin,otherOrigin) {
+  await editor.setViewportSize({width:1280,height:800});
   await editor.goto(origin+'/?tool=network');
   await editor.getByText('친선전 두 좌석 재접속 검사',{exact:true}).click();
   await editor.getByLabel('중복 전송 (%)',{exact:true}).fill('100');
@@ -22,7 +23,7 @@ export async function testArenaBrowser(editor,guest,origin,otherOrigin) {
   await guest.getByRole('button',{name:'이 기기에서 승인 기록 재생'}).click();
   await guest.getByText(/2P · 서버 상태 일치/).waitFor();
   await editor.goto(origin+'/?tool=rules');
-  await editor.getByRole('button',{name:'전투 규칙 · Unity',exact:true}).click();
+  await editor.locator('#tabs [data-tab=rules][aria-current=page]').waitFor({state:'attached'});
   await editor.getByRole('button',{name:'+ 전투 규칙',exact:true}).click();
   await editor.getByLabel('규칙 이름').fill('광산 친선전 결정타');
   await editor.getByLabel('효과량',{exact:true}).fill('9999');

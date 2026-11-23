@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, statSync } from 'node:fs';
 import vm from 'node:vm';
 import { pathToFileURL } from 'node:url';
 import { MessageChannel } from 'node:worker_threads';
@@ -54,6 +54,10 @@ async function test() {
   const other=m.seed();other.title+='변경';
   // The starting line identity and a shared revision/digest both bind each portable input.
   const bound={doc,contentDigest:source,revision:7},packet={format:'dreamwalker-story-input-v1',contentDigest:source,revision:7,scenario:spec};
+  const webRecord={...packet,format:'dreamwalker-story-web-result-v1',environment:'web-source-engine',outcome:result};
+  const simulatedNative={...packet,format:'dreamwalker-story-result-v1',environment:'unity-editor-playmode',outcome:result};
+  assert.match(compareRecords(webRecord,simulatedNative),/저장 복구/);
+  assert.throws(()=>compareRecords(webRecord,{...simulatedNative,outcome:bad}),/count/);
   m.checkStoryPacket(packet,bound,packet.format,spec);
   for (const variation of [{format:'different'},{revision:6},{contentDigest:await m.contentDigest(other)}])
     assert.throws(()=>m.checkStoryPacket({...packet,...variation},bound,packet.format,spec),/다른 파일/);
@@ -105,4 +109,25 @@ async function test() {
   } finally {channel.port1.close();channel.port2.close();}
   console.log('PASS author-selected line and zero-tick rules, guarded choices, skip, isolated Worker revision and Web source message channel, FieldRun checkpoint/restore, reward recheck, version mismatch');
 }
-if(process.argv[1] && import.meta.url===pathToFileURL(process.argv[1]).href)await test();
+function compareRecords(web,unity) {
+  assert(web.format==='dreamwalker-story-web-result-v1' && web.environment==='web-source-engine','스튜디오에서 저장한 웹 대사 결과가 필요합니다.');
+  assert(unity.format==='dreamwalker-story-result-v1' && unity.environment==='unity-editor-playmode','Unity Play 모드 결과가 필요합니다.');
+  assert.match(web.contentDigest,/^[a-f0-9]{64}$/);
+  assert(Number.isSafeInteger(web.revision) && web.revision>=0 && web.revision===unity.revision && web.contentDigest===unity.contentDigest,'리비전 또는 콘텐츠 지문이 다릅니다.');
+  assert(m.sameStoryScenario(web.scenario,unity.scenario),'시작 줄·플래그 또는 입력 순서가 다릅니다.');
+  const differences=m.compareStoryProbe(web.outcome,unity.outcome);
+  assert(!differences.length,differences.join('\n'));
+  const unfinished=m.storyProbeAssessment(web.outcome);
+  assert(!unfinished,unfinished);
+  return 'PASS v'+web.revision+' '+web.contentDigest+' · 입력 '+web.outcome.steps.length+'건 · 웹과 Unity Play 모드의 대사 완료·저장 복구·보상 일치';
+}
+if(process.argv[1] && import.meta.url===pathToFileURL(process.argv[1]).href) {
+  if(process.argv[2]==='--compare'){
+    const read=path=>{
+      assert(path && statSync(path).size<=4_000_000,'4MB 이하의 웹 및 Unity 대사 결과 JSON이 필요합니다.');
+      return JSON.parse(readFileSync(path,'utf8'));
+    };
+    console.log(compareRecords(read(process.argv[3]),read(process.argv[4])));
+  }
+  else await test();
+}

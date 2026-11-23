@@ -984,6 +984,11 @@ public sealed partial class StudioWorld : MonoBehaviour
             lift.surface.position = p;
         }
     }
+    private bool FoeTouches(float dx,float dy,float reach){
+        var strike=slash.StudioStrike;
+        if(strike==null)return Mathf.Abs(dx)<reach&&Mathf.Abs(dy)<8*UnitY;
+        return strike.EnemyContact(slash.IsAttacking?slash.StudioTick:0,motor.Facing,dx,dy,reach,8*UnitY);
+    }
     private void FixedUpdate()
     {
         if (!Running || Paused)
@@ -1029,7 +1034,7 @@ public sealed partial class StudioWorld : MonoBehaviour
             {
                 bool phaseTwo = e.config.style == "boss" && e.target.Health * 100 <=
                     (e.config.health > 0 ? e.config.health : Project.tuning.hp) * Math.Max(1,e.config.phase);
-                bool close = Mathf.Abs(dx) < e.config.reach * UnitX * (phaseTwo ? 1.5f : 1) && Mathf.Abs(pos.y-p.y) < 8*UnitY;
+                bool close = FoeTouches(dx,pos.y-p.y,e.config.reach*UnitX*(phaseTwo?1.5f:1));
                 if (e.state == "windup")
                 {
                     if (--e.stateTicks <= 0) {
@@ -1045,8 +1050,7 @@ public sealed partial class StudioWorld : MonoBehaviour
             if (Mathf.Abs(dx) > 2 * UnitX && Mathf.Abs(dx) < e.config.sight * UnitX)
                 p.x += Mathf.Sign(dx) * e.config.speed * UnitX * (1 - slow) * Time.fixedDeltaTime;
             e.target.transform.position = p;
-            if (e.config.damage > 0 && Mathf.Abs(dx) < e.config.reach * UnitX &&
-                Mathf.Abs(pos.y - p.y) < 8 * UnitY && clock - lastDamage > e.config.interval)
+            if (e.config.damage > 0 && FoeTouches(dx,pos.y-p.y,e.config.reach*UnitX) && clock-lastDamage>e.config.interval)
             {
                 ReceiveDamage(e.config.damage);
                 lastDamage = clock;

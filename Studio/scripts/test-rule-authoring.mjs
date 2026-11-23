@@ -74,3 +74,10 @@ const resumed=new m.FieldRun(dodgeDoc);assert(resumed.restore(evade.checkpoint()
 for(let i=5;i<12;i++)resumed.tick(1/60);resumed.press('dodge');assert(resumed.evade);
 av.dodge.invTo=5;assert.match(m.problem(dodgeDoc),/회피/);
 console.log('PASS authored field dodge distance, invulnerable ticks, ordinary damage outside window, cooldown across restart');
+const hurtDoc=structuredClone(m.seed()),ha=hurtDoc.characters[0];
+ha.strike={...m.strikeDefaults(hurtDoc.tuning),hurt:{from:1,to:3,x:0,y:10,w:.6,h:1.6}};
+assert.equal(m.problem(hurtDoc),'');const hurts=new m.FieldRun(hurtDoc),foe=hurts.foes[0];
+foe.hp=foe.maxHp=9999;foe.x=hurts.hero.x;foe.y=hurts.hero.y;foe.enemy.damage=3;foe.enemy.reach=8;foe.enemy.style='normal';
+const initial=hurts.hero.hp;hurts.press('attack');for(let i=0;i<3;i++)hurts.tick(1/60);
+assert.equal(hurts.hero.hp,initial);hurts.tick(1/60);assert.equal(hurts.hero.hp,initial-3);
+console.log('PASS motion-specific defender hurt rectangle in live enemy contact and original collision after the window');

@@ -7,14 +7,25 @@ namespace Dreamwalker.Demo
     public bool enabled;public int ticks,cooldown,invFrom,invTo;public float distance;
     public bool Guard(int elapsed)=>enabled && invFrom>0 && elapsed>=invFrom && elapsed<=invTo;
 }
+[Serializable] public class StudioHurtWindow
+{
+    public int from,to;public float x,y,w,h;
+}
 [Serializable] public class StudioStrike
 {
     public string shape;
     public int startup,active,recovery,comboFrom,comboTo,buffer,cancelFrom,cancelTo,invFrom,invTo,repeat;
     public float x,y,w,h;
+    public StudioHurtWindow hurt;
     public bool Combo(int tick)=>comboFrom>0&&tick>=comboFrom&&tick<=comboTo;
     public bool Cancel(int tick)=>cancelFrom>0&&tick>=cancelFrom&&tick<=cancelTo;
     public bool Guard(int tick)=>invFrom>0&&tick>=invFrom&&tick<=invTo;
+    public bool EnemyContact(int tick,int face,float dx,float dy,float reach,float vertical)
+    {
+        var b=hurt;
+        if(b==null||b.from<1||tick<b.from||tick>b.to)return Math.Abs(dx)<reach&&Math.Abs(dy)<vertical;
+        return Math.Abs(dx+face*b.x)<=reach+b.w/2 && Math.Abs(dy+b.y)<=vertical+b.h/2;
+    }
     public bool Touches(float px,float py,float ex,float ey,int face,float width,float height)
     {
         float ew=width>0?width:.7f,eh=height>0?height:1.6f;

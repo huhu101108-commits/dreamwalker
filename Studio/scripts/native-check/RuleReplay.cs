@@ -63,6 +63,8 @@ public static class RuleReplay
         if(!dodge.Guard(1)||!dodge.Guard(3)||dodge.Guard(0)||dodge.Guard(4))throw new Exception("Authored dodge window");
         var strike=new StudioStrike{x=1,y=1,w=2,h=2,comboFrom=2,comboTo=3,invFrom=4,invTo=5,cancelFrom=2,cancelTo=4};
         if(!strike.Touches(0,0,1,0,1,.7f,1.6f)||strike.Touches(0,0,-3,0,1,.7f,1.6f)||!strike.Combo(2)||strike.Combo(4)||!strike.Guard(5)||!strike.Cancel(3))throw new Exception("Authored combat windows");
+        strike.hurt=new StudioHurtWindow{from=1,to=3,x=0,y=10,w=.6f,h=1.6f};
+        if(strike.EnemyContact(1,1,0,0,2,1.28f)||!strike.EnemyContact(4,1,0,0,2,1.28f))throw new Exception("Actor hurt rectangle on the configured animation ticks");
         Console.WriteLine("PASS web and native shared event record, ordered actions, same-tick duplicate, cancellation, timer, attack windows, complete state and save scope");
     }
 }

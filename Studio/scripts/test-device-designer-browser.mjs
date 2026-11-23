@@ -77,19 +77,22 @@ export async function testDeviceDesigner(page){
     const values=Object.entries({kind:'text',text:'눈 내리는 야영지',x:'15.5',y:'22',w:'50',h:'9'}).map(([key,value])=>({key,value}));
     return r.fulfill({json:{message:'메뉴에 야영지 문구를 배치했어요. 미리보기를 확인하세요.',changes:[{op:'addWidget',screen:'',ref:'campLabel',values}]}});
   };
-  await page.route('**/api/studio-gpt',route);await button('GPT 연결 확인').click();await page.getByText('gpt-6.2-astra · 최대',{exact:true}).waitFor();
-  await field('GPT에 요청할 내용').fill('야영지 문구를 넣어 줘.');await button('GPT에 보내기').click();
-  await page.locator('.gpt-proposal .gpt-screen-sample').getByText('눈 내리는 야영지',{exact:true}).waitFor();
-  assert.equal(await page.locator('.inspector .gpt-screen-sample').getByText('눈 내리는 야영지',{exact:true}).count(),0);
-  assert.equal(latest.context.screen.id,parent);assert.equal(latest.history.length,0);
-  await button('변경안을 초안에 적용').click();await page.locator('.inspector .gpt-screen-sample').getByText('눈 내리는 야영지',{exact:true}).waitFor();
-  await page.locator('#undo').click();assert.equal(await page.locator('.inspector .gpt-screen-sample').getByText('눈 내리는 야영지',{exact:true}).count(),0);
-  await page.locator('#redo').click();
-  await field('GPT에 요청할 내용').fill('현재 화면을 기준으로 다시 제안해 줘.');await button('GPT에 보내기').click();
-  await button('변경안을 초안에 적용').waitFor();assert.equal(latest.history.length,2);
-  await button('직접 화면 디자인').click();await field('화면 이름').fill('야영지 메뉴');await tab('assistant');
-  await page.locator('.gpt-proposal').getByText('요청 후 선택한 항목이나 연결이 바뀌었어요. 현재 작업으로 다시 요청하세요.',{exact:true}).waitFor();assert.equal(await button('변경안을 초안에 적용').count(),0);
-  await button('제안 닫기').click();await page.unroute('**/api/studio-gpt',route);
+  await page.route('**/api/studio-gpt',route);
+  try{
+    await button('GPT 연결 확인').click();await page.getByText('gpt-6.2-astra · 최대',{exact:true}).waitFor();
+    await field('GPT에 요청할 내용').fill('야영지 문구를 넣어 줘.');await button('GPT에 보내기').click();
+    await page.locator('.gpt-proposal .gpt-screen-sample').getByText('눈 내리는 야영지',{exact:true}).waitFor();
+    assert.equal(await page.locator('.inspector .gpt-screen-sample').getByText('눈 내리는 야영지',{exact:true}).count(),0);
+    assert.equal(latest.context.screen.id,parent);assert.equal(latest.history.length,0);
+    await button('변경안을 초안에 적용').click();await page.locator('.inspector .gpt-screen-sample').getByText('눈 내리는 야영지',{exact:true}).waitFor();
+    await page.locator('#undo').click();assert.equal(await page.locator('.inspector .gpt-screen-sample').getByText('눈 내리는 야영지',{exact:true}).count(),0);
+    await page.locator('#redo').click();
+    await field('GPT에 요청할 내용').fill('현재 화면을 기준으로 다시 제안해 줘.');await button('GPT에 보내기').click();
+    await button('변경안을 초안에 적용').waitFor();assert.equal(latest.history.length,2);
+    await button('직접 화면 디자인').click();await field('화면 이름').fill('야영지 메뉴');await tab('assistant');
+    await page.locator('.gpt-proposal').getByText('요청 후 선택한 항목이나 연결이 바뀌었어요. 현재 작업으로 다시 요청하세요.',{exact:true}).waitFor();assert.equal(await button('변경안을 초안에 적용').count(),0);
+    await button('제안 닫기').click();
+  }finally{await page.unroute('**/api/studio-gpt',route);}
   const saved=page.waitForResponse(r=>r.url().endsWith('/api/save'));await page.locator('#save').click();const reply=await saved;
   assert.equal(reply.status(),200);const data=(await reply.json()).project;
   assert(data.menuFunctions.some(f=>f.name==='수첩 다시 열기'));assert(data.sourceFiles.some(f=>f.path==='Assets/DesignNote.txt'&&f.text==='내가 바꾼 대사'));
