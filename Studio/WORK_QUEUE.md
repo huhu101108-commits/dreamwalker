@@ -109,3 +109,10 @@
 
 - 2026-11-23 11:00 KST에 기존 사이트에 v14를 배포했다. v13 이후 배포 후보에서 변경된 28개 파일은 [드림워커 검사 #39](https://github.com/huhu101108-commits/dreamwalker/actions/runs/45095565871/job/137434486265)의 커밋 `a6ccedc`와 일치했다. Chrome에서 기기 파일 선택·로컬 편집·프로젝트 적용, 화면 요소의 0.1% 이동·잠금, 웹과 오프라인 게임의 하위 메뉴 왕복을 확인했다. 배포 소스는 `5adbe3d`이고 배포 아카이브의 Worker SHA-256은 `ac329fb75cd3dece5289150f643bbccf68b71389879af7be83949594ab294d95`다.
 - [운영 기기 파일 화면](https://dreamwalker-snowfield-studio.congenialcockatoo.chatgpt.site/device)에서 로그인 없이 시스템 파일 선택기로 한글 텍스트를 열고 수정한 사본을 내려받았다. 원본 바이트 보존과 사본의 수정 내용·UTF-8 BOM·CRLF를 대조했다. 제작 GPT의 미리보기·초안 적용·실행 취소는 모의 응답으로 통과했다. 실제 모델 응답은 운영 API 키 연결 후, 갤럭시 탭 파일 앱과 Unity APK·성능은 실기기에서 검증할 항목이다.
+
+## Claude Code의 스튜디오 소스 수정
+
+- 저장소 루트의 `CLAUDE.md`에 제작자 주도 콘텐츠 원칙, 브랜치·검토 흐름, 호환성·검증 요구를 기록했다. `Studio/CLAUDE_CODE.md`와 Studio README에 Claude Code 설정 및 사용 절차를 연결했다.
+- `.github/workflows/claude-code.yml`은 이슈와 Pull Request의 `@claude` 요청을 공식 Claude Code Action으로 처리한다. 이슈 작업은 제작 브랜치에서 갈라진 PR로 올리고, 기존 PR 댓글은 해당 검토 흐름에서 처리한다. 액션은 커밋 SHA로 고정했고, Action 권한은 저장소 콘텐츠·이슈·Pull Request에만 둔다. Claude의 수정은 Pull Request에서 검토하며 배포·병합 권한은 주지 않는다.
+- GitHub 저장소 관리자가 Claude 앱을 설치하고 `ANTHROPIC_API_KEY` 또는 Claude Code OAuth 토큰 중 하나를 Actions Secret으로 설정해야 실제 요청이 실행된다. 그 외 API 자격 증명은 저장소나 게임 내보내기에 넣지 않는다.
+- YAML 파싱과 `git diff --check`를 통과했다. 2026-11-24 현재 브랜치에서 `Studio/`의 `npm test` 전체가 통과했다. 실제 Claude 요청은 저장소 앱·시크릿이 설정된 뒤 확인할 수 있다.
