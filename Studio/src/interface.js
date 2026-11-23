@@ -142,7 +142,9 @@ function drawInterface() {
   const backdrop = box('ui-backdrop');
   styleScreen(backdrop, l);
   canvas.append(backdrop);
-  const sample = { previewState:sampleState,character: c, map: m, hp: Math.round(c.health * 0.72), enemies: 3 },
+  const sample = { previewState:sampleState,character: c, map: m, hp: Math.round(c.health * 0.72), enemies: 3,
+      energy: { now: Math.round((c.energy?.max || 100) * 0.6), max: c.energy?.max || 100 },
+      boss: { id: 'sample', label: '', hp: 72, max: 100, phase: 50 } },
     nodes = new Map();
   function applyGeometry(node, v) {
     Object.assign(node.style, { left: v.x + '%', top: v.y + '%', width: v.w + '%', height: v.h + '%' });
@@ -327,6 +329,11 @@ function drawInterface() {
   if(w.type==='button')clickInspector(l,w,b);
   if (w.type === 'button') {
     drawButtonActions(w, b);
+    if (skillSlot(w.action) >= 0 || w.meter)
+      b.append(checkField('스킬 재사용 대기 · 게이지 충전 표시', !!w.meter, (v) => edit(() => {
+        if (v) w.meter = true;
+        else delete w.meter;
+      })));
     const vis = el('details');
     vis.append(
       el('summary', '버튼 표시 · 활성 조건'),

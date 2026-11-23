@@ -276,6 +276,71 @@ internal sealed partial class StudioScreenView
         style.normal.textColor = color;
         return style;
     }
+    // Cooldown shade, gauge charge and a ready outline over a skill button.
+    private void DrawMeter(StudioWidget w, Rect r)
+    {
+        if (!world.SkillMeter(w.action, out float wait, out float waitFraction, out float charge, out int cost)) return;
+        if (waitFraction > 0)
+            Fill(new Rect(r.x, r.yMax - r.height * waitFraction, r.width, r.height * waitFraction), new Color(0, 0, 0, .66f));
+        if (wait > 0)
+        {
+            string seconds = wait >= 10 ? Mathf.CeilToInt(wait).ToString(System.Globalization.CultureInfo.InvariantCulture)
+                                        : (Mathf.Ceil(wait * 10) / 10).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            var badge = Style(Mathf.Clamp(Mathf.RoundToInt(w.fontSize * .82f * Mathf.Min(Screen.width / 800f, 1.4f)), 8, 60), "center", Color.white);
+            float size = Mathf.Max(18, badge.fontSize * 1.9f);
+            var spot = new Rect(r.xMax - size - r.width * .05f, r.y + r.height * .06f, size, size * .72f);
+            GUI.DrawTexture(spot, Texture2D.whiteTexture, ScaleMode.StretchToFill, true, 0, new Color(.04f, .08f, .11f, .87f), 0, spot.height / 2);
+            GUI.Label(spot, seconds, badge);
+            return;
+        }
+        float bar = Mathf.Max(3, r.height * .07f);
+        Fill(new Rect(r.x, r.yMax - bar, r.width * charge, bar), cost > 0 && charge < 1 ? new Color(.55f, .65f, 1f) : new Color(1f, .84f, .42f));
+        if (charge >= 1)
+            GUI.DrawTexture(r, Texture2D.whiteTexture, ScaleMode.StretchToFill, true, 0, new Color(1f, .89f, .54f), 2, Mathf.Min(r.width, r.height) * w.radius / 100);
+    }
+    // Skill cut-in and shout, drawn over the HUD from the field's cast clock.
+    internal void DrawCast()
+    {
+        if (world.ShoutVisible)
+        {
+            var at = world.HeroScreen();
+            var talk = Style(Mathf.Clamp(Mathf.RoundToInt(Screen.width * .017f), 11, 22), "center", new Color(.09f, .13f, .18f));
+            var content = new GUIContent(world.ShoutText);
+            float width = Mathf.Min(Screen.width * .34f, talk.CalcSize(content).x + 24);
+            float height = talk.CalcHeight(content, width - 16) + 12;
+            var bubble = new Rect(at.x - width / 2, at.y - height, width, height);
+            GUI.DrawTexture(bubble, Texture2D.whiteTexture, ScaleMode.StretchToFill, true, 0, new Color(1, 1, 1, .94f), 0, 12);
+            GUI.Label(new Rect(bubble.x + 8, bubble.y + 6, bubble.width - 16, bubble.height - 12), content, talk);
+        }
+        var c = world.Cast;
+        if (!c.ShowsCutIn || c.skill?.cast == null || !c.skill.cast.cutin) return;
+        var cast = c.skill.cast;
+        float p = c.Progress, enter = Mathf.Min(1, p / .18f), leave = Mathf.Max(0, (p - .82f) / .18f);
+        float ease = 1 - (1 - enter) * (1 - enter), alpha = 1 - leave;
+        var band = StudioWorld.Tint(cast.color, new Color(.11f, .23f, .34f));
+        band.a = .94f * alpha;
+        float bandHeight = Screen.height * .46f * ease;
+        var matrix = GUI.matrix;
+        GUIUtility.RotateAroundPivot(-5, new Vector2(Screen.width / 2f, Screen.height / 2f));
+        GUI.DrawTexture(new Rect(-Screen.width * .06f, Screen.height / 2f - bandHeight / 2, Screen.width * 1.12f, bandHeight),
+                        Texture2D.whiteTexture, ScaleMode.StretchToFill, true, 0, band, 0, 0);
+        GUI.matrix = matrix;
+        string reference = !string.IsNullOrEmpty(cast.image) ? cast.image : c.actor?.Face();
+        if (string.IsNullOrEmpty(reference) && c.actor?.id == "baekseol") reference = "builtin-player";
+        var art = world.Connection.Texture(reference);
+        if (art != null)
+        {
+            float shift = ((1 - ease) * 45 - p * 5 - leave * 14) / 100 * Screen.width * .52f;
+            GUI.DrawTexture(new Rect(Screen.width * .44f + shift, Screen.height * .02f, Screen.width * .52f, Screen.height * .86f),
+                            art, ScaleMode.ScaleToFit, true, 0, new Color(1, 1, 1, alpha), 0, 0);
+        }
+        var title = Style(Mathf.Clamp(Mathf.RoundToInt(Screen.width * .054f), 18, 72), "left", new Color(1, 1, 1, alpha));
+        GUI.Label(new Rect(Screen.width * .06f, Screen.height * .34f, Screen.width * .5f, Screen.height * .16f),
+                  string.IsNullOrEmpty(cast.caption) ? c.skill.name : cast.caption, title);
+        if (!string.IsNullOrEmpty(cast.line))
+            GUI.Label(new Rect(Screen.width * .06f, Screen.height * .5f, Screen.width * .5f, Screen.height * .1f), cast.line,
+                      Style(Mathf.Clamp(Mathf.RoundToInt(Screen.width * .022f), 12, 30), "left", new Color(1, 1, 1, alpha)));
+    }
     private static void Fill(Rect rect, Color color)
     {
         Color old = GUI.color;
@@ -295,6 +360,19 @@ internal sealed partial class StudioScreenView
         if (w.type == "loading") return (string.IsNullOrEmpty(value) ? "로딩" : value) + " " + Mathf.RoundToInt(100 * world.LoadingFraction) + "%";
         if (w.type == "enemies")
             return (string.IsNullOrEmpty(value) ? "남은 적" : value) + " " + world.Remaining;
+        if (w.type == "energy")
+        {
+            string title = world.Actor.ProfileText(value);
+            return (string.IsNullOrEmpty(title) ? "스킬 게이지" : title) + "   " +
+                   (world.Actor.HasEnergy ? world.Energy + " / " + world.Actor.energy.max : "없음");
+        }
+        if (w.type == "boss")
+        {
+            world.Boss(out string bossName, out int bossHp, out int bossMax, out _);
+            return (!string.IsNullOrEmpty(value) ? value : !string.IsNullOrEmpty(bossName) ? bossName : "보스") + "   " + bossHp + " / " + bossMax;
+        }
+        if (w.type == "character" && !string.IsNullOrEmpty(value))
+            value = world.Actor.ProfileText(value);
         if (!string.IsNullOrEmpty(value))
             return value;
         if (w.type == "character")
@@ -369,7 +447,7 @@ internal sealed partial class StudioScreenView
         var speaker = world.Project.Character(node.speaker);
         if (node.side != "hidden")
         {
-            var path = !string.IsNullOrEmpty(node.portrait) ? node.portrait : !string.IsNullOrEmpty(speaker?.portrait) ? speaker.portrait : speaker?.sprite;
+            var path = !string.IsNullOrEmpty(node.portrait) ? node.portrait : speaker?.Face(node.expression);
             if (string.IsNullOrEmpty(path) && speaker?.id == "baekseol")
                 path = "builtin-player";
             var texture = world.Connection.Texture(path);
@@ -414,9 +492,14 @@ internal sealed partial class StudioScreenView
         string path = layer.image;
         if (string.IsNullOrEmpty(path) && layer.kind == "portrait")
         {
-            path = !string.IsNullOrEmpty(line.portrait) ? line.portrait :
-                !string.IsNullOrEmpty(speaker?.portrait) ? speaker.portrait : speaker?.sprite;
+            path = !string.IsNullOrEmpty(line.portrait) ? line.portrait : speaker?.Face(line.expression);
             if (string.IsNullOrEmpty(path) && speaker?.id == "baekseol") path = "builtin-player";
+        }
+        if (string.IsNullOrEmpty(path) && layer.kind == "art" && !string.IsNullOrEmpty(layer.actor))
+        {
+            var member = world.Project.Character(layer.actor);
+            path = member?.Face(layer.expression);
+            if (string.IsNullOrEmpty(path) && member?.id == "baekseol") path = "builtin-player";
         }
         if (string.IsNullOrEmpty(path) && layer.kind == "backdrop")
         {
@@ -488,7 +571,9 @@ internal sealed partial class StudioScreenView
                 var matrix = GUI.matrix;
                 if (p.flip) GUIUtility.ScaleAroundPivot(new Vector2(-1,1),r.center);
                 var mode = p.fit == "cover" ? ScaleMode.ScaleAndCrop : p.fit == "stretch" ? ScaleMode.StretchToFill : ScaleMode.ScaleToFit;
-                GUI.DrawTexture(r,tex,mode,true,0,new Color(1,1,1,opacity),0,radius);
+                // Speaker focus darkens cast members who are not speaking on this line.
+                float light = shot.focus && !string.IsNullOrEmpty(p.actor) && !string.IsNullOrEmpty(line.speaker) && p.actor != line.speaker ? .42f : 1;
+                GUI.DrawTexture(r,tex,mode,true,0,new Color(light,light,light,opacity),0,radius);
                 GUI.matrix = matrix;
                 continue;
             }
@@ -546,6 +631,8 @@ internal sealed partial class StudioScreenView
             if (!world.Visible(w))
                 continue;
             var r = Bounds(w);
+            if (w.type == "boss" && !world.Boss(out _, out _, out _, out _))
+                continue;
             var background = StudioWorld.Tint(w.background, Color.black);
             background.a = w.opacity / 100;
             if(w.states!=null && !string.IsNullOrEmpty(w.states.disabled)){if(!world.Enabled(w))background=StudioWorld.Tint(w.states.disabled,background);else if(world.Selected(w))background=StudioWorld.Tint(w.states.selected,background);}
@@ -591,6 +678,7 @@ internal sealed partial class StudioScreenView
             }
             else
                 Fill(r, background);
+            if (w.type == "button" && w.meter) DrawMeter(w, r);
             var style =
                 Style(Mathf.Clamp(Mathf.RoundToInt(w.fontSize * Mathf.Min(Screen.width / 800f, 1.4f)), 8, 90),
                       w.align, StudioWorld.Tint(w.color, Color.white),w.fontFamily);
@@ -607,7 +695,7 @@ internal sealed partial class StudioScreenView
             if (w.type == "image" || w.type == "portrait")
             {
                 var actor = world.Actor;
-                var path = w.type == "image" ? w.image : !string.IsNullOrEmpty(actor.portrait) ? actor.portrait : actor.sprite;
+                var path = w.type == "image" ? w.image : actor.Face();
                 if (w.type == "portrait" && string.IsNullOrEmpty(path) && actor.id == "baekseol") path = "builtin-player";
                 var texture = world.Connection.Texture(path);
                 if (texture == null && w.type == "portrait") GUI.Label(r, actor.name, style);
@@ -619,6 +707,14 @@ internal sealed partial class StudioScreenView
             if (w.type == "hp")
                 Fill(new Rect(r.x, r.y, r.width * world.Health / world.Actor.health, r.height),
                      new Color(.12f, .5f, .56f));
+            if (w.type == "energy" && world.Actor.HasEnergy)
+                Fill(new Rect(r.x, r.y, r.width * Mathf.Clamp01((float)world.Energy / world.Actor.energy.max), r.height),
+                     world.Energy >= world.Actor.energy.max ? new Color(.95f, .72f, .26f) : new Color(.3f, .4f, .82f));
+            if (w.type == "boss" && world.Boss(out _, out int bossHp, out int bossMax, out int bossPhase))
+            {
+                Fill(new Rect(r.x, r.y, r.width * Mathf.Clamp01((float)bossHp / bossMax), r.height), new Color(.72f, .17f, .27f));
+                Fill(new Rect(r.x + r.width * Mathf.Clamp(bossPhase, 1, 99) / 100f - 1, r.y, 2, r.height), new Color(1f, .91f, .66f, .85f));
+            }
             if (w.type == "button" && !world.Enabled(w))
             {
                 if(!w.hotspot && w.states==null)Fill(r, new Color(.1f, .12f, .15f, .5f));

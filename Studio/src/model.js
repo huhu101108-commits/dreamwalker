@@ -103,6 +103,8 @@ const WIDGETS = {
   portrait: '선택 캐릭터 초상',
   loading: '로딩 진행률',
   hp: '체력 바',
+  energy: '스킬 게이지 (필살기 등)',
+  boss: '보스 체력 바',
   enemies: '남은 적',
   map: '맵 이름',
   character: '캐릭터 이름',
@@ -552,10 +554,10 @@ function newShot(line,composition='lower') {
 }
 function validShot(shot) {
   if(shot===undefined) return true;
-  if(!shot || !rows(shot.layers,1,24)) return false;
+  if(!shot || !rows(shot.layers,1,24) || (shot.focus!==undefined && typeof shot.focus!=='boolean')) return false;
   const choices=shot.layers.filter(p=>p.kind==='choices');
   if(choices.length!==1 || !choices[0].visible || choices[0].opacity<10) return false;
-  return shot.layers.every(p=>has(SHOT_KINDS,p.kind) && (p.slots===undefined||(p.kind==='choices'&&validChoiceSlots(p.slots))) && textValue(p.title,60) && textValue(p.caption,400) && imageRef(p.image) &&
+  return shot.layers.every(p=>has(SHOT_KINDS,p.kind) && castLayerShape(p) && (p.slots===undefined||(p.kind==='choices'&&validChoiceSlots(p.slots))) && textValue(p.title,60) && textValue(p.caption,400) && imageRef(p.image) &&
     num(p.x,-100,100) && num(p.y,-100,100) && num(p.w,1,200) && num(p.h,1,200) &&
     (p.kind!=='choices' || (p.x>=0 && p.y>=0 && p.w>=12 && p.h>=6 && p.x+p.w<=100.001 && p.y+p.h<=100.001)) &&
     ['visible','locked','flip'].every(k=>typeof p[k]==='boolean') && color(p.color) && color(p.fill) &&
@@ -698,6 +700,7 @@ function validScreenWidget(d,w) {
         (w.itemSkin!==undefined && (!['dialogue','inventory'].includes(w.type)||!validItemSkin(w.itemSkin))) ||
         (w.shortcut !== undefined && (w.type !== 'button' || !validShortcut(w.shortcut))) ||
         (w.hotspot !== undefined && (w.type !== 'button' || typeof w.hotspot !== 'boolean')) ||
+        (w.meter !== undefined && (w.type !== 'button' || typeof w.meter !== 'boolean')) ||
         (w.stick !== undefined && (w.type !== 'joystick' || !validStick(w.stick))) ||
         (w.editorLocked!==undefined && typeof w.editorLocked!=='boolean') ||
         (w.functionId!==undefined && (w.type!=='button'||!named(d.menuFunctions||[],w.functionId))) ||
@@ -828,6 +831,8 @@ function problem(d) {
       )
     )
       return '캐릭터의 이름, 능력치와 스킬 동작을 확인하세요.';
+    const staged = characterStageProblem(c);
+    if (staged) return staged;
   }
   if(d.menuFunctions!==undefined && (!rows(d.menuFunctions,0,64) || d.menuFunctions.some(f=>
     !title(f.name)||!actionRefOK(d,f.action,f.target)||!Array.isArray(f.steps)||f.steps.length>12||f.steps.some(s=>!validMenuStep(d,s)))))
@@ -852,6 +857,8 @@ function problem(d) {
         !n.choices.every((c) => c && signalKey(c.flag??'',true) && (c.on===undefined||typeof c.on==='boolean') && textValue(c.label, 80, true) && (c.to === '' || !!named(s.nodes, c.to)))
       )
         return s.name + '의 화자 또는 선택지 연결을 확인하세요.';
+      else if (!lineStagingOK(d, n))
+        return s.name + '의 화자 표정 또는 등장 인물 레이어를 확인하세요.';
   }
   if(d.authoredKeysOnly!==undefined&&typeof d.authoredKeysOnly!=='boolean')return '기본 키보드 입력 설정을 확인하세요.';
   if(!validScreenRoutes(d))return '화면 흐름에서 시작·진행·복귀 연결을 확인하세요. 로딩 완료가 자신을 다시 열 수 없어요.';
@@ -978,6 +985,8 @@ function imageRefs(d) {
   d.characters.forEach((c) => {
     add(c.sprite);
     add(c.portrait);
+    for (const face of c.expressions || []) add(face.image);
+    for (const skill of c.skills || []) add(skill.cast?.image);
     for (const clip of Object.values(c.clips || {})) {
       add(clip.fx);
       for (const frame of clip.frames) add(frame.image);
@@ -1351,6 +1360,7 @@ function soundRefs(d) {
   for(const p of d.work?.presets||[])for(const ref of presetFileRefs(p))if(ref.kind==='audio')add(ref.ref);
   for (const m of d.scenes) add(m.music);
   for (const c of d.characters) for (const clip of Object.values(c.clips || {})) add(clip.sound);
+  for (const c of d.characters) for (const skill of c.skills || []) add(skill.cast?.voice);
   for (const s of d.stories) for (const n of s.nodes) {add(n.voice);for(const cue of n.stageTrack?.cues||[])if(cue.kind==='sound')add(cue.sound);}
   return [...refs];
 }
@@ -1626,7 +1636,7 @@ function validStudioPreset(doc,p){
   if(p.kind==='object')return ['prop','enemy','platform'].includes(data.type)&&sceneObjectOK(doc,{width:100,height:100},{...data,x:50,y:0});
   if(p.kind==='asset')return ['image','audio'].includes(data.kind)&&textValue(data.name,120,true)&&textValue(data.folder,60)&&/^asset:[0-9a-f]{64}$/.test(data.ref);
   if(p.kind==='character'){
-    if(!data || ['id','name','region','summary','roadmap','__proto__','prototype','constructor'].some(k=>Object.hasOwn(data,k)))return false;
+    if(!data || ['id','name','region','summary','roadmap','profile','expressions','__proto__','prototype','constructor'].some(k=>Object.hasOwn(data,k)))return false;
     const check=seed(), actor=check.characters[0];
     check.characters=[{...actor,...data}];
     return !problem(check);
@@ -1765,8 +1775,9 @@ function screenEdges(doc,l){
   return edges;
 }
 
+// Identity, profile and expression art stay with the original character when its settings are copied.
 function portableActorSettings(actor){
-  const {id,name,region,summary,roadmap,...settings}=actor;
+  const {id,name,region,summary,roadmap,profile,expressions,...settings}=actor;
   return structuredClone(settings);
 }
 // Only media fields take part: a player's text may legitimately look like an asset URL.
@@ -1927,4 +1938,94 @@ function controlPresetElements(doc,p,layout){
     if(ids.has(w.id))w.id=uid();ids.add(w.id);
   }
   keep.splice(insert<0?keep.length:insert,0,...controls);return keep;
+}
+
+// Character identity, dialogue staging and skill presentation for character-driven games.
+// Every field is optional: projects without them keep their previous field, dialogue and HUD behavior.
+const mediaRef=v=>v===''||(typeof v==='string'&&/^asset:[0-9a-f]{64}$/.test(v));
+const CAST_TICKS=[12,240];
+const STAGE_LIMIT={expressions:24,profile:16};
+const profileLabelOK=v=>typeof v==='string'&&/^[^{}:\n\r]{1,20}$/.test(v)&&v.trim()===v;
+const newExpression=name=>({id:uid(),name,image:''});
+const newProfileEntry=(label,value='')=>({id:uid(),label,value});
+const energyDefaults=()=>({max:100,start:0,hit:5,hurt:3,kill:10});
+const castDefaults=()=>({cutin:true,image:'',ticks:48,color:'#1d3b57',caption:'',line:'',voice:'',freeze:true});
+function expressionImage(actor,id){
+  if(!id||!Array.isArray(actor?.expressions))return '';
+  return actor.expressions.find(x=>x.id===id)?.image||'';
+}
+// A character's face: chosen expression, dialogue portrait, sprite, then the first expression that has art.
+function actorFaceRef(actor,expression=''){
+  return expressionImage(actor,expression)||actor?.portrait||actor?.sprite||(Array.isArray(actor?.expressions)?actor.expressions.find(x=>x.image)?.image:'')||'';
+}
+// {프로필:항목} shows the current character's value; an unknown item shows nothing.
+function profileText(text,actor){
+  if(typeof text!=='string'||!text.includes('{프로필:'))return text;
+  return text.replace(/\{프로필:([^{}:\n\r]{1,20})\}/g,(_,label)=>actor?.profile?.find(p=>p.label===label)?.value??'');
+}
+function validEnergy(e){
+  return !!e&&typeof e==='object'&&!Array.isArray(e)&&integer(e.max,1,9999)&&integer(e.start,0,e.max)&&['hit','hurt','kill'].every(k=>integer(e[k],0,9999));
+}
+function validSkillCast(c){
+  return !!c&&typeof c==='object'&&!Array.isArray(c)&&typeof c.cutin==='boolean'&&typeof c.freeze==='boolean'&&mediaRef(c.image)&&mediaRef(c.voice)&&
+    integer(c.ticks,CAST_TICKS[0],CAST_TICKS[1])&&color(c.color)&&textValue(c.caption,40)&&textValue(c.line,80);
+}
+function characterStageProblem(c){
+  const where='캐릭터 / '+c.name+' / ';
+  if(c.expressions!==undefined&&(!rows(c.expressions,0,STAGE_LIMIT.expressions)||
+    c.expressions.some(x=>!textValue(x.name,30,true)||x.name.trim()!==x.name||!mediaRef(x.image))||
+    new Set(c.expressions.map(x=>x.name)).size!==c.expressions.length))return where+'표정 이름(1~30자, 서로 다르게)과 이미지를 확인하세요.';
+  if(c.profile!==undefined&&(!rows(c.profile,0,STAGE_LIMIT.profile)||c.profile.some(p=>!profileLabelOK(p.label)||!textValue(p.value,300))||
+    new Set(c.profile.map(p=>p.label)).size!==c.profile.length))return where+'프로필 항목 이름(1~20자, 중괄호·콜론 제외, 서로 다르게)과 내용(300자)을 확인하세요.';
+  if(c.energy!==undefined&&!validEnergy(c.energy))return where+'스킬 게이지 최대치·시작값·충전량을 확인하세요.';
+  for(const s of c.skills){
+    if(s.cost!==undefined&&(!integer(s.cost,0,9999)||(s.cost>0&&(!c.energy||s.cost>c.energy.max))))
+      return where+s.name+' / 게이지 소모량은 스킬 게이지를 켠 뒤 최대치 이하로 정하세요.';
+    if(s.cast!==undefined&&!validSkillCast(s.cast))return where+s.name+' / 컷인·외침 연출 값을 확인하세요.';
+  }
+  return '';
+}
+// Only free image layers can stand for a cast member. The portrait layer always follows the speaker.
+function castLayerShape(p){
+  if(p.actor===undefined)return p.expression===undefined;
+  return p.kind==='art'&&(p.actor===''||validId(p.actor))&&
+    (p.expression===undefined||p.expression===''||(p.actor!==''&&validId(p.expression)));
+}
+function lineStagingOK(d,line){
+  if(line.expression!==undefined){
+    if(typeof line.expression!=='string')return false;
+    const speaker=named(d.characters,line.speaker);
+    if(line.expression&&!speaker?.expressions?.some(x=>x.id===line.expression))return false;
+  }
+  for(const p of line.shot?.layers||[]){
+    if(!p.actor)continue;
+    const actor=named(d.characters,p.actor);
+    if(!actor||(p.expression&&!actor.expressions?.some(x=>x.id===p.expression)))return false;
+  }
+  return true;
+}
+// A removed character or expression falls back to the default portrait wherever it was staged.
+function detachActorStaging(doc,actorId,expressionId=''){
+  for(const story of doc.stories)for(const line of story.nodes){
+    if(line.speaker===actorId&&line.expression!==undefined&&(!expressionId||line.expression===expressionId))delete line.expression;
+    for(const p of line.shot?.layers||[])if(p.actor===actorId){
+      if(!expressionId){delete p.actor;delete p.expression;}
+      else if(p.expression===expressionId)delete p.expression;
+    }
+  }
+}
+// Compositions copied between lines or loaded from presets keep only cast bindings this project has.
+function fitShotStaging(doc,shot){
+  for(const p of shot?.layers||[]){
+    if(p.actor===undefined&&p.expression===undefined)continue;
+    const actor=p.kind==='art'&&named(doc.characters,p.actor);
+    if(!actor){delete p.actor;delete p.expression;continue;}
+    if(p.expression&&!actor.expressions?.some(x=>x.id===p.expression))delete p.expression;
+  }
+  return shot;
+}
+function fitLineExpression(doc,line){
+  if(line.expression===undefined)return;
+  const speaker=named(doc.characters,line.speaker);
+  if(!line.expression||!speaker?.expressions?.some(x=>x.id===line.expression))delete line.expression;
 }

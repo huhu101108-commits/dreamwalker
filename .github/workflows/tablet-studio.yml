@@ -36,6 +36,27 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/dw-browser" --ignore-scripts --no-audit --no-fund playwright-core@1.56.1
           NODE_PATH="$RUNNER_TEMP/dw-browser/node_modules" node Studio/scripts/test-browser-link.mjs
 
+  unity-scripts:
+    name: Compile Unity scripts with the project's Unity assemblies
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Restore Unity reference assemblies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/dreamwalker-unity
+          key: unity-managed-${{ hashFiles('ProjectSettings/ProjectVersion.txt') }}
+      - name: Compile editor, editor-only and Android player scripts
+        working-directory: Studio
+        run: node scripts/unity-compile-check.mjs --fetch ~/.cache/dreamwalker-unity
+
   studio-connection:
     name: Connect the build runner to Studio
     if: github.event_name == 'push' && github.ref == 'refs/heads/feature/tablet-production-studio'

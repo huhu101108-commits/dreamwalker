@@ -25,7 +25,7 @@ for (const name of [
   'game',
   'view',
   'maps',
-  'characters',
+  'characters','character-stage',
   'stories','shot-view','shot-editor',
   'interface','preset-editor','screen-tools','design-plan','personal-gpt','studio-gpt','gpt-dock','studio-layout','device-open','target-files','device-workspace','device-standalone',
   'flows',

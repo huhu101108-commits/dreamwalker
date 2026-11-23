@@ -24,6 +24,55 @@ class ScreenInputClock {
   reset(){this.active.clear();this.taps.clear();}
 }
 
+// A skill cut-in follows the run's cast clock, so it holds and resumes together with the field.
+function makeCastView() {
+  const root = box('cast-cutin'), band = box('cast-band'), art = el('img'), title = el('strong'), line = el('span');
+  root.setAttribute('aria-hidden', 'true');
+  art.alt = '';
+  art.draggable = false;
+  art.className = 'cast-art';
+  title.className = 'cast-title';
+  line.className = 'cast-line';
+  root.append(band, art, box('cast-words', title, line));
+  root.hidden = true;
+  let shown = 0, url = '';
+  const ease = (v) => 1 - (1 - v) * (1 - v);
+  function paint(run, still) {
+    const c = run.cast, actor = c && named(run.world.characters, c.actor), skill = actor?.skills[c.slot], cast = skill?.cast;
+    if (!c?.ticks || !cast?.cutin) {
+      if (shown) {
+        root.hidden = true;
+        shown = 0;
+      }
+      return;
+    }
+    if (shown !== c.serial) {
+      shown = c.serial;
+      const next = imageUrl(cast.image) || imageUrl(actorFaceRef(actor)) || characterUrl(actor, true);
+      if (next !== url) {
+        url = next;
+        if (url) art.src = url;
+        else art.removeAttribute('src');
+      }
+      art.hidden = !url;
+      title.textContent = cast.caption || skill.name;
+      line.textContent = cast.line;
+      line.hidden = !cast.line;
+      root.style.setProperty('--cast-color', cast.color);
+      root.hidden = false;
+    }
+    const p = Math.min(1, c.age / c.ticks), enter = Math.min(1, p / 0.18), leave = Math.max(0, (p - 0.82) / 0.18);
+    root.style.opacity = String(1 - leave);
+    if (still) {
+      band.style.transform = art.style.transform = '';
+      return;
+    }
+    band.style.transform = 'skewY(-5deg) scaleY(' + ease(enter).toFixed(3) + ')';
+    art.style.transform = 'translateX(' + ((1 - ease(enter)) * 45 - p * 5 - leave * 14).toFixed(2) + '%)';
+  }
+  return { root, paint };
+}
+
 function launchGame(mapId, screenId = '', inspection = false) {
   const direct=inspection && typeof inspection==='object' && !inspection.fromStart && (inspection.storyId||inspection.objectId||inspection.screenId);
   const ruleCapture=inspection?.traceRules&&!inspection.resume&&typeof FieldRuleCapture==='function'?new FieldRuleCapture():null;
@@ -35,6 +84,7 @@ function launchGame(mapId, screenId = '', inspection = false) {
   const audioBus=gameAudio(run.world,modal);
   const sceneFade=el('div');sceneFade.setAttribute('aria-hidden','true');
   sceneFade.style.cssText='position:absolute;inset:0;pointer-events:none;z-index:9';stage.append(sceneFade);
+  const castView=makeCastView();stage.append(castView.root);
   const sample=inspection ? {ticks:0,inputs:0} : null;
   modal.inspectionSample=sample;
   const options=inspection && typeof inspection==='object'?inspection:null;
@@ -287,9 +337,10 @@ function launchGame(mapId, screenId = '', inspection = false) {
       if (run.dialogue) {
         const n = run.dialogue.node;
         urls.add(imageUrl(n.backdrop));
-        urls.add(imageUrl(n.portrait) || characterUrl(named(run.world.characters,n.speaker),true));
-        for(const p of n.shot?.layers||[]) if(p.visible && p.image) urls.add(imageUrl(p.image));
+        urls.add(lineFaceUrl(run.world,n));
+        for(const p of n.shot?.layers||[]) if(p.visible && (p.image || p.actor)) urls.add(p.image ? imageUrl(p.image) : castLayerUrl(run.world,p));
       }
+      for (const s of run.character.skills) if (s.cast?.cutin) urls.add(imageUrl(s.cast.image) || imageUrl(actorFaceRef(run.character)) || characterUrl(run.character, true));
       for (const o of run.map.objects) if (o.image) urls.add(imageUrl(o.image));
       for (const id of [run.map.hudId,run.map.menuId,run.map.dialogueId]) {
         const layout = named(run.world.layouts,id);
@@ -414,6 +465,7 @@ function launchGame(mapId, screenId = '', inspection = false) {
     if(run.dialogue && !run.customScreen && !run.presentation && typeof paintDialogueTime==='function')paintDialogueTime(layer,run.dialogue,audioBus);
     if(!coveredByShot) paintField();
     paintHUD();
+    castView.paint(run, reduceMotion);
   }
   function paintField() {
     const camera = run.camera;
@@ -516,8 +568,9 @@ function launchGame(mapId, screenId = '', inspection = false) {
       }
   }
   function paintHUD() {
-    const state = { flags:run.flags,inputs:run.inputValues, inputDefaults:run.inputDefaults, character: run.character, hp: run.hero.hp, map: run.map, enemies: run.enemiesLeft, loading: run.loadingFraction };
-    const stamp = state.hp + '|' + state.enemies + '|' + run.progressVersion + '|' + Math.round(100 * state.loading);
+    const state = { flags:run.flags,inputs:run.inputValues, inputDefaults:run.inputDefaults, character: run.character, hp: run.hero.hp, map: run.map, enemies: run.enemiesLeft, loading: run.loadingFraction, energy: run.energy, boss: run.boss };
+    const stamp = state.hp + '|' + state.enemies + '|' + run.progressVersion + '|' + Math.round(100 * state.loading) + '|' +
+      (state.energy ? state.energy.now + '/' + state.energy.max : '') + '|' + (state.boss ? state.boss.id + ':' + state.boss.hp : '');
     if (hudStamp !== stamp) {
       for (const { w, n } of widgets)
         if(w.type==='input'){if(!n.contains(document.activeElement))showInputValue(n,w,readControl(w,run.screen.id,run.inputValues));}
@@ -525,9 +578,23 @@ function launchGame(mapId, screenId = '', inspection = false) {
         else if (w.type !== 'dialogue' && w.type !== 'panel' && w.type !== 'image') updateWidget(n, w, state);
       hudStamp = stamp;
     }
+    for (const { w, n } of widgets) if (w.meter && w.type === 'button') paintSkillMeter(n, skillSlot(w.action) >= 0 ? run.skillMeter(w.action) : null);
     for (const e of run.events.splice(0)) {
       if (e.type === 'skill') {
         say(e.text);
+        continue;
+      }
+      if (e.type === 'cast') {
+        const actor = named(run.world.characters, e.actor), cast = actor?.skills[e.slot]?.cast;
+        if (!cast) continue;
+        if (cast.voice) audioBus.track('castVoice', cast.voice, {});
+        if (cast.line && !cast.cutin) {
+          const bubble = el('div', cast.line);
+          bubble.className = 'cast-shout';
+          bubble.style.setProperty('--cast-color', cast.color);
+          actors.append(bubble);
+          effects.push({ n: bubble, x: e.x, y: e.y + 22, still: true, until: run.clock + 1.6 });
+        }
         continue;
       }
       const n = el('div', e.text);
@@ -655,7 +722,7 @@ function launchGame(mapId, screenId = '', inspection = false) {
     if(ruleCapture)sample.ruleCapture=ruleCapture.close(run);
     metrics?.capture();sizeObserver.disconnect();cancelAnimationFrame(frame);
     if(sample) modal.removeEventListener('pointerdown',countTouch,true);
-    clearControls();padHeld.clear();audioBus.close();sceneFade.remove();
+    clearControls();padHeld.clear();audioBus.close();sceneFade.remove();castView.root.remove();
     for (const release of releaseSticks) release();
     saveProgress();
     diagnostics.remove();

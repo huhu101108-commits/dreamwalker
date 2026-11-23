@@ -92,6 +92,7 @@ public static class Verify
             throw new Exception("save flags");
         RuleReplay.Run();
         PortableImport.Run();
+        CharacterStage.Run();
         return "PASS bidirectional sweep at tick 10 and saved state";
     }
     public static async System.Threading.Tasks.Task Main(string[] args)

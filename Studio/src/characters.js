@@ -41,8 +41,9 @@ function drawCharacters() {
     el('small', c.region || '지역 미지정'),
     el('h2', c.name),
     el('p', c.summary || ''),
+    profileChips(c),
   );
-  a.append(box('character-card', image, info), heading('스킬 구성'));
+  a.append(box('character-card', image, info), expressionSection(c), profileSection(c), heading('스킬 구성'));
   const bar = box('slot-tabs');
   selectedSlot = clamp(selectedSlot, 0, c.skills.length - 1);
   c.skills.forEach((s, i) =>
@@ -79,6 +80,7 @@ function drawCharacters() {
         }),
       ),
       bindNumber('스킬 피해 배율', skill, 'power', 0.05, 10, 0.05),
+      skillCostField(c, skill),
     ),
   );
   a.append(
@@ -168,6 +170,7 @@ function drawCharacters() {
     ),
   );
   if (!auto) a.append(bindNumber('개별 재사용 시간 (초)', skill, 'cooldown', 0.05, 120, 0.05));
+  a.append(skillCastSection(c, skill));
   b.append(
     action(c.name + '의 스토리 로드맵', () => {
       actorId = c.id;
@@ -210,6 +213,7 @@ function drawCharacters() {
   stat.append(grid);
   b.append(
     stat,
+    energySection(c),
     action(
       '캐릭터 삭제',
       () => {
@@ -226,6 +230,7 @@ function drawCharacters() {
           return;
         edit(() => {
           resetUIReferences(project, 'character', c.id);
+          detachActorStaging(project, c.id);
           project.characters = project.characters.filter((v) => v !== c);
           project.combatRules = (project.combatRules || []).filter(rule => rule.actor !== c.id);
           for (const s of project.scenes) if (s.characterId === c.id) s.characterId = other.id;

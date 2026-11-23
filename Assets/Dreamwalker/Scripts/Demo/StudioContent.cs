@@ -82,6 +82,46 @@ public class StudioCharacter
     public StudioClip[] motionClips;
     public StudioStrike strike;
     public StudioDodge dodge;
+    public StudioExpression[] expressions;
+    public StudioProfileEntry[] profile;
+    public StudioEnergy energy;
+    public bool HasEnergy => energy != null && energy.max > 0;
+    public string ExpressionImage(string id)
+    {
+        if (string.IsNullOrEmpty(id) || expressions == null) return "";
+        foreach (var x in expressions) if (x != null && x.id == id) return x.image ?? "";
+        return "";
+    }
+    // Same order as the studio: chosen expression, dialogue portrait, sprite, then the first expression with art.
+    public string Face(string expression = "")
+    {
+        string chosen = ExpressionImage(expression);
+        if (!string.IsNullOrEmpty(chosen)) return chosen;
+        if (!string.IsNullOrEmpty(portrait)) return portrait;
+        if (!string.IsNullOrEmpty(sprite)) return sprite;
+        if (expressions != null) foreach (var x in expressions) if (!string.IsNullOrEmpty(x?.image)) return x.image;
+        return "";
+    }
+    // {프로필:항목} shows this character's value; an unknown item shows nothing.
+    public string ProfileText(string text)
+    {
+        if (string.IsNullOrEmpty(text) || !text.Contains("{프로필:")) return text;
+        return System.Text.RegularExpressions.Regex.Replace(text, @"\{프로필:([^{}:\n\r]{1,20})\}", m =>
+        {
+            if (profile != null) foreach (var p in profile) if (p != null && p.label == m.Groups[1].Value) return p.value ?? "";
+            return "";
+        });
+    }
+}
+[Serializable] public class StudioExpression { public string id, name, image; }
+[Serializable] public class StudioProfileEntry { public string id, label, value; }
+[Serializable] public class StudioEnergy { public int max, start, hit, hurt, kill; }
+[Serializable]
+public class StudioSkillCast
+{
+    public bool cutin, freeze;
+    public int ticks;
+    public string image, color, caption, line, voice;
 }
 [Serializable]
 public class StudioSkill
@@ -89,6 +129,37 @@ public class StudioSkill
     public string name, mechanic;
     public float power, cooldown;
     public StudioStep[] steps;
+    public int cost;
+    public StudioSkillCast cast;
+    public bool HasCast => cast != null && cast.ticks > 0;
+}
+// A skill's cut-in clock, in field ticks. A freezing cut-in holds the field for exactly its authored ticks.
+public sealed class StudioCastClock
+{
+    public StudioCharacter actor { get; private set; }
+    public StudioSkill skill { get; private set; }
+    public int age { get; private set; }
+    public int ticks { get; private set; }
+    public bool freeze { get; private set; }
+    public int serial { get; private set; }
+    public bool Active => skill != null;
+    public bool ShowsCutIn => skill != null && ticks > 0;
+    public float Progress => ticks > 0 ? Math.Min(1f, (float)age / ticks) : 1f;
+    public void Begin(StudioCharacter who, StudioSkill used)
+    {
+        actor = who; skill = used; age = 0; serial++;
+        ticks = used.cast.cutin ? used.cast.ticks : 0;
+        freeze = used.cast.cutin && used.cast.freeze;
+    }
+    // Returns true while the field must hold during this tick.
+    public bool Step()
+    {
+        if (skill == null) return false;
+        if (age < ticks) { age++; return freeze; }
+        Clear();
+        return false;
+    }
+    public void Clear() { actor = null; skill = null; age = ticks = 0; freeze = false; }
 }
 [Serializable]
 public class StudioStep
@@ -144,7 +215,7 @@ public class StudioStory
 [Serializable]
 public class StudioLine
 {
-    public string id, speaker, text, speakerName, side, portrait, backdrop, layout, nextLabel, voice;
+    public string id, speaker, text, speakerName, side, portrait, backdrop, layout, nextLabel, voice, expression;
     public StudioChoice[] choices;
     public StudioShot shot;
     public StudioStageTrack stageTrack;
@@ -197,11 +268,12 @@ public sealed class StudioStageClock
 public class StudioShot
 {
     public StudioShotLayer[] layers;
+    public bool focus;
 }
 [Serializable]
 public class StudioShotLayer
 {
-    public string id, kind, title, image, caption, color, fill, align, fit;
+    public string id, kind, title, image, caption, color, fill, align, fit, actor, expression;
     public float x, y, w, h, opacity, fillOpacity, size, radius;
     public int columns;
     public bool visible, locked, flip;
@@ -249,7 +321,7 @@ public class StudioWidget
     public StudioAnchor anchor;
     public StudioButtonStates states;
     public StudioGesture gesture;
-    public bool hotspot;
+    public bool hotspot, meter;
     public bool showValue, enableValue;
     public StudioAction[] steps;
     public bool visible;
