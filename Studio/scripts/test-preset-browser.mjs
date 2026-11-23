@@ -72,6 +72,11 @@ export async function testPresetDesigner(page,origin){
     await dialog.getByLabel('개별 바탕색').fill('#ffffff');
     await button(dialog,'닫기').click();
     assert.equal(await p.locator('#save').evaluate(n=>getComputedStyle(n).backgroundColor),'rgb(56, 89, 125)');
+    await button(p,'스튜디오 배치').click();
+    await dialog.getByText('개별 버튼 · 입력칸 디자인',{exact:true}).click();
+    await dialog.getByLabel('개별 바탕색').fill('#aabbcc');await p.keyboard.press('Escape');
+    await p.waitForFunction(()=>!document.querySelector('dialog.studio-preferences[open],dialog[open] .studio-preferences'));
+    assert.equal(await p.locator('#save').evaluate(n=>getComputedStyle(n).backgroundColor),'rgb(56, 89, 125)');
     const saving=p.waitForResponse(r=>r.url().endsWith('/api/save'));
     await p.locator('#save').click();const response=await saving;assert.equal(response.status(),200,await response.text());
     await p.reload();await p.locator('#editor').waitFor();

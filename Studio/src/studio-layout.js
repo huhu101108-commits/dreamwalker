@@ -88,9 +88,13 @@ function applyStudioLayout(prefs){
 }
 function editStudioLayout(){
   const saved=readStudioLayout(), dialog=el('dialog'), content=box('panel studio-preferences');
-  let next={side:'right',width:'normal',first:'desk',...structuredClone(saved)},committed=false,selectedPart='id/save';
+  let next={side:'right',width:'normal',first:'desk',...structuredClone(saved)},finished=false,selectedPart='id/save';
   const tools=Object.fromEntries([...$('#tabs').querySelectorAll('[data-tab]')].map(b=>[b.dataset.tab,b.textContent]));
   function preview(){applyStudioLayout(next);paintStudioControls(dialog,next.paint);}
+  function finish(keep){
+    if(finished)return;
+    finished=true;applyStudioLayout(keep?next:saved);
+  }
   function render(){
     const opened=content.querySelector('.preset-shelf')?.open,singleOpen=content.querySelector('.studio-single-control')?.open;content.replaceChildren();
     content.append(heading('스튜디오 배치'),selectField('속성 패널 위치',next.side,{right:'오른쪽',left:'왼쪽'},v=>{next.side=v;preview();}),
@@ -107,9 +111,10 @@ function editStudioLayout(){
     presets.open=!!opened;content.append(fields,single,action('기본 모양 복원',()=>{delete next.paint;delete next.parts;preview();render();}),presets,
       row(action('이 기기에 적용',()=>{
         try{localStorage.setItem(studioLayoutKey,JSON.stringify(next));}catch{throw Error('이 기기에 배치 설정을 저장할 수 없어요.');}
-        committed=true;applyStudioLayout(next);dialog.close();
-      },'accent'),action('닫기',()=>dialog.close())));
+        finish(true);dialog.close();
+      },'accent'),action('닫기',()=>{finish(false);dialog.close();})));
   }
   render();dialog.append(content);document.body.append(dialog);paintStudioControls(dialog,next.paint);
-  dialog.addEventListener('close',()=>{if(!committed)applyStudioLayout(saved);dialog.remove();},{once:true});dialog.showModal();
+  dialog.addEventListener('cancel',()=>finish(false),{once:true});
+  dialog.addEventListener('close',()=>{finish(false);dialog.remove();},{once:true});dialog.showModal();
 }
