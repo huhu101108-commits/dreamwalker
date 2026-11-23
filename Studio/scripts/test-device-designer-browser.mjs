@@ -67,7 +67,7 @@ export async function testDeviceDesigner(page){
   await field('처음 열 제작 도구').selectOption('device');await button('이 기기에 적용').click();
   assert(await page.locator('#editor.properties-left.properties-wide').isVisible());
   await tab('assistant');await field('GPT와 편집할 화면').selectOption(parent);
-  await page.getByText('OpenAI 연결을 기다리고 있어요.',{exact:true}).waitFor();
+  await page.getByText('내 GPT 설정',{exact:true}).waitFor();
   assert(await button('GPT에 보내기').isDisabled());
   let latest;
   const route=async r=>{
@@ -77,7 +77,7 @@ export async function testDeviceDesigner(page){
     const values=Object.entries({kind:'text',text:'눈 내리는 야영지',x:'15.5',y:'22',w:'50',h:'9'}).map(([key,value])=>({key,value}));
     return r.fulfill({json:{message:'메뉴에 야영지 문구를 배치했어요. 미리보기를 확인하세요.',changes:[{op:'addWidget',screen:'',ref:'campLabel',values}]}});
   };
-  await page.route('**/api/studio-gpt',route);await button('GPT 연결 확인').click();
+  await page.route('**/api/studio-gpt',route);await button('GPT 연결 확인').click();await page.getByText('gpt-6.2-astra · 최대',{exact:true}).waitFor();
   await field('GPT에 요청할 내용').fill('야영지 문구를 넣어 줘.');await button('GPT에 보내기').click();
   await page.locator('.gpt-proposal .gpt-screen-sample').getByText('눈 내리는 야영지',{exact:true}).waitFor();
   assert.equal(await page.locator('.inspector .gpt-screen-sample').getByText('눈 내리는 야영지',{exact:true}).count(),0);

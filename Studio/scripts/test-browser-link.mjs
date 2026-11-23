@@ -10,6 +10,7 @@ import { testDialogueBrowser } from './test-dialogue-browser.mjs';
 import { testDeskBrowser } from './test-desk-browser.mjs';
 import {arenaFixture} from './arena-fixture.mjs';
 import {testArenaBrowser} from './test-arena-browser.mjs';
+import {testPersonalGptBrowser} from './test-personal-gpt-browser.mjs';
 import { testTouchAuthoring } from './test-touch-authoring.mjs';
 const { chromium } = createRequire(import.meta.url)('playwright-core');
 
@@ -82,6 +83,7 @@ try {
   await testDialogueBrowser(host);
   await testDeviceDesigner(host);
   await testArenaBrowser(host,guest,'http://127.0.0.1:'+servers[0].address().port,'http://127.0.0.1:'+teammate.address().port);
+  await testPersonalGptBrowser(host,guest,'http://127.0.0.1:'+servers[0].address().port,'http://127.0.0.1:'+teammate.address().port);
   assert.deepEqual(errors, []);
 } finally {
   await Promise.allSettled(browsers.map(browser => browser.close()));

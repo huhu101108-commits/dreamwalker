@@ -23,11 +23,14 @@ function gptContext(input){
   if(doc.menuFunctions.some(f=>typeof f.action!=='string'||!Array.isArray(f.steps)||f.steps.length>12||f.steps.some(s=>!s)))err(400,'메뉴 기능을 확인하세요.');
   return designContext(doc,s);
 }
-async function studioGpt(req,env,b,sessionKey,editor){
+async function studioGpt(req,env,b,sessionKey,editor,owner){
   if(!editor)err(403,'제작 GPT는 편집 권한이 필요해요.');
   const configured=!!env.OPENAI_API_KEY;
-  if(req.method==='GET')return json({configured,model:STUDIO_GPT_MODEL,effort:STUDIO_GPT_EFFORT});
+  const personal=owner ? await personalGptState(env) : null;
+  const choice=personal?.prefs.api||{model:STUDIO_GPT_MODEL,effort:STUDIO_GPT_EFFORT};
+  if(req.method==='GET')return json({configured,...choice,...(owner?{personal}:{})});
   if(!configured)err(503,'사이트 소유자가 OpenAI 연결을 설정하면 대화를 시작할 수 있어요.');
+  if(owner && personal.prefs.mode!=='api')err(409,'스튜디오 API를 사용하려면 내 GPT 설정에서 직접 선택하세요.');
   if(!req.headers.get('content-type')?.startsWith('application/json'))err(415,'JSON 요청이 필요해요.');
   const body=JSON.parse(new TextDecoder().decode(await limitedFileBody(req,196608)));
   if(!body||!validId(body.id)||!textValue(body.prompt,3500,true)||!Array.isArray(body.history)||body.history.length>10 ||
@@ -40,7 +43,7 @@ async function studioGpt(req,env,b,sessionKey,editor){
   try{
     const upstream=await fetch('https://api.openai.com/v1/responses',{method:'POST',
       headers:{Authorization:'Bearer '+env.OPENAI_API_KEY,'Content-Type':'application/json'},
-      signal:AbortSignal.timeout(240000),body:JSON.stringify({model:STUDIO_GPT_MODEL,reasoning:{effort:STUDIO_GPT_EFFORT},store:false,max_output_tokens:16000,
+      signal:AbortSignal.timeout(240000),body:JSON.stringify({model:choice.model,reasoning:{effort:choice.effort},store:false,max_output_tokens:16000,
         instructions:DESIGN_INSTRUCTIONS,input:[...body.history.map(m=>({role:m.role,content:m.text})),
           {role:'user',content:JSON.stringify({selectedScreen:context,request:body.prompt})}],
         text:{format:{type:'json_schema',name:'dreamwalker_screen_proposal',strict:true,schema:designFormat}}})});

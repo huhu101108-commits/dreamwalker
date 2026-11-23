@@ -58,7 +58,10 @@ assert.equal((await invoke(request('reader'),{Authorization:'Bearer '+token})).s
 assert.equal((await invoke(request('origin'),{...headers,origin:'https://outside.test'})).status,403);
 assert.equal((await(await invoke(undefined,headers,{...env,OPENAI_API_KEY:''})).json()).configured,false);
 assert.equal((await invoke(request('nokey'),headers,{...env,OPENAI_API_KEY:''})).status,503);
-assert.equal((await(await invoke()).json()).configured,true);
+assert.equal((await(await invoke()).json()).personal.prefs.mode,'chatgpt');
+assert.equal((await invoke(request('noautobill'))).status,409);
+const settings=await worker.fetch(new Request('https://studio.test/api/personal-gpt/settings',{method:'POST',headers:{...headers,'content-type':'application/json'},body:JSON.stringify({revision:0,mode:'api',choice:{model:'gpt-6.2-sol',effort:'high'}})}),env);
+assert.equal(settings.status,200);assert.equal((await(await invoke()).json()).configured,true);
 const savedFetch=globalThis.fetch;let calls=0,sent,finish;
 globalThis.fetch=async(url,opts)=>{
   assert.equal(url,'https://api.openai.com/v1/responses');
@@ -73,7 +76,7 @@ try{
   assert.equal((await invoke(req)).status,409);finish();
   const answer=await first;assert.equal(answer.status,200);assert.deepEqual((await answer.json()).changes,changes);
   assert.equal((await invoke(req)).status,409);assert.equal(calls,1);
-  assert.equal(sent.model,'gpt-6.2-astra');assert.equal(sent.reasoning.effort,'max');assert.equal(sent.store,false);assert.equal(sent.text.format.strict,true);
+  assert.equal(sent.model,'gpt-6.2-sol');assert.equal(sent.reasoning.effort,'high');assert.equal(sent.store,false);assert.equal(sent.text.format.strict,true);
   assert(!JSON.stringify(sent).includes('never send'));
   globalThis.fetch=async()=>Response.json({status:'incomplete',output:[]});
   assert.equal((await invoke(request('partial'))).status,502);

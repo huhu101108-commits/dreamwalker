@@ -1190,3 +1190,15 @@ body { font-size:16px; }
 .shot-expanded { position:fixed; z-index:100; inset:0; margin:0; overflow:auto; align-content:start; background:#111f2c; color:#eff6fa; padding:max(.8rem,env(safe-area-inset-top)) max(1rem,env(safe-area-inset-right)) 1rem max(1rem,env(safe-area-inset-left)); overscroll-behavior:contain; }
 @media(min-width:760px){.shot-expanded .shot-editor-layout{grid-template-columns:minmax(0,2.6fr) minmax(14rem,1fr);}.shot-expanded .shot-canvas-column{position:sticky;top:0;align-self:start;}}
 @media(max-width:700px){.shot-workspace .row>label{min-width:7rem;}.shot-handle{min-height:36px;width:36px;}}
+
+.gpt-account,.gpt-delivery { display:grid; gap:.55rem; margin:.8rem 0; padding:.8rem 1rem; min-width:0; border:1px solid #39505b; background:#142a32; border-radius:.6rem; overflow-wrap:anywhere; }
+.gpt-account summary,.gpt-delivery summary { cursor:pointer; font-weight:650; padding:.45rem 0; }
+.gpt-account > summary { color:#c4e9e2; }
+.gpt-account p,.gpt-delivery p { margin:.35rem 0; }
+.gpt-account details,.gpt-delivery details { min-width:0; }
+.gpt-account .row,.gpt-delivery .row,.gpt-compose .row { flex-wrap:wrap; }
+.gpt-account .control,.gpt-account .gpt-effort { flex:1 1 10rem; min-width:0; }
+.gpt-account input,.gpt-account select,.gpt-delivery textarea { width:100%; min-width:0; }
+.gpt-account code,.gpt-delivery code,.gpt-account output { display:block; padding:.55rem .65rem; user-select:all; background:#0b1c25; color:#d5eeea; border-radius:.35rem; }
+.gpt-account a,.gpt-delivery a { display:inline-flex; align-items:center; min-height:2.5rem; color:#9de4d7; }
+.gpt-account :focus-visible,.gpt-delivery :focus-visible { outline:2px solid #81d8cb; outline-offset:2px; }

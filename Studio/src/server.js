@@ -74,7 +74,11 @@ async function api(req, env, path) {
   if (!assetHead && !['GET', 'POST'].includes(req.method)) err(405, '지원하지 않는 요청이에요.');
   if (post && req.headers.get('origin') && req.headers.get('origin') !== origin)
     err(403, '허용되지 않은 출처');
-  if(path==='/api/studio-gpt')return studioGpt(req,env,b,sk,ok && session.data.scope==='edit');
+  if (path.startsWith('/api/personal-gpt/')) {
+    if (!owner || !ok || session.data.scope!=='edit') err(403,'소유자 계정으로 입장하세요.');
+    return ownerGptAction(req,env,path.slice('/api/personal-gpt/'.length));
+  }
+  if(path==='/api/studio-gpt')return studioGpt(req,env,b,sk,ok && session.data.scope==='edit',owner);
   if (path === '/api/owner-session') {
     if (!post) err(405, '지원하지 않는 요청이에요.');
     if (!owner) err(403, '소유자 계정으로 로그인하세요.');
@@ -315,6 +319,8 @@ export default {
   async fetch(req, env) {
     try {
       const path = new URL(req.url).pathname;
+      if (path==='/mcp') return await studioGptMcp(req,env);
+      if (path.startsWith('/api/gpt-device/')) return await personalGptDevice(req,env,path.slice('/api/gpt-device/'.length));
       if (path.startsWith('/api/arena/')) return await arenaApi(req,env,path.slice(11));
       if (path.startsWith('/api/')) return await api(req, env, path);
       if (path in FILES) {

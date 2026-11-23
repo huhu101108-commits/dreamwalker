@@ -18,11 +18,18 @@ function designSample(doc,l){
 }
 function drawStudioGpt(){
   const [main,side]=panels(),l=activeLayout();layoutId=l.id;
-  let thread=designThreads.get(l.id);
-  if(!thread){thread={items:[],draft:'',pending:false,proposal:null};designThreads.set(l.id,thread);}
+  const thread=gptThread(l.id),personal=access?.owner?gptConnection?.personal:null;
+  const mode=personal?.prefs.mode||'api', active=['waiting','running'].includes(personal?.job?.state);
+  const chosen=mode==='codex'?personal.prefs.codex:null;
+  const model=mode==='codex'?personal.device?.models.find(m=>m.id===chosen?.model):null;
+  const ready=mode==='chatgpt'||(mode==='codex'?personal.device?.online&&model&&
+    (model.efforts.length?model.efforts.includes(chosen.effort):chosen.effort===''):gptConnection?.configured);
   const isCurrent=()=>tab==='assistant'&&layoutId===l.id;
-  const rerender=()=>{if(isCurrent()) draw();};
-  main.append(heading('제작 GPT'),selectField('GPT와 편집할 화면',l.id,optionMap(project.layouts),v=>{layoutId=v;draw();}));
+  const rerender=()=>{if(isCurrent())draw();};
+  main.append(heading('제작 GPT'));
+  if(personal)main.append(gptSettingsCard(personal));
+  main.append(selectField('GPT와 편집할 화면',l.id,optionMap(project.layouts),v=>{layoutId=v;draw();}));
+  if(personal){const work=gptWorkCard(personal,l);if(work)main.append(work);}
   const messages=box('gpt-messages');messages.setAttribute('role','log');
   for(const m of thread.items){
     const article=el('article');article.className='gpt-message '+m.role;
@@ -34,35 +41,43 @@ function drawStudioGpt(){
   input.placeholder='예: 게임 메뉴에 의뢰 수첩을 만들고 누르면 의뢰 목록을 열어 줘.';
   send.type='submit';send.className='accent';
   function updateState(){
-    if(!main.isConnected)return;
-    connection.textContent=thread.pending?'GPT가 변경안을 작성하고 있어요…':gptConnection?.configured?
-      'GPT-6.2 Astra · 최대 추론':gptConnection?.error||'OpenAI 연결을 기다리고 있어요.';
-    send.disabled=thread.pending||!gptConnection?.configured||!input.value.trim();
+    let status;
+    if(thread.pending)status='요청을 보내는 중이에요…';
+    else if(active)status='진행 중인 요청이 있어요.';
+    else if(mode==='chatgpt')status='내 ChatGPT 대화에서 선택한 모델';
+    else if(mode==='codex')status=ready?model.name+(chosen.effort?' · '+effortNames[chosen.effort]:''):
+      (personal.device?.online?'모델을 선택하고 저장하세요.':'개발 PC 연결 대기 중');
+    else status=gptConnection?.configured?[gptConnection.model,effortNames[gptConnection.effort]].filter(Boolean).join(' · '):
+      gptConnection?.error||(gptConnection?'스튜디오 API가 연결되어 있지 않아요.':'GPT 연결 확인 중…');
+    connection.textContent=status;send.disabled=thread.pending||active||!ready||!input.value.trim();
   }
   input.oninput=()=>{thread.draft=input.value;updateState();};
   input.onkeydown=e=>{if((e.ctrlKey||e.metaKey)&&e.key==='Enter'&&!e.isComposing){e.preventDefault();if(!send.disabled)form.requestSubmit();}};
-  const again=action('GPT 연결 확인',()=>refresh());
-  function refresh(){
-    connection.textContent='GPT 연결 확인 중…';
-    checkingGpt ||= api('studio-gpt').then(data=>{gptConnection=data;}).catch(e=>{gptConnection={error:e.message};}).finally(()=>{checkingGpt=null;});
-    return checkingGpt.then(()=>{updateState();again.hidden=!!gptConnection?.configured;});
-  }
-  form.append(titled('GPT에 요청할 내용',input),el('small','보내면 대화와 선택한 화면의 요소, 연결 가능한 화면·맵·기능 이름이 OpenAI에 전달돼요.'),
-    row(send,connection,again));
+  const again=action('GPT 연결 확인',()=>refreshStudioGpt(true));
+  form.append(titled('GPT에 요청할 내용',input),el('small',mode==='chatgpt'?'선택한 화면과 대화를 요청에 담아요. 다음 화면에서 내 ChatGPT로 전달하세요.':
+    '선택한 화면의 요소, 연결 가능한 화면·맵·기능 이름과 이 대화를 선택한 모델에 보내요.'),row(send,connection,again));
   form.onsubmit=async e=>{
     e.preventDefault();const prompt=input.value.trim();
-    if(!prompt||thread.pending||!gptConnection?.configured)return;
-    const context=designContext(project,l),stamp=designStamp(project,l);
+    if(!prompt||thread.pending||active||!ready)return;
+    const context=designContext(project,l),stamp=designStamp(project,l),id=uid();
     const history=thread.items.slice(-10).map(m=>({role:m.role,text:(m.text+(m.changes?.length?'\n'+(m.applied?'적용된 변경 ':'이전 제안 ')+JSON.stringify(m.changes):'')).slice(0,3500)}));
-    thread.items.push({role:'user',text:prompt});thread.draft='';thread.pending=true;thread.error='';rerender();
+    const sent={role:'user',text:prompt,ticket:id};
+    thread.items.push(sent);thread.draft='';thread.pending=true;thread.error='';rerender();
     try{
-      const reply=await api('studio-gpt',{id:uid(),prompt,history,context});
-      if(!validDesignReply(reply))throw Error('GPT 변경안을 읽지 못했어요.');
-      const message={role:'assistant',text:reply.message,changes:reply.changes};
-      thread.items.push(message);thread.proposal=message.changes.length?{message,stamp}:null;
+      if(mode==='api'){
+        const reply=await api('studio-gpt',{id,prompt,history,context});
+        if(!validDesignReply(reply))throw Error('GPT 변경안을 읽지 못했어요.');
+        const message={role:'assistant',text:reply.message,changes:reply.changes};
+        thread.items.push(message);thread.proposal=message.changes.length?{message,stamp}:null;
+      }else{
+        await api('personal-gpt/ask',{id,prompt,context,history,stamp:await gptFingerprint(stamp),mode,revision:personal.prefs.revision});
+        await refreshStudioGpt(true);
+      }
       if(thread.items.length>30)thread.items.splice(0,thread.items.length-30);
-    }catch(error){thread.error=error.message;thread.items.pop();if(!thread.draft)thread.draft=prompt;}
-    finally{thread.pending=false;rerender();}
+    }catch(error){
+      thread.error=error.message;thread.items=thread.items.filter(m=>m!==sent);if(!thread.draft)thread.draft=prompt;
+      if(personal)await refreshStudioGpt(true);
+    }finally{thread.pending=false;rerender();}
   };
   if(thread.error)main.append(el('p',thread.error));
   const proposal=thread.proposal;
@@ -92,5 +107,6 @@ function drawStudioGpt(){
   side.append(heading('현재 화면'),el('p',l.name),designSample(project,l),action('직접 화면 디자인',()=>goTool('interface',l.id)));
   if(thread.items.length && !thread.pending)side.append(action('이 화면의 대화 지우기',()=>{designThreads.delete(l.id);draw();},'quiet'));
   updateState();
-  if(!gptConnection)refresh();else again.hidden=!!gptConnection.configured;
+  scheduleStudioGpt();
+  if(!gptConnection||Date.now()-gptCheckedAt>20000)refreshStudioGpt();
 }

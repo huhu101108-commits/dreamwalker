@@ -26,7 +26,7 @@ for (const name of [
   'maps',
   'characters',
   'stories','shot-view','shot-editor',
-  'interface','screen-tools','design-plan','studio-gpt','studio-layout','device-open','device-workspace','device-standalone',
+  'interface','screen-tools','design-plan','personal-gpt','studio-gpt','studio-layout','device-open','device-workspace','device-standalone',
   'flows',
   'export',
   'roadmap',
@@ -34,6 +34,7 @@ for (const name of [
 ]) {
   files['/' + name + '.js'] = ['text/javascript', read('src/' + name + '.js')];
 }
+files['/download/dreamwalker-gpt.mjs']=['application/octet-stream',read('scripts/dreamwalker-gpt.mjs')];
 for (const name of ['cover', 'player', 'stage']) {
   files['/' + name + '.webp'] = ['image/webp', fs.readFileSync('art/' + name + '.webp').toString('base64')];
 }
@@ -66,7 +67,7 @@ fs.writeFileSync(
     'const SOURCE_BASE=' +
     JSON.stringify(sourceBase) +
     ';\n' +
-    ['model','design-plan','gpt-service', 'github-runner', 'android-service', 'link-test-service', 'file-relay-service', 'arena-simulation', 'arena-service', 'server']
+    ['model','design-plan','gpt-service','personal-gpt-service','gpt-mcp', 'github-runner', 'android-service', 'link-test-service', 'file-relay-service', 'arena-simulation', 'arena-service', 'server']
       .map((n) => read('src/' + n + '.js'))
       .join('\n'),
 );
