@@ -718,6 +718,7 @@ public sealed partial class StudioWorld : MonoBehaviour
                 Story = route;
                 lineIndex = 0;
                 BeginStage();
+                Fire("storyStart",Story.id);DispatchProgram("line",Line.id);
                 SyncControls();
             }
             return;

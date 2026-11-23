@@ -23,9 +23,12 @@ function sameStoryScenario(a, b) {
 }
 function storyProbeState(run) {
   const line = run.dialogue?.node;
+  const pairs=values=>[...values.keys()].sort().map(key=>({key,id:values.get(key)}));
   return {map:run.map.id, actor:run.characterId, hp:run.hero.hp, story:run.dialogue?.story.id || '', line:line?.id || '',
     allowed:line ? line.choices.flatMap((_,i) => run.dialogue.allowed(i) ? [i] : []) : [],
     flags:[...run.flags].sort(), stories:[...run.completedStories].sort(), rewards:[...run.rewards].sort(),
+    cleared:[...run.clearedMaps].sort(),runRules:[...run.runRules].sort(),mapRules:[...run.mapRules].sort(),
+    inputs:pairs(run.inputValues),gear:pairs(run.gear),kills:pairs(run.kills),
     bag:[...run.bag.keys()].sort().map(id => ({id,count:run.bag.get(id)}))};
 }
 async function runStoryProbe(doc, spec, roundTrip) {
@@ -97,6 +100,8 @@ function checkStoryPacket(packet, binding, format, selected) {
 function listenStoryProbe(e) {
   if (e.source!==parent || e.data?.dreamwalker!=='studio-story-replay' || !e.ports[0]) return;
   const port=e.ports[0], spec=e.data.scenario;
+  const error=typeof document!=='undefined' && document.getElementById('runtime-error');
+  if(error){port.postMessage({stage:'error',error:error.textContent});port.close();return;}
   const roundTrip=value=>new Promise((resolve,reject)=>{
     port.onmessage=({data})=>data?.error?reject(Error(data.error)):resolve(data?.value);
     port.postMessage({stage:'checkpoint',value});
@@ -110,7 +115,7 @@ async function createStoryProbeFrame(host, doc) {
   if (!host.isConnected) throw Error('대사 검수 화면을 다시 여세요.');
   const page=new DOMParser().parseFromString(html,'text/html'), script=page.createElement('script');
   script.textContent=[storyProbeState,runStoryProbe,listenStoryProbe].map(f=>f.toString()).join('\n')+
-    '\nwindow.addEventListener("message",listenStoryProbe);';
+    '\nwindow.addEventListener("message",listenStoryProbe);document.querySelector("#game[open]")?.close?.();';
   page.body.append(script);
   const frame=el('iframe');
   frame.hidden=true;frame.title='웹 소스 대사 검수';frame.setAttribute('sandbox','allow-scripts');frame.referrerPolicy='no-referrer';
@@ -146,6 +151,12 @@ async function createStoryProbeFrame(host, doc) {
 function addStoryProbe(host) {
   const details=el('details');details.dataset.persist='story-probe';
   details.append(el('summary','대사 분기·저장 웹/Unity 비교'));host.append(details);
+  let ready=false;
+  details.addEventListener('toggle',()=>{
+    if(details.open && !ready){ready=true;buildStoryProbe(details);}
+  });
+}
+function buildStoryProbe(details) {
   const doc=structuredClone(project), revision=record.rev, initial=doc.stories.find(s=>s.id===storyId)||doc.stories[0];
   if (!initial) {details.append(el('p','대사 편집에서 검사할 대사와 줄을 추가하세요.'));return;}
   let spec={map:activeMap().id,story:initial.id,line:initial.nodes.find(n=>n.id===lineId)?.id||initial.nodes[0].id,flags:[],steps:[]};
@@ -154,7 +165,7 @@ function addStoryProbe(host) {
   Object.assign(ticks,{type:'number',min:1,max:600,step:1,value:'1'});
   const status=el('pre'), comparison=el('pre'), frameHost=box('story-probe-frame');
   const snapshotHash=contentDigest(doc);
-  let framePromise, serial=0, opened=false;
+  let framePromise, serial=0;
   const runner=()=>{
     if (!framePromise) framePromise=createStoryProbeFrame(frameHost,doc).catch(err=>{framePromise=null;throw err;});
     return framePromise;
@@ -227,6 +238,7 @@ function addStoryProbe(host) {
     spec=structuredClone(packet.scenario);flags.value=spec.flags.join(', ');drawSelectors();await refresh();
   });
   const resultPicker=filePicker('Unity 대사 결과 선택',false,async([file],active)=>{
+    comparison.textContent='';
     const packet=await read(file), b=await binding(), original=structuredClone(spec);
     checkStoryPacket(packet,b,'dreamwalker-story-result-v1',original);
     if(packet.environment!=='unity-editor-playmode')throw Error('Unity Editor Play 모드에서 생성한 결과를 선택하세요.');
@@ -251,5 +263,5 @@ function addStoryProbe(host) {
         scenario:structuredClone(spec)},'Dreamwalker-Story-Input-v'+b.revision+'.json');
     }),inputPicker),el('p','같은 저장본의 Unity 콘텐츠 팩과 데모 씬을 열고 Tools → Dreamwalker → 대사 분기·저장 재생을 실행하세요. 입력과 결과 JSON은 Assets 밖에 보관하세요.'),
     resultPicker,comparison,frameHost);
-  details.addEventListener('toggle',()=>{if(details.open&&!opened){opened=true;refresh();}});
+  refresh();
 }

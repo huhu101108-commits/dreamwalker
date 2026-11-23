@@ -2,6 +2,9 @@ const PROGRAM_EVENTS={signal:'지정 신호',timer:'예약 타이머',start:'플
 const PROGRAM_TESTS={variable:'범위 변수',flag:'게임 상태',hp:'자기 체력 (%)'};
 const PROGRAM_COMPARE={eq:'같음',ne:'다름',lt:'미만',le:'이하',gt:'초과',ge:'이상'};
 const PROGRAM_OPS={set:'변수 지정',add:'변수 더하기',flagOn:'게임 상태 켜기',flagOff:'게임 상태 끄기',heal:'자기 체력 회복',shield:'자기 보호막 증가',damage:'현재 적중 대상 추가 피해',emit:'지정 신호 호출',timer:'신호 타이머 시작',stopTimer:'신호 타이머 취소',cancel:'규칙 중지',reset:'규칙 초기화',consume:'현재 입력 취소'};
+function programEventKey(event,key){
+  return signalKey(key,true)||(['line','choice'].includes(event)&&typeof key==='string'&&/^[a-zA-Z0-9_가-힣:$-]{1,110}$/.test(key));
+}
 function newEventRule(){
   return {id:uid(),name:'새 이벤트 규칙',enabled:false,event:'signal',key:'',actor:'',map:'',priority:0,scope:'save',repeat:'always',duplicate:'each',every:1,cooldown:0,conditions:[],actions:[]};
 }
@@ -9,7 +12,7 @@ function eventProgramProblem(list,project,allowMissing=false){
   if(!rows(list,0,64))return '이벤트 규칙의 ID 또는 개수를 확인하세요.';
   for(const r of list){
     const issue=reason=>'전투 규칙 · Unity / '+(r.name||r.id)+' / '+reason;
-    if(!textValue(r.name,50,true)||typeof r.enabled!=='boolean'||!has(PROGRAM_EVENTS,r.event)||!signalKey(r.key,true)||
+    if(!textValue(r.name,50,true)||typeof r.enabled!=='boolean'||!has(PROGRAM_EVENTS,r.event)||!programEventKey(r.event,r.key)||
       !['save','session','map'].includes(r.scope)||!['always','once'].includes(r.repeat)||!['each','tick'].includes(r.duplicate)||
       !integer(r.priority,-99,99)||!integer(r.every,1,999)||!integer(r.cooldown,0,36000)||
       ![r.actor,r.map].every(v=>v===''||validId(v))||(!allowMissing&&((r.actor&&!named(project.characters,r.actor))||(r.map&&!named(project.scenes,r.map)))))
@@ -195,7 +198,7 @@ function validRuleProbeSpec(spec,doc){
   if(!spec||(!field&&spec.kind)||!named(doc.characters,spec.actor)||!named(doc.scenes,spec.map)||!integer(spec.maximum,1,99999)||!integer(spec.hp,0,spec.maximum)||
     !programFlags(spec.flags)||!Array.isArray(spec.events)||spec.events.length>120)return false;
   return spec.events.every((e,i)=>{
-    if(!e||!integer(e.tick,i?spec.events[i-1].tick:0,36000)||!signalKey(e.key,true)||
+    if(!e||!integer(e.tick,i?spec.events[i-1].tick:0,36000)||!programEventKey(e.event,e.key)||
       !(field&&e.event==='clock')&&!has(PROGRAM_EVENTS,e.event))return false;
     if(!field)return true;
     const c=e.context;
@@ -239,7 +242,7 @@ function storedProgramProbe(p){
     Array.isArray(b.flags)&&b.flags.length<=4096&&b.flags.every(k=>signalKey(k))&&Array.isArray(b.scope)&&b.scope.length===3&&
     b.scope.every(x=>x&&['save','session','map'].includes(x.scope)&&Array.isArray(x.vars)&&x.vars.every(v=>v&&signalKey(v.key)&&integer(v.value,-999999,999999))&&
       Array.isArray(x.counts)&&Array.isArray(x.timers))&&Array.isArray(b.outcomes)&&b.outcomes.length<=120&&Array.isArray(b.trace)&&b.trace.length<=2048&&
-    b.trace.every(t=>t&&integer(t.tick,0,36000)&&has(PROGRAM_EVENTS,t.event)&&signalKey(t.key,true)&&validId(t.rule)&&typeof t.state==='string'&&integer(t.index,-1,15));
+    b.trace.every(t=>t&&integer(t.tick,0,36000)&&has(PROGRAM_EVENTS,t.event)&&programEventKey(t.event,t.key)&&validId(t.rule)&&typeof t.state==='string'&&integer(t.index,-1,15));
 }
 
 class FieldRuleCapture {
@@ -272,7 +275,7 @@ class FieldRuleCapture {
       this.spec={kind:'field',actor,map,maximum,hp,flags:[...flags].sort(),events:[]};
       this.last={hp,shield:0,flags:new Set(flags)};
     }
-    if(!integer(tick,0,36000)||!signalKey(key,true)||flags.size>64){
+    if(!integer(tick,0,36000)||!programEventKey(event,key)||flags.size>64){
       this.close(run,'시간·상태·이벤트 키가 기록 범위를 넘었어요. 마지막으로 기록한 구간까지만 비교합니다.');return;
     }
     const context={actor,map,maximum,healthDelta:hp-this.last.hp,shieldDelta:shield-this.last.shield,resetMap:this.resetMap,

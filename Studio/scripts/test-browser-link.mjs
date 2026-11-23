@@ -90,11 +90,11 @@ try {
   const origin='http://127.0.0.1:'+servers[0].address().port, peerOrigin='http://127.0.0.1:'+teammate.address().port;
   // Run every independent workflow even if another one reports a regression.
   const workflows=[
+    [testInspectionWorkflow,host,origin],[testTargetFile,host,origin],[testPortablePipeline,host,origin],
+    [testSceneMediaBrowser,host,origin],[testScreenWorkflow,host,origin],[testRuleAuthoring,host,origin],[testStoryProbeBrowser,host,origin],
     [testTouchAuthoring,host],[testDeskBrowser,host],[testDialogueBrowser,host],[testDeviceDesigner,host],
-    [testArenaBrowser,host,guest,origin,peerOrigin],[testPersonalGptBrowser,host,guest,origin,peerOrigin],
-    [testGptWorkbenchBrowser,host,origin,guest.context().browser()],[testPresetDesigner,host,origin],
-    [testSceneMediaBrowser,host,origin],[testRuleAuthoring,host,origin],[testScreenWorkflow,host,origin],
-    [testPortablePipeline,host,origin],[testTargetFile,host,origin],[testInspectionWorkflow,host,origin],[testStoryProbeBrowser,host,origin]
+    [testPersonalGptBrowser,host,guest,origin,peerOrigin],[testGptWorkbenchBrowser,host,origin,guest.context().browser()],
+    [testPresetDesigner,host,origin],[testArenaBrowser,host,guest,origin,peerOrigin]
   ];
   const failures=[];
   for(const [run,...args] of workflows){

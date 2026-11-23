@@ -117,7 +117,7 @@ async function inspectionRequest(path,body){
   if(path==='project'&&body===undefined)return inspectionRecord();
   if(path==='runtime'&&body===undefined){const r=await inspectionRecord();return {rev:r.rev,project:r.project};}
   if(path==='save'&&body)return saveInspectionRevision(inspectionId,body);
-  if(body!==undefined&&!['owner-session','login','logout'].includes(path)&&!path.startsWith('file-')&&!path.startsWith('net-test/'))
+  if(body!==undefined&&!['owner-session','login','logout','studio-gpt','personal-gpt/ask','personal-gpt/export-request','personal-gpt/import','personal-gpt/refresh-models','personal-gpt/cancel'].includes(path)&&!path.startsWith('file-')&&!path.startsWith('net-test/'))
     throw Error('팀 게시·계정 연결은 원본 제작실에서 할 수 있어요. 검수 사본의 변경은 이 기기에 저장돼요.');
 }
 async function visitInspection(id){

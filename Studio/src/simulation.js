@@ -680,8 +680,9 @@ class FieldRun {
         this.layers = [];
         this.keys.clear();
         this.dialogue = new DialogueCursor(story,this.flags);
-    this.dialogue.step(0);
+        this.dialogue.step(0);
         this.afterStory = null;
+        this.fire('storyStart',story.id);this.dispatchProgram('line',this.dialogue.node.id);
         this.serial++;
       }
       return;

@@ -29,7 +29,8 @@ namespace Dreamwalker.Demo
     public string map, actor, story, line;
     public int hp;
     public int[] allowed;
-    public string[] flags, stories, rewards;
+    public string[] flags, stories, rewards, cleared, runRules, mapRules;
+    public StudioEquipEntry[] inputs, gear, kills;
     public StudioBagEntry[] bag;
 }
 [Serializable] public sealed class StudioStoryStep
@@ -102,6 +103,10 @@ public sealed partial class StudioWorld
         keys.Sort(StringComparer.Ordinal);
         return keys.ToArray();
     }
+    private static StudioEquipEntry[] OrderedStoryValues(Dictionary<string, string> source)
+    {
+        return Array.ConvertAll(OrderedStoryKeys(source.Keys), key => new StudioEquipEntry { key = key, id = source[key] });
+    }
     private StudioStoryState CaptureStoryProbe()
     {
         var allowed = new List<int>();
@@ -113,7 +118,10 @@ public sealed partial class StudioWorld
         return new StudioStoryState {
             map = Map.id, actor = Actor.id, hp = Health, story = Story?.id ?? "", line = Line?.id ?? "",
             allowed = allowed.ToArray(), flags = OrderedStoryKeys(flow.Flags), stories = OrderedStoryKeys(storiesDone),
-            rewards = OrderedStoryKeys(rewards), bag = inventory.ToArray()
+            rewards = OrderedStoryKeys(rewards), cleared = OrderedStoryKeys(mapsDone),
+            runRules = OrderedStoryKeys(flow.RunRules), mapRules = OrderedStoryKeys(flow.MapRules),
+            inputs = OrderedStoryValues(formValues), gear = OrderedStoryValues(gear), kills = OrderedStoryValues(kills),
+            bag = inventory.ToArray()
         };
     }
 

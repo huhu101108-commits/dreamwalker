@@ -84,7 +84,7 @@ function eventRuleEditor(){
     checkField('이벤트 규칙 사용',r.enabled,v=>edit(()=>{r.enabled=v;selectedEventRule=r.id;}))));
   root.append(row(selectField('발동 이벤트',r.event,PROGRAM_EVENTS,v=>edit(()=>{
     r.event=v;r.key='';for(const a of r.actions)if((a.kind==='consume'&&v!=='input')||(a.kind==='damage'&&v!=='hit')){a.kind='heal';a.key='';a.value=0;}
-  })),bindText('이벤트 키 (비우면 전체)',r,'key')),
+  })),bindText('이벤트 키 (비우면 전체)',r,'key',110)),
     row(bindSelect('규칙 적용 맵',r,'map',{'':'모든 맵',...optionMap(project.scenes)}),bindSelect('규칙 적용 캐릭터',r,'actor',{'':'모든 캐릭터',...optionMap(project.characters)})),
     row(bindSelect('변수·횟수·타이머 저장 범위',r,'scope',{save:'진행 저장',session:'현재 플레이 세션',map:'현재 맵 체류'}),
       bindSelect('규칙 반복',r,'repeat',{always:'조건을 만족할 때마다',once:'범위당 한 번'})),
@@ -160,9 +160,9 @@ function ruleReplayEditor(){
   const flags=el('input');flags.value=spec.flags.join(', ');
   panel.append(titled('검증 시작 상태 (쉼표로 구분)',flags),action('검증 시작 상태 적용',()=>{
     const values=flags.value.split(',').map(v=>v.trim()).filter(Boolean);if(values.length>64||!values.every(v=>signalKey(v)))throw Error('상태 이름을 확인하세요.');save({flags:[...new Set(values)]});
-  }),row(selectField('기록할 이벤트',chosen,PROGRAM_EVENTS,v=>chosen=v),textField('기록할 이벤트 키',key,v=>key=v),
+  }),row(selectField('기록할 이벤트',chosen,PROGRAM_EVENTS,v=>chosen=v),textField('기록할 이벤트 키',key,v=>key=v,110),
     numberField('기록할 틱',tick,0,36000,1,v=>tick=v)),action('입력 기록에 추가',()=>{
-      if(spec.events.length>=120||!signalKey(key,true))throw Error('입력 개수와 이벤트 키를 확인하세요.');
+      if(spec.events.length>=120||!programEventKey(chosen,key))throw Error('입력 개수와 이벤트 키를 확인하세요.');
       save({events:[...spec.events,{event:chosen,key,tick}].sort((a,b)=>a.tick-b.tick)});
     }));
   for(const [i,e] of spec.events.entries())panel.append(row(el('span',e.tick+'틱 · '+PROGRAM_EVENTS[e.event]+' '+e.key),

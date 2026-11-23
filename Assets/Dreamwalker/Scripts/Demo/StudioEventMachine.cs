@@ -172,6 +172,8 @@ namespace Dreamwalker.Demo
     {
         private static readonly HashSet<string> Events=new HashSet<string>{"signal","timer","start","enter","menu","storyStart","storyEnd","line","choice","input","hit","hurt","kill","skill","switch","clear","defeat"};
         private static readonly System.Text.RegularExpressions.Regex Key=new System.Text.RegularExpressions.Regex(@"^[a-zA-Z0-9_가-힣-]{1,50}$");
+        private static readonly System.Text.RegularExpressions.Regex RouteKey=new System.Text.RegularExpressions.Regex(@"^[a-zA-Z0-9_가-힣:$-]{1,110}$");
+        private static bool EventKey(string moment,string key)=>key!=null&&(key==""||Key.IsMatch(key)||((moment=="line"||moment=="choice")&&RouteKey.IsMatch(key)));
         private static string Row(params object[] fields)
         {
             var text=new string[fields.Length];
@@ -206,7 +208,7 @@ namespace Dreamwalker.Demo
                 if(record)steps.Add(Row(tick,moment,key,hp,shield,damage,result.consumed?1:0));
             }
             foreach(var e in s.events){
-                if(e==null||e.tick<last||e.tick>36000||(!Events.Contains(e.@event)&&!(field&&e.@event=="clock"))||e.key==null||(e.key!=""&&!Key.IsMatch(e.key)))
+                if(e==null||e.tick<last||e.tick>36000||(!Events.Contains(e.@event)&&!(field&&e.@event=="clock"))||!EventKey(e.@event,e.key))
                     throw new ArgumentException("시간순 입력 기록과 이벤트 이름을 확인하세요.");
                 if(field){
                     var c=e.context;

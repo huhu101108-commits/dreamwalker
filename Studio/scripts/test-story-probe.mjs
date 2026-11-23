@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { pathToFileURL } from 'node:url';
+import { MessageChannel } from 'node:worker_threads';
 
 const context=vm.createContext({structuredClone,crypto,TextEncoder});
 for(const name of ['model','rule-machine','simulation','story-probe'])
@@ -69,6 +70,31 @@ async function test() {
   assert(!JSON.stringify(m.playableWorld(doc)).includes('dreamwalker-story-result-v1'));
   const normal=new m.FieldRun(doc);
   assert.equal(normal.dialogue.story.id,'qa-entry');assert(normal.flags.has('mapEntered'));
-  console.log('PASS author-selected line and zero-tick rules, guarded choices, time, skip flags, real FieldRun checkpoint/restore, reward recheck, wrong inputs and versions');
+  // Use the Worker's issued source base and saved revision as the frame would. No team or device storage.
+  const {call,previewOwnerHeaders}=await import('./worker-fixture.mjs');
+  const session=await call('owner-session',{},previewOwnerHeaders);
+  const headers={...previewOwnerHeaders,cookie:session.headers.get('set-cookie').split(';')[0]};
+  assert.equal((await call('save',{rev:0,project:doc},headers)).status,200);
+  const savedRelease=await (await call('runtime',undefined,headers)).json();
+  assert.equal(savedRelease.rev,1);assert.equal(await m.contentDigest(savedRelease.project),source);
+  const base=await (await call('source-base',undefined,headers)).json();
+  const parent=Object.freeze({}), frame=vm.createContext({parent,structuredClone,crypto,GAME_DATA:{project:m.playableWorld(savedRelease.project)}});
+  vm.runInContext(base['Web/model.js']+'\n'+base['Web/simulation.js'],frame);
+  vm.runInContext(vm.runInContext('[storyProbeState,runStoryProbe,listenStoryProbe].map(f=>f.toString()).join("\\n")',context),frame);
+  const channel=new MessageChannel();
+  frame.inputEvent={source:parent,data:{dreamwalker:'studio-story-replay',scenario:spec},ports:[channel.port2]};
+  const reply=new Promise((resolve,reject)=>{
+    const timeout=setTimeout(()=>reject(Error('message port timed out')),2000);
+    channel.port1.onmessage=({data})=>{
+      if(data.stage==='checkpoint'){slots.set('frame',data.value);channel.port1.postMessage({value:slots.get('frame')});return;}
+      clearTimeout(timeout);
+      if(data.stage==='error')reject(Error(data.error));else resolve(data.outcome);
+    };
+  });
+  try {
+    vm.runInContext('listenStoryProbe(inputEvent)',frame);
+    assert.deepEqual(await reply,result);
+  } finally {channel.port1.close();channel.port2.close();}
+  console.log('PASS author-selected line and zero-tick rules, guarded choices, skip, isolated Worker revision and Web source message channel, FieldRun checkpoint/restore, reward recheck, version mismatch');
 }
 if(process.argv[1] && import.meta.url===pathToFileURL(process.argv[1]).href)await test();
