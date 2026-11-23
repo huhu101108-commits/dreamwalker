@@ -9,7 +9,7 @@ export async function testArenaBrowser(editor,guest,origin,otherOrigin) {
   await editor.waitForFunction(()=>document.querySelector('#note')?.textContent.includes('저장 완료'));
   await editor.getByRole('button',{name:'저장한 전투 규칙 게시'}).click();
   await editor.waitForFunction(()=>document.querySelector('#note')?.textContent.includes('규칙 게시 완료'));
-  const host=await editor.context().newPage();
+  const host=await editor.context().browser().newPage();
   try {
     await Promise.all([host.goto(origin+'/arena'),guest.goto(otherOrigin+'/arena')]);
     for(const page of [host,guest]) {
