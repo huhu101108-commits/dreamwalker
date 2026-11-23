@@ -49,7 +49,10 @@
   }
   async function busy(fn) {
     if(editing) return; editing=true;
-    try { await fn(); } catch(e){tell(e.message);} finally{editing=false;}
+    const controls=[...document.querySelectorAll('#enter,#create,#join,#leave,#sell,#refresh,#listings button')];
+    for (const button of controls) button.disabled=true;
+    try { await fn(); } catch(e){tell(e.message);}
+    finally { editing=false; for (const button of controls) button.disabled=false; }
   }
   async function poll() {
     if (!room || room.status==='finished' || polling || editing || document.hidden || Date.now()<nextPoll) return;

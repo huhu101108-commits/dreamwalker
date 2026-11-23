@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Text;
 using Dreamwalker.Input;
+using static Dreamwalker.Demo.StudioArenaProtocol;
 using UnityEngine;
 using UnityEngine.Networking;
 #if ENABLE_INPUT_SYSTEM
@@ -13,19 +14,6 @@ namespace Dreamwalker.Demo
     // The native client sends inputs and renders confirmed server snapshots.
     public sealed class StudioOnlineArena : MonoBehaviour
     {
-        [Serializable] private class Actor { public string id, name; }
-        [Serializable] private class Fighter { public string name; public int hp, maxHp, x, y, seq, face, shield; public bool attacking, dodging; }
-        [Serializable] private class Snapshot
-        {
-            public string code, status, reason, release;
-            public int seat, revision, winner, remaining, countdown, width;
-            public Fighter[] players;
-        }
-        [Serializable] private class Wallet { public int credits, medals, wins; }
-        [Serializable] private class Listing { public string id; public int price; public bool mine; }
-        [Serializable] private class Reply { public string token, error; public int protocol; public Snapshot room; public Wallet wallet; public Listing[] listings; public Actor[] actors; }
-        [Serializable] private class Command { public string code, actor, id; public int axis, seq, press, price; public bool native; }
-
         public static bool Visible { get; private set; }
         private const string Key = "dreamwalker-arena-guest-v1";
         private Snapshot room;
@@ -35,7 +23,7 @@ namespace Dreamwalker.Demo
         private Command pending;
         private int selected, sequence, edges, axis;
         private string token, joinCode = "", price = "5", message = "";
-        private bool working, market;
+        private bool working, market, leaving;
         private float previousScale, nextPoll;
         private Vector2 scroll;
         private Texture2D stage, sprite;
@@ -54,7 +42,7 @@ namespace Dreamwalker.Demo
         private void Close()
         {
             if (!Visible) return;
-            StopAllCoroutines(); working = false; held.Clear(); edges = axis = 0; pending = null;
+            StopAllCoroutines(); working = leaving = false; held.Clear(); edges = axis = 0; pending = null;
             Visible = false; Time.timeScale = previousScale;
         }
         private void OnDestroy() { if (Visible) Close(); }
@@ -126,7 +114,12 @@ namespace Dreamwalker.Demo
         }
         private void Update()
         {
-            if (!Visible || room==null || room.status=="finished" || market) return;
+            if (!Visible || room==null) return;
+            if (leaving) {
+                if (!working) { leaving=false; Run(RoomAction("leave",new Command { code=room.code })); }
+                return;
+            }
+            if (room.status=="finished" || market) return;
             if (room.status=="playing") {
                 axis=(int)DreamwalkerInput.Horizontal; held.Clear();
 #if ENABLE_INPUT_SYSTEM
@@ -201,7 +194,7 @@ namespace Dreamwalker.Demo
                     (room.reason=="ko"&&room.winner>=0?(room.winner==room.seat?"Victory":"Defeat"):room.reason):
                     room.countdown>0?"Ready":"Fight";
                 GUILayout.Label(state+"    "+message);
-                if (GUILayout.Button("Leave room")) Run(RoomAction("leave",new Command { code=room.code }));
+                if (GUILayout.Button("Leave room")) leaving=true;
                 PaintMatch();
             } else if (market) {
                 GUILayout.Label("Mine medals    "+(wallet?.medals??0)+"    Credits    "+(wallet?.credits??0));

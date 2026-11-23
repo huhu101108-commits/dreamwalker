@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict';
+import {execFile,spawnSync} from 'node:child_process';
+import {promisify} from 'node:util';
+import {fileURLToPath} from 'node:url';
 export async function testArenaBrowser(editor,guest,origin,otherOrigin) {
   await editor.goto(origin+'/?tool=rules');
   await editor.getByRole('button',{name:'전투 규칙 · Unity',exact:true}).click();
@@ -34,5 +37,14 @@ export async function testArenaBrowser(editor,guest,origin,otherOrigin) {
     await host.getByText('등록된 휘장이 없어요.',{exact:true}).waitFor();
     assert.match(await host.locator('#wallet').textContent(),/휘장 1개/);
     console.log('PASS rule authoring, owner publish, two browsers join, guest reload/rejoin, actual keyboard KO, reward, listing and cancel');
+    if (process.env.GITHUB_ACTIONS || spawnSync('dotnet',['--version']).status===0) {
+      await host.locator('#leave').click(); await host.locator('#create').click();
+      await host.getByText('상대에게 방 코드를 공유하세요.').waitFor();
+      const newCode=(await host.locator('#roomTitle').textContent()).match(/방 ([A-Z0-9]{8})/)[1];
+      const project=fileURLToPath(new URL('./native-check/StudioContract.csproj',import.meta.url));
+      const result=await promisify(execFile)('dotnet',['run','--no-build','--project',project,'--',origin,newCode],{timeout:30000});
+      assert(result.stdout.includes('PASS Unity wire DTOs')); console.log(result.stdout.trim());
+      await host.getByText('패배',{exact:true}).waitFor();
+    }
   } finally { await host.close(); }
 }
