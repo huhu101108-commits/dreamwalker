@@ -64,21 +64,52 @@ export async function testArenaBrowser(editor,guest,origin,otherOrigin) {
     await host.waitForFunction(()=>document.querySelector('#bars')?.children.length===2 && document.querySelector('#banner').textContent==='');
     const attack=host.getByRole('button',{name:'설화 일격',exact:true});
     assert.deepEqual(await attack.evaluate(node=>[node.style.left,node.style.width,getComputedStyle(node).backgroundColor]),['68%','30%','rgb(146, 69, 99)']);
-    let impaired=false,duplicateChecked=false;
-    await host.route('**/api/arena/input',async route=>{
-      const body=route.request().postDataJSON();
-      if(impaired||!(body.press&1))return route.continue();
-      impaired=true;
-      const committed=await (await route.fetch()).json();
-      const duplicate=await (await host.request.post(route.request().url(),{data:body})).json();
-      duplicateChecked=committed.players[committed.seat].seq===duplicate.players[duplicate.seat].seq;
-      await route.abort('failed');
-    });
-    await attack.click();
+    // The arena cookie is Secure. Chromium sends it over loopback, but Playwright's
+    // APIRequestContext omits it for HTTP unless the captured guest credential is supplied.
+    const arenaCookie=(await host.context().cookies()).find(c=>c.name==='dw_arena'&&
+      c.domain===new URL(origin).hostname&&c.path==='/api/arena/');
+    assert(arenaCookie?.secure&&arenaCookie.httpOnly,'the browser must already be signed into its friendly seat');
+    let attempted=false, finish;
+    const captured=new Promise(resolve=>{finish=resolve;});
+    const path='**/api/arena/input';
+    async function dropAttackAck(route){
+      const request=route.request(),body=request.postDataJSON();
+      if(attempted||!(body.press&1))return route.continue();
+      attempted=true;
+      let error;
+      try{
+        assert.equal(new URL(request.url()).origin,origin);
+        const headers={...await request.allHeaders(),origin,cookie:arenaCookie.name+'='+arenaCookie.value};
+        async function send(label){
+          const response=await route.fetch({headers,maxRedirects:0});
+          const text=await response.text();
+          assert.equal(response.status(),200,label+' returned HTTP '+response.status()+' '+text.slice(0,250));
+          const snapshot=JSON.parse(text);
+          assert.equal(snapshot.code,body.code,label+' returned another room');
+          assert.equal(snapshot.seat,0,label+' returned another seat');
+          assert.equal(snapshot.players?.[snapshot.seat]?.seq,body.seq,label+' did not acknowledge this command');
+          return snapshot;
+        }
+        const first=await send('first attack'),duplicate=await send('duplicate attack');
+        assert.equal(first.release,duplicate.release);
+        assert.equal(first.revision,duplicate.revision);
+      }catch(e){error=e;}
+      try{await route.abort('failed');}catch(e){error ||= e;}
+      finish(error);
+    }
+    await host.route(path,dropAttackAck);
+    try{
+      await attack.click();
+      const deadline=AbortSignal.timeout(12000);
+      const failure=await Promise.race([captured,new Promise(resolve=>deadline.addEventListener('abort',()=>{
+        resolve(Error('Timed out while observing the duplicate friendly attack'));
+      },{once:true}))]);
+      if(failure)throw failure;
+    }finally{await host.unroute(path,dropAttackAck);}
     await host.getByText('승리',{exact:true}).waitFor();await guest.getByText('패배',{exact:true}).waitFor();
     await host.waitForFunction(()=>document.querySelector('#wallet')?.textContent.includes('10크레딧'));
     await host.locator('#sell').click();
-    assert(impaired&&duplicateChecked);assert.match(await host.locator('#bars').textContent(),/1회 적중/);
+    assert.match(await host.locator('#bars').textContent(),/1회 적중/);
     await host.getByRole('button',{name:'판매 취소',exact:true}).waitFor();
     await guest.locator('#refresh').click();await guest.getByRole('button',{name:'구매',exact:true}).waitFor();
     await host.getByRole('button',{name:'판매 취소',exact:true}).click();

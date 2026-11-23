@@ -81,6 +81,7 @@ public class StudioCharacter
     public StudioRoadmap roadmap;
     public StudioClip[] motionClips;
     public StudioStrike strike;
+    public StudioDodge dodge;
 }
 [Serializable]
 public class StudioSkill

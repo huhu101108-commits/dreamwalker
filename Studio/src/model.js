@@ -114,6 +114,7 @@ const WIDGETS = {
 };
 const SCREEN_TYPES = { hud: '전투 HUD', menu: '메뉴', dialogue: '대화 화면', custom: '사용자 화면' };
 const INPUTS = {
+  dodge: '회피',
   left: '왼쪽',
   right: '오른쪽',
   jump: '점프',
@@ -1186,6 +1187,7 @@ const GEAR_SLOTS = {
   extra5: '추가 장비 5',
 };
 const motionNames = (actor) => ({
+  ...(actor.dodge?.enabled||actor.clips?.dodge?{dodge:'회피'}:{}),
   idle: '대기',
   run: '달리기',
   jump: '점프',
@@ -1207,6 +1209,7 @@ function poseAt(clip, ticks, loop) {
 }
 function productionProblem(d) {
   if(d.eventRules!==undefined){const issue=eventProgramProblem(d.eventRules,d);if(issue)return issue;}
+  for(const c of d.characters)if(c.dodge!==undefined&&!validDodge(c.dodge))return '캐릭터 / '+c.name+' / 회피 거리·길이·무적 구간';
   for(const c of d.characters)if(c.strike!==undefined&&!validStrike(c.strike))return '모션 · 효과 / '+c.name+' / 기본 공격 판정 구간';
   const ruleError=validateCombatRules(d.combatRules === undefined ? [] : d.combatRules,d.characters);
   if (ruleError) return ruleError;
@@ -1228,11 +1231,11 @@ function productionProblem(d) {
       return q.name + '의 완료 조건과 보상 장비를 지정하세요.';
   for (const c of d.characters) {
     if (c.clips === undefined) continue;
-    if (!c.clips || typeof c.clips !== 'object' || Array.isArray(c.clips) || Object.keys(c.clips).length > 16)
+    if (!c.clips || typeof c.clips !== 'object' || Array.isArray(c.clips) || Object.keys(c.clips).length > 17)
       return c.name + '의 모션 목록을 확인하세요.';
     for (const [key, v] of Object.entries(c.clips)) {
       if (
-        !/^(idle|run|jump|attack|skill(?:[1-9]|1[0-2]))$/.test(key) ||
+        !/^(idle|run|jump|attack|dodge|skill(?:[1-9]|1[0-2]))$/.test(key) ||
         !v ||
         !Array.isArray(v.frames) ||
         v.frames.length > 64 ||

@@ -101,7 +101,7 @@ function listenStoryProbe(e) {
   if (e.source!==parent || e.data?.dreamwalker!=='studio-story-replay' || !e.ports[0]) return;
   const port=e.ports[0], spec=e.data.scenario;
   const error=typeof document!=='undefined' && document.getElementById('runtime-error');
-  if(error){port.postMessage({stage:'error',error:error.textContent});port.close();return;}
+  if(error?.textContent){port.postMessage({stage:'error',error:error.textContent});port.close();return;}
   const roundTrip=value=>new Promise((resolve,reject)=>{
     port.onmessage=({data})=>data?.error?reject(Error(data.error)):resolve(data?.value);
     port.postMessage({stage:'checkpoint',value});
@@ -251,7 +251,7 @@ function buildStoryProbe(details) {
       ...(assessment?['웹 완료 검수 · '+assessment]:[])].join('\n');
   });
   drawSelectors();
-  details.append(el('p','선택한 줄부터 대사 입력을 기록합니다. 화면 조작과 물리 프레임은 별도 플레이로 확인하세요.'),selectors,
+  details.append(el('p','선택한 줄부터 대사 입력을 기록합니다. 웹과 Unity가 실제로 저장한 맵·캐릭터·체력·플래그·완료·보상·소지품을 비교합니다. 화면 조작·물리와 앱 종료 후 복귀는 기기 플레이로 확인하세요.'),selectors,
     row(titled('시작 플래그 · 쉼표로 구분',flags),action('시작 플래그 적용',()=>{
       const chosen=[...new Set(flags.value.split(',').map(f=>f.trim()).filter(Boolean))].sort();
       if(!validStoryScenario({...spec,flags:chosen},doc))throw Error('플래그 이름과 개수를 확인하세요.');
@@ -261,7 +261,7 @@ function buildStoryProbe(details) {
     row(action('Unity용 대사 입력 저장',async()=>{
       const b=await binding();download({format:'dreamwalker-story-input-v1',revision:b.revision,contentDigest:b.contentDigest,
         scenario:structuredClone(spec)},'Dreamwalker-Story-Input-v'+b.revision+'.json');
-    }),inputPicker),el('p','같은 저장본의 Unity 콘텐츠 팩과 데모 씬을 열고 Tools → Dreamwalker → 대사 분기·저장 재생을 실행하세요. 입력과 결과 JSON은 Assets 밖에 보관하세요.'),
+    }),inputPicker),el('p','같은 저장본의 전체 Unity 프로젝트를 열거나 검수 메뉴가 있는 프로젝트에 같은 콘텐츠 팩을 가져오세요. 데모 씬에서 Tools → Dreamwalker → 대사 분기·저장 재생을 실행하고 입력·결과 JSON은 Assets 밖에 보관하세요.'),
     resultPicker,comparison,frameHost);
   refresh();
 }

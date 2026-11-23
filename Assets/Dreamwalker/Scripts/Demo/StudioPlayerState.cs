@@ -173,6 +173,7 @@ public sealed partial class StudioWorld
     }
     private void ReceiveDamage(int amount)
     {
+        if(dodgeStart>=0 && Actor.dodge.Guard(combatTick-dodgeStart))return;
         if(slash.IsAttacking && (slash.StudioStrike?.Guard(slash.StudioTick)??false))return;
         Health = Math.Max(0, Health - RuleState().Absorb(amount));
         CombatEvent("hurt");
@@ -222,7 +223,7 @@ public sealed partial class StudioWorld
     }
     private bool SaveProgress()
     {
-        if (!Running || Map == null || Health <= 0 || body.position.y < 0 || Story != null || skill != null || pendingExit != null ||
+        if (!Running || Map == null || Health <= 0 || body.position.y < 0 || Story != null || skill != null || dodgeStart>=0 || pendingExit != null ||
             (HasOverlay && string.IsNullOrEmpty(Result)))
             return false;
         RememberMap();
@@ -308,7 +309,10 @@ public sealed partial class StudioWorld
         combatTick = Math.Max(0, saved.combatTick);
         eventMachine?.Restore(saved.eventState,combatTick);
         foreach (var state in saved.combatStates ?? Array.Empty<StudioActorRules>())
-            if (state != null && state.counters != null && Project.Character(state.actor) != null) combatStates.Add(state);
+            if (state != null && state.counters != null && Project.Character(state.actor) != null){
+                if(state.dodgeReady<0 || state.dodgeReady>(long)combatTick+36000)state.dodgeReady=0;
+                combatStates.Add(state);
+            }
         foreach (var entry in saved.kills ?? Array.Empty<StudioEquipEntry>())
             if (entry?.key != null) kills[entry.key] = entry.id ?? "";
         mapsDone.UnionWith(saved.cleared ?? Array.Empty<string>());
@@ -456,7 +460,8 @@ public sealed partial class StudioWorld
     {
         if (Actor?.motionClips == null || bodyImage == null)
             return;
-        string pose = skill != null                            ? activeSkillKey
+        string pose = dodgeStart>=0                            ? "dodge"
+                      : skill != null                            ? activeSkillKey
                       : slash.IsAttacking                      ? "attack"
                       : Mathf.Abs(body.linearVelocity.y) > .1f ? "jump"
                       : Mathf.Abs(body.linearVelocity.x) > .1f ? "run"

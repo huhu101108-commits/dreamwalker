@@ -1,5 +1,5 @@
 function inspectionSlot(doc,label){
-  const name=(label||'기본').trim().slice(0,100);
+  const name=String(label||'').trim().slice(0,100)||'기본';
   return 'dreamwalker-inspection-progress-v2:'+(inspectionId||'team')+':'+encodeURIComponent(doc.saveId||doc.startMap)+':'+encodeURIComponent(name);
 }
 function cleanInspectionSample(data,doc){
@@ -25,7 +25,7 @@ async function playInspectionFrom(doc,target={},rev=record.rev){
   if(target.objectId&&!named(map.objects,target.objectId))throw Error('다시 열 검사 지점이 삭제됐어요.');
   if(target.storyId && (!named(copy.stories,target.storyId)||target.lineId&&!named(named(copy.stories,target.storyId).nodes,target.lineId)))throw Error('다시 열 대사 줄이 삭제됐어요.');
   if(target.screenId&&!named(copy.layouts,target.screenId))throw Error('다시 열 화면이 삭제됐어요.');
-  const slot=String(target.slot||[map.id,target.objectId,target.storyId,target.lineId,target.screenId].filter(Boolean).join('/')).slice(0,100);
+  const slot=String(target.slot??[map.id,target.objectId,target.storyId,target.lineId,target.screenId].filter(Boolean).join('/')).trim().slice(0,100)||'기본';
   const start={mapId:map.id,objectId:target.objectId||'',storyId:target.storyId||'',lineId:target.lineId||'',screenId:target.screenId||'',
     fromStart:!!target.fromStart,resume:!!target.resume,slot};
   const digest=await contentDigest(copy);

@@ -195,7 +195,7 @@ class FieldRun {
     if (
       this.presentation || this.hero.hp <= 0 || this.hero.y < 0 ||
       this.dialogue ||
-      this.sequence ||
+      this.evade || this.sequence ||
       this.pendingTravel ||
       (this.layers.length && this.result !== 'clear')
     )
@@ -257,6 +257,7 @@ class FieldRun {
       if (!src) continue;
       const mem=this.combatState[key]=combatMemory();
       if(integer(src.shield,0,9999)) mem.shield=src.shield;
+      if(actor.dodge?.enabled&&integer(src.dodgeReady,0,this.combatTick+36000))mem.dodgeReady=src.dodgeReady;
       for(const rule of this.world.combatRules||[]) {
         const k='r_'+rule.id;
         if(integer(src.count?.[k],0,998)) mem.count[k]=src.count[k];
@@ -327,6 +328,7 @@ class FieldRun {
     this.sceneAge=mode==='restore'?Infinity:0;
     this.serial++;
     this.characterId = this.map.characterId;
+    this.evade=null;
     const memory = mode === 'restart' ? null : this.mapMemory.get(id);
     this.seen = new Set(memory?.seen || []);
     this.layers = [];
@@ -546,6 +548,7 @@ class FieldRun {
     if (!c) return;
     const ratio = this.hero.hp / this.character.health;
     this.characterId = c.id;
+    this.evade=null;
     this.hero.hp = Math.ceil(ratio * c.health);
     this.sequence = null;
     this.stroke = null;
@@ -708,6 +711,14 @@ class FieldRun {
       this.keys.add(action);
       return;
     }
+    if(this.evade)return;
+    if(action==='dodge'){
+      const d=this.character.dodge;
+      if(!d?.enabled||this.sequence||this.combatTick<(this.combatMemory.dodgeReady||0))return;
+      if(this.stroke){if(!strikeWindow(this.character.strike,'cancel',this.stroke.tick))return;this.stroke=null;}
+      this.combatMemory.dodgeReady=this.combatTick+d.cooldown;
+      this.evade={start:this.combatTick,face:this.hero.face};return;
+    }
     if (action === 'jump') {
       if (this.hero.ground) {
         this.hero.vy = this.t.jumpSpeed * this.character.jumpScale * 3.8;
@@ -772,6 +783,7 @@ class FieldRun {
     return result.damage+(this.dispatchProgram(event,key)?.damage||0);
   }
   hurtHero(amount) {
+    if(this.evade&&strikeWindow(this.character.dodge,'inv',this.combatTick-this.evade.start))return;
     if(this.character.strike&&this.stroke&&strikeWindow(this.character.strike,'inv',this.stroke.tick))return;
     this.hero.hp=Math.max(0,this.hero.hp-absorbCombatDamage(this.combatMemory,amount));
     this.applyCombatEvent('hurt');
@@ -945,7 +957,10 @@ class FieldRun {
     const h = this.hero,
       t = this.t;
     const move = (Number(this.keys.has('right')) - Number(this.keys.has('left'))) || this.stickAxis;
-    if (!this.sequence) {
+    const d=this.character.dodge;
+    if(this.evade&&this.combatTick-this.evade.start>d.ticks)this.evade=null;
+    if(this.evade)h.x=clamp(h.x+3.5*d.distance*this.evade.face/d.ticks,1,this.map.width-1);
+    else if (!this.sequence) {
       if (move) h.face = Math.sign(move);
       h.x = clamp(h.x + move * t.runSpeed * this.character.speedScale * 3.5 * dt, 1, this.map.width - 1);
     }
@@ -973,7 +988,7 @@ class FieldRun {
     if (h.y < -20) {
       const spawn = this.map.objects.find(o => o.type === 'spawn');
       Object.assign(h, { x: spawn.x, y: spawn.y, vy: 0, ground: false });
-      this.stroke = this.sequence = this.support = null;
+      this.evade=this.stroke = this.sequence = this.support = null;
       this.viewport = new MapViewport(this.map, h);
     }
     const previousHp = (h.hp / this.character.health) * 100;

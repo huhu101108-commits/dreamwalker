@@ -38,6 +38,7 @@ public sealed partial class StudioWorld : MonoBehaviour
     public int Health { get; private set; }
     public int Remaining { get; private set; }
     private bool hasTimers, deferExit;
+    private int dodgeStart=-1,dodgeFacing;
     private StudioScreenFlow flow = new StudioScreenFlow();
     private string front;
     private int frontDepth, loadingAssets;
@@ -305,13 +306,13 @@ public sealed partial class StudioWorld : MonoBehaviour
     private void SetCharacter(StudioCharacter character, bool preserveHealth)
     {
         float fraction = preserveHealth && Actor != null ? (float)Health / Actor.health : 1;
-        Actor = character;
+        Actor = character;dodgeStart=-1;
         if (Actor.motionClips != null) foreach (var clip in Actor.motionClips) Connection.Sound(clip.sound);
         Health = Mathf.Clamp(Mathf.CeilToInt(fraction * Actor.health), 1, Actor.health);
         var t = Project.tuning;
         motor.ApplyStudioMovement(t.runSpeed * Actor.speedScale, t.jumpSpeed * Actor.jumpScale, t.dashSpeed,
                                   t.dashDuration);
-        motor.StudioHardwareGate=AllowProgramInput;
+        motor.StudioHardwareGate=AllowHardwareAction;
         slash.StudioHardwareGate=AllowProgramInput;
         slash.StudioSweep = SweepStroke;
         var strike=Actor.strike;
@@ -499,8 +500,8 @@ public sealed partial class StudioWorld : MonoBehaviour
             return;
         bool movable = !Paused && skill == null;
         motor.SetVirtualHorizontal(0);
-        motor.enabled = movable;
-        slash.enabled = movable;
+        motor.enabled = movable && dodgeStart<0;
+        slash.enabled = movable && dodgeStart<0;
         if (!movable && body.simulated)
             body.linearVelocity = Vector2.zero;
         body.simulated = movable;
@@ -589,6 +590,28 @@ public sealed partial class StudioWorld : MonoBehaviour
         SyncControls();return true;
     }
     internal bool Selected(StudioWidget w) => !string.IsNullOrEmpty(w.states?.flag) && flow.Matches(w.states.flag,true);
+    private bool AllowHardwareAction(string action)
+    {
+        if(!AllowProgramInput(action))return false;
+        if(action=="dodge"&&Actor?.dodge?.enabled==true){BeginDodge();return false;}
+        return true;
+    }
+    private void BeginDodge()
+    {
+        var d=Actor.dodge;
+        if(d?.enabled!=true||d.ticks<1||Paused||skill!=null||dodgeStart>=0||combatTick<RuleState().dodgeReady)return;
+        if(slash.IsAttacking){if(slash.StudioStrike==null||!slash.StudioStrike.Cancel(slash.StudioTick))return;slash.ResetStudioAttack();}
+        RuleState().dodgeReady=combatTick+d.cooldown;
+        dodgeStart=combatTick;dodgeFacing=motor.Facing;motionEpoch++;
+        body.linearVelocity=new Vector2(0,body.linearVelocity.y);SyncControls();
+    }
+    private void StepDodge()
+    {
+        if(dodgeStart<0)return;
+        var d=Actor.dodge;
+        if(combatTick-dodgeStart>d.ticks){dodgeStart=-1;SyncControls();return;}
+        Warp(body.position+Vector2.right*(dodgeFacing*d.distance/d.ticks));
+    }
     internal bool AllowProgramInput(string action)=>!(DispatchProgram("input",action)?.consumed??false);
     public void Press(string action, string target = "")
     {
@@ -741,8 +764,9 @@ public sealed partial class StudioWorld : MonoBehaviour
             SyncControls();
             return;
         }
-        if (Paused || skill != null)
+        if (Paused || skill != null || dodgeStart>=0)
             return;
+        if(action=="dodge"){BeginDodge();return;}
         if (action == "jump")
         {
             motor.RequestJump();
@@ -973,13 +997,13 @@ public sealed partial class StudioWorld : MonoBehaviour
         if (hasTimers && Fire("elapsed", "", priorClock) && Paused)
             return;
         MovePlatforms();
-        StepSkill();
+        StepDodge();StepSkill();
         slash.AdvanceStudioAttack();
         Vector2 pos = transform.position;
         if (Map.floorMode == "drawn" && pos.y < -20 * UnitY)
         {
             pos = Point(Array.Find(Map.objects, item => item.type == "spawn"));
-            skill = null;
+            skill = null;dodgeStart=-1;
             Warp(pos);
             SyncControls();
             body.linearVelocity = Vector2.zero;

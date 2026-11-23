@@ -79,6 +79,13 @@ function eventRuleEditor(){
   }
   root.append(el('p','맵·대화·메뉴·전투에서 같은 신호를 호출할 수 있어요. 게임 텍스트에 {변수:이름}을 쓰면 진행 저장 범위의 값이 표시돼요. 다른 범위는 {변수:map:이름} 또는 {변수:session:이름}으로 표시해요.'),
     action('이벤트 규칙 추가',()=>insert()),presetPanel('eventRule',r?()=>r:null,p=>insert(p.data),{applyTitle:'프리셋에서 이벤트 규칙 추가'}));
+  async function openImplementation(path){
+    const files=effectiveFiles(await getSourceBase(),project.sourceFiles);
+    if(!Object.hasOwn(files,path))throw Error('이 프로젝트에서 '+path+' 파일 위치를 확인하세요.');
+    sourcePath=path;sourceFilter=path.startsWith('Web/')?'Web/':'Unity';sourceSearch='';goTool('source');
+  }
+  root.append(row(action('웹 규칙 실행 코드 열기',()=>openImplementation('Web/model.js')),
+    action('Unity 규칙 실행 코드 열기',()=>openImplementation('Assets/Dreamwalker/Scripts/Demo/StudioEventMachine.cs'))));
   if(!r)return root;
   root.append(selectField('작업 이벤트 규칙',r.id,optionMap(list),id=>{selectedEventRule=id;draw();}),row(bindText('이벤트 규칙 이름',r,'name'),
     checkField('이벤트 규칙 사용',r.enabled,v=>edit(()=>{r.enabled=v;selectedEventRule=r.id;}))));
@@ -244,4 +251,25 @@ function fieldRuleReplayEditor(){
   panel.addEventListener('toggle',()=>{if(panel.open)refresh().catch(e=>note(e.message));});
   panel.addEventListener('field-rule-capture',()=>{if(panel.open)refresh().catch(e=>note(e.message));});
   return panel;
+}
+
+function dodgeEditor(actor){
+  const root=el('details');root.dataset.persist='character-dodge';root.append(el('summary','회피 이동과 무적 구간'));
+  const d=actor.dodge;
+  root.append(checkField('필드 회피 행동 사용',!!d?.enabled,on=>edit(()=>{
+    if(!actor.dodge)actor.dodge={distance:0,ticks:1,cooldown:0,invFrom:0,invTo:0};
+    actor.dodge.enabled=on;
+  })));
+  if(!d?.enabled)return root;
+  const nodes={};
+  for(const [key,label] of Object.entries({distance:'회피 이동 거리 (m)',ticks:'회피 지속 틱',invFrom:'회피 무적 시작 틱',invTo:'회피 무적 끝 틱',cooldown:'회피 재사용 대기 틱'})){
+    const input=el('input');input.type='number';input.value=d[key];input.step=key==='distance'?'.1':'1';nodes[key]=input;root.append(titled(label,input));
+  }
+  root.append(el('small','무적 시작과 끝이 0이면 회피 중에도 피해를 받습니다. UI 디자인에서 버튼의 행동을 회피로 지정할 수 있어요.'),
+    action('회피 세팅 반영',()=>{
+      const next={enabled:true};for(const [key,input] of Object.entries(nodes))next[key]=input.valueAsNumber;
+      if(!validDodge(next))throw Error('거리 0–30m, 지속 1–180틱, 지속 시간 안의 무적 구간과 재사용 대기 0–36000틱을 확인하세요.');
+      edit(()=>actor.dodge=next);
+    }));
+  return root;
 }

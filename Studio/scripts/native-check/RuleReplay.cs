@@ -59,6 +59,8 @@ public static class RuleReplay
         request.revision++;bool rejected=false;try{StudioProgramInspection.Replay(release,request,"dotnet-contract");}catch(ArgumentException){rejected=true;}
         if(!rejected)throw new Exception("Mismatched shared version");request.revision--;request.contentDigest=new string('6',64);rejected=false;
         try{StudioProgramInspection.Replay(release,request,"dotnet-contract");}catch(ArgumentException){rejected=true;}if(!rejected)throw new Exception("Mismatched content");
+        var dodge=new StudioDodge{enabled=true,ticks=4,distance=2,cooldown=8,invFrom=1,invTo=3};
+        if(!dodge.Guard(1)||!dodge.Guard(3)||dodge.Guard(0)||dodge.Guard(4))throw new Exception("Authored dodge window");
         var strike=new StudioStrike{x=1,y=1,w=2,h=2,comboFrom=2,comboTo=3,invFrom=4,invTo=5,cancelFrom=2,cancelTo=4};
         if(!strike.Touches(0,0,1,0,1,.7f,1.6f)||strike.Touches(0,0,-3,0,1,.7f,1.6f)||!strike.Combo(2)||strike.Combo(4)||!strike.Guard(5)||!strike.Cancel(3))throw new Exception("Authored combat windows");
         Console.WriteLine("PASS web and native shared event record, ordered actions, same-tick duplicate, cancellation, timer, attack windows, complete state and save scope");

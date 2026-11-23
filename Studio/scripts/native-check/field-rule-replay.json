@@ -175,13 +175,28 @@
         }
       },
       {
+        "event": "switch",
+        "key": "",
+        "tick": 7,
+        "context": {
+          "actor": "test-guest",
+          "map": "mine",
+          "maximum": 125,
+          "healthDelta": 2,
+          "shieldDelta": 0,
+          "resetMap": false,
+          "on": [],
+          "off": []
+        }
+      },
+      {
         "event": "enter",
         "key": "",
         "tick": 7,
         "context": {
-          "actor": "baekseol",
-          "map": "mine",
-          "maximum": 100,
+          "actor": "test-guest",
+          "map": "test-room",
+          "maximum": 125,
           "healthDelta": 0,
           "shieldDelta": 0,
           "resetMap": true,
@@ -191,12 +206,12 @@
       },
       {
         "event": "line",
-        "key": "other",
+        "key": "episode:other",
         "tick": 7,
         "context": {
-          "actor": "baekseol",
-          "map": "mine",
-          "maximum": 100,
+          "actor": "test-guest",
+          "map": "test-room",
+          "maximum": 125,
           "healthDelta": 0,
           "shieldDelta": 0,
           "resetMap": false,
@@ -209,9 +224,9 @@
         "key": "",
         "tick": 8,
         "context": {
-          "actor": "baekseol",
-          "map": "mine",
-          "maximum": 100,
+          "actor": "test-guest",
+          "map": "test-room",
+          "maximum": 125,
           "healthDelta": 0,
           "shieldDelta": 0,
           "resetMap": false,
@@ -222,7 +237,7 @@
     ]
   },
   "outcome": {
-    "hp": 8,
+    "hp": 10,
     "shield": 0,
     "damage": 0,
     "flags": [
@@ -242,8 +257,9 @@
       "7/signal/transient/8/2/0/0",
       "7/hurt//8/0/0/0",
       "7/menu/pause/8/0/0/0",
-      "7/enter//8/0/0/0",
-      "7/line/other/8/0/0/0"
+      "7/switch//10/0/0/0",
+      "7/enter//10/0/0/0",
+      "7/line/episode:other/10/0/0/0"
     ],
     "trace": [
       "0/signal/permit/permit/run/-1",

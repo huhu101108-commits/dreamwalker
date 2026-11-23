@@ -2,6 +2,11 @@ using System;
 namespace Dreamwalker.Demo
 {
 // Positions are game-space metres. One horizontal map unit is 1/3.5 m, one vertical unit is 0.16 m.
+[Serializable] public class StudioDodge
+{
+    public bool enabled;public int ticks,cooldown,invFrom,invTo;public float distance;
+    public bool Guard(int elapsed)=>enabled && invFrom>0 && elapsed>=invFrom && elapsed<=invTo;
+}
 [Serializable] public class StudioStrike
 {
     public string shape;

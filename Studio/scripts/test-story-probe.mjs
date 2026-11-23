@@ -25,7 +25,9 @@ export function storyProbeFixture() {
   doc.items=[{id:'qa-item',name:'검수 보상',power:1,slot:'weapon'}];
   doc.quests=[{id:'qa-reward',name:'검수 완료',kind:'story',target:story.id,reward:'qa-item',count:3}];
   doc.eventRules=[['gate','selectedRule'],[first.id,'unselectedRule']].map(([key,flag])=>({...m.newEventRule(),
-    id:'event-'+key,enabled:true,event:'line',key,actions:[{kind:'flagOn',key:flag,value:0}]}));
+    id:'event-'+key,enabled:true,event:'line',key,
+    conditions:key==='gate'?[{kind:'flag',key:'firstTick',op:'eq',value:1}]:[],
+    actions:[{kind:'flagOn',key:flag,value:0}]}));
   assert.equal(m.problem(doc),'');
   const spec={map:doc.startMap,story:story.id,line:gate.id,flags:[],
     steps:[step(gate.id,'choice',0),step(gate.id,'wait',-1,2),step(gate.id,'choice',0),step(last.id,'skip'),step(skipped.id,'next')]};
@@ -62,6 +64,12 @@ async function test() {
   assert.equal(missed.steps[0].status,'unexpected-line');
   const alt=await m.runStoryProbe(doc,{...spec,flags:['owner'],steps:[step('gate','choice',1),step('skipped','next')]},roundTrip);
   assert.equal(alt.steps[0].state.line,'skipped');assert(!alt.final.flags.includes('skipResult'));assert.equal(m.storyProbeAssessment(alt),'');
+  const changed=structuredClone(doc),last=changed.stories.find(s=>s.id===spec.story).nodes.find(n=>n.id==='last');
+  last.stageTrack.completeOnSkip=false;last.stageTrack.autoTick=3;
+  const skip=await m.runStoryProbe(changed,{...spec,line:'last',steps:[step('last','skip'),step('skipped','next')]},roundTrip);
+  assert(!skip.final.flags.includes('skipResult'));assert.equal(m.storyProbeAssessment(skip),'');
+  const auto=await m.runStoryProbe(changed,{...spec,line:'last',steps:[step('last','wait',-1,3)]},roundTrip);
+  assert.equal(auto.final.line,'skipped');assert(!auto.saved);
   const unrestored=await m.runStoryProbe(doc,spec,async()=>JSON.stringify({version:99}));
   assert(unrestored.saved);assert(!unrestored.resumed.length);assert.match(m.storyProbeAssessment(unrestored),/복구하지/);
   assert.equal(JSON.stringify(doc),before);

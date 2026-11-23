@@ -15,7 +15,7 @@ namespace Dreamwalker.Demo
     [Serializable] public class StudioActorRules
     {
         public string actor;
-        public int shield;
+        public int shield,dodgeReady;
         public List<StudioRuleCounter> counters = new List<StudioRuleCounter>();
 
         public int Absorb(int amount)

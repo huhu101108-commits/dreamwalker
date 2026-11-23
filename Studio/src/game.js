@@ -160,6 +160,7 @@ function launchGame(mapId, screenId = '', inspection = false) {
     'right',
     'jump',
     'attack',
+    ...(run.character.dodge?.enabled?['dodge']:[]),
     ...run.character.skills.map((_, i) => 'skill' + (i + 1)),
     'menu',
   ];
@@ -467,7 +468,7 @@ function launchGame(mapId, screenId = '', inspection = false) {
       } else if (o.type === 'spawn') {
 
         const pose =
-          run.sequence?.action ||
+          (run.evade?'dodge':'') || run.sequence?.action ||
           (run.stroke
             ? 'attack'
             : !o.ground
@@ -476,7 +477,7 @@ function launchGame(mapId, screenId = '', inspection = false) {
                 ? 'run'
                 : 'idle');
         const clip = run.character.clips?.[pose],
-          token = run.sequence || run.stroke || pose;
+          token = run.evade || run.sequence || run.stroke || pose;
         if (!clipState || clipState.token !== token || clipState.node !== n){
           audioBus.endFx();clipState={token,node:n,start:run.clock,heard:false,shown:false,url:null};
         }

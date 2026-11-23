@@ -39,11 +39,12 @@ public static class StudioStoryProbe
     [MenuItem(Menu)]
     public static void StartReplay()
     {
-        if (EditorApplication.isPlayingOrWillChangePlaymode || StudioWorld.IsStoryProbeSlot(Slot))
+        if (EditorApplication.isPlayingOrWillChangePlaymode)
         {
             EditorUtility.DisplayDialog("대사 검수", "현재 재생을 종료한 뒤 새 검수 Play 세션을 시작하세요.", "확인");
             return;
         }
+        ClearJob();
         try
         {
             if (UnityEngine.Object.FindFirstObjectByType<BaekseolMotor>() == null || Camera.main == null)
@@ -67,7 +68,11 @@ public static class StudioStoryProbe
             SessionState.SetString(StudioWorld.StoryProbeSlotKey, StudioWorld.StoryProbeSlotPrefix + Guid.NewGuid().ToString("N"));
             EditorApplication.EnterPlaymode();
         }
-        catch (Exception error) { EditorUtility.DisplayDialog("대사 검수", error.Message, "확인"); }
+        catch (Exception error)
+        {
+            if (!EditorApplication.isPlayingOrWillChangePlaymode) ClearJob();
+            EditorUtility.DisplayDialog("대사 검수", error.Message, "확인");
+        }
     }
     private static void CheckPlayer()
     {
@@ -101,14 +106,19 @@ public static class StudioStoryProbe
     {
         // Keep the isolated key until the runtime's quit/destroy autosave has finished.
         if (state != PlayModeStateChange.EnteredEditMode || !StudioWorld.IsStoryProbeSlot(Slot)) return;
-        PlayerPrefs.DeleteKey(Slot);
-        PlayerPrefs.Save();
         string message = SessionState.GetString(Prefix + "message", "");
         if (string.IsNullOrEmpty(message)) message = "검수 Play 세션을 종료했어요. 결과를 얻으려면 다시 재생하세요.";
+        ClearJob();
+        EditorApplication.delayCall += () => EditorUtility.DisplayDialog("대사 검수", message, "확인");
+    }
+    private static void ClearJob()
+    {
+        if (!StudioWorld.IsStoryProbeSlot(Slot)) return;
+        PlayerPrefs.DeleteKey(Slot);
+        PlayerPrefs.Save();
         SessionState.EraseString(StudioWorld.StoryProbeSlotKey);
         foreach (var name in new[] { "input", "output", "phase", "message" }) SessionState.EraseString(Prefix + name);
         SessionState.EraseFloat(Prefix + "started");
-        EditorApplication.delayCall += () => EditorUtility.DisplayDialog("대사 검수", message, "확인");
     }
 }
 }

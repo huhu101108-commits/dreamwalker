@@ -3,6 +3,7 @@ function drawCharacters() {
     c = activeActor();
   actorId = c.id;
   characterPresetPanel(b,c);
+  if(typeof dodgeEditor==='function')b.append(dodgeEditor(c));
   function create(copy) {
     if (project.characters.length >= LIMIT.characters) return note('캐릭터 한도에 도달했어요.');
     const id = uid(),

@@ -145,6 +145,10 @@ function strikeDefaults(t){
   return {startup,active,recovery,comboFrom:startup+active,comboTo:end,buffer:recovery,cancelFrom:0,cancelTo:0,invFrom:0,invTo:0,
     shape:'sweep',x:1,y:.8,w:1.5,h:1.6,repeat:0};
 }
+function validDodge(d){
+  return d&&typeof d.enabled==='boolean'&&num(d.distance,0,30)&&integer(d.ticks,1,180)&&integer(d.cooldown,0,36000)&&
+    ((d.invFrom===0&&d.invTo===0)||(integer(d.invFrom,1,d.ticks)&&integer(d.invTo,d.invFrom,d.ticks)));
+}
 function validStrike(s){
   if(!s||!integer(s.startup,1,90)||!integer(s.active,1,90)||!integer(s.recovery,1,180)||!integer(s.buffer,0,360)||
     !['sweep','box'].includes(s.shape)||!num(s.x,-20,20)||!num(s.y,-20,20)||!num(s.w,.1,40)||!num(s.h,.1,40)||!integer(s.repeat,0,90))return false;

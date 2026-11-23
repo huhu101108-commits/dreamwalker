@@ -88,7 +88,7 @@ export async function testDeviceDesigner(page){
   await field('GPT에 요청할 내용').fill('현재 화면을 기준으로 다시 제안해 줘.');await button('GPT에 보내기').click();
   await button('변경안을 초안에 적용').waitFor();assert.equal(latest.history.length,2);
   await button('직접 화면 디자인').click();await field('화면 이름').fill('야영지 메뉴');await tab('assistant');
-  await page.getByText(/요청 후 화면이나 메뉴 기능이 바뀌었어요/).waitFor();assert.equal(await button('변경안을 초안에 적용').count(),0);
+  await page.locator('.gpt-proposal').getByText('요청 후 선택한 항목이나 연결이 바뀌었어요. 현재 작업으로 다시 요청하세요.',{exact:true}).waitFor();assert.equal(await button('변경안을 초안에 적용').count(),0);
   await button('제안 닫기').click();await page.unroute('**/api/studio-gpt',route);
   const saved=page.waitForResponse(r=>r.url().endsWith('/api/save'));await page.locator('#save').click();const reply=await saved;
   assert.equal(reply.status(),200);const data=(await reply.json()).project;

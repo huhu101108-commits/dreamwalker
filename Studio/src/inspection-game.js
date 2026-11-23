@@ -17,10 +17,9 @@ function beginInspectionAt(run,options){
   if(options.screenId)run.startPresentation(options.screenId);
 }
 function measuredPlay(sample){
-  const maps=new Map();let last=null,lastId='',first=null;
+  const maps=new Map();let last=null,lastId='';
   function record(t,mapId,visible,memory){
     if(!visible){last=null;return;}
-    if(first===null)first=t;
     sample.lastMap=mapId;
     if(last!==null && mapId===lastId && t>last){
       const ms=t-last;let m=maps.get(mapId);
