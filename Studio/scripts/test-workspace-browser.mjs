@@ -41,7 +41,8 @@ export async function testWorkConvenience(host,origin){
     const iframe=await modal.locator('iframe').elementHandle(),child=await iframe.contentFrame();
     assert.equal(await child.evaluate(()=>GAME_DATA.inspection.objectId),pos.id);
     await frame.locator('#assist').click();await button(frame.locator('#controls'),'베기').click();
-    await p.waitForFunction(()=>document.querySelector('dialog.source-player')?.inspectionSample?.ticks>=31);
+    // The attack starts on the player's input, at any point in the running field.
+    await frame.locator('#actors .effects').filter({hasText:/^−\d+$/}).first().waitFor();
     await button(modal,'편집기로').click();await modal.waitFor({state:'detached'});
     await p.locator('#repeat-work').waitFor();
     assert.equal(await p.evaluate(()=>mapObject),pos.id);assert.equal(await p.evaluate(k=>localStorage.getItem(k),playerKey),'existing-player-save');
