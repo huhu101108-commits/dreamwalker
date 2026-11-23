@@ -29,7 +29,7 @@ function designContext(doc,screen){
 const GPT_AREAS={scene:'맵 편집',stories:'대사 편집',characters:'캐릭터',rules:'전투 규칙',interface:'UI 디자인',motion:'모션 · 효과',balance:'전투 수치'};
 const GPT_CONTEXT_FIELDS=['맵 크기','시작 캐릭터','오브젝트','선택 오브젝트','현재 대사','말하는 인물','선택지','대사 수','체력','스킬','설명','발동 조건','재발동 대기','효과','화면 역할','요소 수','선택 요소'];
 function studioWorkContext(doc,area,ids={}){
-  const mode=GPT_AREAS[area]?area:'interface',fields=[];
+  const mode=has(GPT_AREAS,area)?area:'interface',fields=[];
   let title='';
   const add=(name,value)=>{if(value!==undefined&&value!==null&&value!=='')fields.push({name,value:String(value).slice(0,420)});};
   if(mode==='scene'){

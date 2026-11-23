@@ -85,7 +85,7 @@ try {
   await testDeviceDesigner(host);
   await testArenaBrowser(host,guest,'http://127.0.0.1:'+servers[0].address().port,'http://127.0.0.1:'+teammate.address().port);
   await testPersonalGptBrowser(host,guest,'http://127.0.0.1:'+servers[0].address().port,'http://127.0.0.1:'+teammate.address().port);
-  await testGptWorkbenchBrowser(host,'http://127.0.0.1:'+servers[0].address().port);
+  await testGptWorkbenchBrowser(host,'http://127.0.0.1:'+servers[0].address().port,guest.context().browser());
   assert.deepEqual(errors, []);
 } finally {
   await Promise.allSettled(browsers.map(browser => browser.close()));

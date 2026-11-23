@@ -21,5 +21,6 @@ form,section,details[open]{display:grid;gap:.55rem}[hidden]{display:none!importa
 <div id="messages" role="log" aria-live="polite"></div>
 <form id="compose"><label>GPT에 요청할 내용<textarea id="prompt" maxlength="3500" placeholder="이 화면에서 백설의 체력이 잘 보이게 해 줘."></textarea></label>
 <div class="actions"><button id="send" class="primary" disabled>GPT에 보내기</button><button type="button" id="refresh">답변 확인</button></div></form>
+<details><summary>연결 점검</summary><button id="check" type="button" disabled>실제 모델로 연결 시험</button><output id="check-status"></output></details>
 <output id="status" role="status">제작 화면을 읽고 있어요.</output><div class="actions" id="waiting" hidden><button type="button" id="resume">이 대화로 전달</button><button type="button" id="cancel">대기 중인 질문 취소</button></div>
 </main><script>/* STUDIO_HOST_BRIDGE */</script><script>/* STUDIO_WORKBENCH */</script></body></html>

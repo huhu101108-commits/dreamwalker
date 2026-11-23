@@ -16,7 +16,7 @@ const gptMcpTools=[
     annotations:{readOnlyHint:false,destructiveHint:false,openWorldHint:false},_meta:workbenchAppOnly},
   {name:'dreamwalker_workbench_cancel',description:'Cancel only the specified waiting Studio chat request.',
     inputSchema:{...emptySchema,required:['request_id'],properties:{request_id:gptToolId}},annotations:{readOnlyHint:false,destructiveHint:false,openWorldHint:false},_meta:workbenchAppOnly},
-  {name:'dreamwalker_read_request',description:'With no pending request and no request_id this opens the Studio workbench. Otherwise read the Dreamwalker Studio GPT request the signed-in owner explicitly sent to this ChatGPT conversation. Use its selected screen and task to draft a reply. For screen edits call dreamwalker_submit_reply. For a question send a message with an empty changes array.',
+  {name:'dreamwalker_read_request',description:'With no pending request and no request_id this opens the Studio workbench. Pass connection-check to get a short-lived, owner-only connection test, or connection-status to read its last acknowledged time. Otherwise read the Dreamwalker Studio GPT request the signed-in owner explicitly sent to this ChatGPT conversation. Use its selected screen and task to draft a reply. For screen edits call dreamwalker_submit_reply. For a question send a message with an empty changes array.',
     inputSchema:{type:'object',properties:{request_id:gptToolId},additionalProperties:false},
     annotations:{readOnlyHint:true,destructiveHint:false,openWorldHint:false}},
   {name:'dreamwalker_submit_reply',description:'Return your reply and optional screen proposal to the owner’s current Studio request. The owner reviews it in Studio before any edit. Use the exact ID from dreamwalker_read_request.',
@@ -64,6 +64,11 @@ async function studioGptMcp(req,env) {
     if(name==='dreamwalker_workbench_link')return success(await workbenchLink(env,arg));
     if(name==='dreamwalker_workbench_cancel')return success(await workbenchCancel(env,arg));
     if(name==='dreamwalker_read_request') {
+      if(arg.request_id==='connection-status'){
+        const row=await get(env.BUCKET,accountGptKey(env,'chat-check'));
+        return content(JSON.stringify({checked_at:row?.data.at||null,reply:row?.data.message||''}));
+      }
+      if(arg.request_id==='connection-check'||String(arg.request_id).startsWith('dwcheck_'))return content(JSON.stringify(await workbenchCheck(env,arg.request_id)));
       const record=await get(env.BUCKET,accountGptKey(env,'job')), j=record?.data;
       const waiting=!!gptJobView(record)&&j.mode==='chatgpt'&&j.state==='waiting';
       if(arg.request_id===undefined && !waiting)return success(await workbenchView(env,{}));
@@ -72,6 +77,7 @@ async function studioGptMcp(req,env) {
       return content(JSON.stringify(gptTaskPayload(j)));
     }
     if(name==='dreamwalker_submit_reply') {
+      if(String(arg.request_id).startsWith('dwcheck_')){await acceptWorkbenchCheck(env,arg);return content('제작 GPT의 왕복 연결을 확인했어요.');}
       await finishPersonalGpt(env,arg.request_id,'chatgpt','',{message:arg.message,changes:arg.changes});
       return content('답변을 스튜디오로 보냈어요. [드림워커에서 답변과 변경안 검토하기](https://dreamwalker-snowfield-studio.congenialcockatoo.chatgpt.site/?tool=assistant)');
     }

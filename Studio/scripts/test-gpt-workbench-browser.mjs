@@ -33,12 +33,12 @@ async function chatFixture(){
   const list=await rpc('resources/list',{}),resource=await rpc('resources/read',{uri:list.resources[0].uri});
   frame.srcdoc=resource.contents[0].text;
 }
-async function openHost(context,origin,sampling=false){
-  const p=await context.newPage(),url=origin+'/__workbench_fixture'+(sampling?'?sample':'');
+async function openHost(browser,origin,sampling=false){
+  const p=await browser.newPage(),url=origin+'/__workbench_fixture'+(sampling?'?sample':'');
   await p.route(url,route=>route.fulfill({contentType:'text/html',body:'<!doctype html><meta charset="utf-8"><iframe sandbox="allow-scripts" style="width:800px;height:850px"></iframe><script>('+chatFixture.toString()+')()</script>'}));
   await p.goto(url);return p;
 }
-export async function testGptWorkbenchBrowser(page,origin){
+export async function testGptWorkbenchBrowser(page,origin,hostBrowser){
   assert.equal(new URL(origin).hostname,'127.0.0.1');
   await page.setViewportSize({width:1280,height:900});
   await page.goto(origin+'/?tool=scene');
@@ -47,7 +47,7 @@ export async function testGptWorkbenchBrowser(page,origin){
   await dock.getByLabel('사용 방식').selectOption('chatgpt');await dock.getByText('내 ChatGPT 대화에서 선택한 모델',{exact:true}).waitFor();
   await page.getByLabel('맵 이름',{exact:true}).fill('GPT 검수용 설산');
   const editorField=await page.getByLabel('맵 이름',{exact:true}).elementHandle();
-  const h=await openHost(page.context(),origin),ui=h.frameLocator('iframe');
+  const h=await openHost(hostBrowser,origin),ui=h.frameLocator('iframe');
   let sampling;
   try{
     await ui.getByRole('button',{name:'이 대화 연결',exact:true}).click();
@@ -71,7 +71,7 @@ export async function testGptWorkbenchBrowser(page,origin){
     await dock.getByRole('button',{name:'패널 닫기',exact:true}).click();assert(await dock.isHidden());
     await page.setViewportSize({width:820,height:1180});await page.getByRole('button',{name:'작업 GPT',exact:true}).click();
     const bounds=await dock.boundingBox();assert(bounds.x>=0&&bounds.x+bounds.width<=821&&bounds.height<=660);
-    sampling=await openHost(page.context(),origin,true);const panel=sampling.frameLocator('iframe');
+    sampling=await openHost(hostBrowser,origin,true);const panel=sampling.frameLocator('iframe');
     await panel.getByLabel('GPT에 요청할 내용').fill('이 화면 이름을 확인해 줘.');await panel.getByRole('button',{name:'GPT에 보내기'}).click();
     await panel.getByText('선택한 화면을 확인했어요.',{exact:true}).waitFor();
     assert.equal((await sampling.evaluate(()=>window.modelTurns)).length,1);

@@ -93,3 +93,31 @@ async function workbenchLink(env,args){
   // A lost poll response must never start a second model turn.
   return result(true,gptTaskPayload(j));
 }
+
+// A read-only challenge and an owner-authenticated acknowledgement exercise the
+// actual plugin without occupying the owner's design request or changing the game.
+async function workbenchCheck(env,id){
+  let tick;
+  if(id==='connection-check')tick=Date.now();
+  else{
+    const m=/^dwcheck_([0-9a-z]{6,12})_[a-f0-9]{12}$/.exec(id);
+    tick=m?parseInt(m[1],36):NaN;
+    if(!Number.isSafeInteger(tick)||tick>Date.now()+1000||Date.now()-tick>300000)err(409,'연결 시험이 만료됐어요. 새 시험을 시작하세요.');
+  }
+  const proof=await hash(accountGptKey(env,'chat-check')+'|'+tick);
+  const requestId='dwcheck_'+tick.toString(36)+'_'+proof.slice(0,12);
+  if(id!=='connection-check'&&id!==requestId)err(409,'연결 시험이 바뀌었어요.');
+  const marker='DW-'+proof.slice(12,20).toUpperCase();
+  return {id:requestId,prompt:'드림워커의 설원 메뉴 제목을 한 줄 제안하고 확인 코드 '+marker+'를 답변 마지막에 적어 줘.',
+    history:[],context:{project:'Dreamwalker',purpose:'connection check'},instructions:'Answer in Korean with one short menu title and the given confirmation code as the last word. Return a message and an empty changes array. The game must not be modified.',
+    format:designFormat,marker};
+}
+async function acceptWorkbenchCheck(env,args){
+  const task=await workbenchCheck(env,args.request_id);
+  if(!textValue(args.message,220,true)||!args.message.trim().endsWith(task.marker)||!Array.isArray(args.changes)||args.changes.length)err(400,'시험 응답의 확인 코드와 빈 변경안을 확인하세요.');
+  const key=accountGptKey(env,'chat-check'),old=await get(env.BUCKET,key),issued=parseInt(task.id.split('_')[1],36);
+  if(old?.data.issued>=issued)return;
+  const message=args.message.trim().slice(0,-task.marker.length).trim();
+  if(!message)err(400,'시험 답변이 비어 있어요.');
+  if(!await put(env.BUCKET,key,{issued,at:new Date().toISOString(),message},old))err(409,'새 연결 시험 결과를 확인하세요.');
+}

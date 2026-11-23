@@ -77,3 +77,14 @@ await work('link',{action:'connect',key});await BUCKET.put(slot,JSON.stringify({
 assert(!(await work('link',{action:'poll',key})).structuredContent.connected);assert.equal((await data()).chatLink,null);
 assert(!store.has('project'));assert(!store.get(jobSlot).body.includes('exclude'));
 console.log('PASS owner-approved live chat connection, single delivery for concurrent polls, no automatic sends of manual requests, scoped receipts, cancellation, expiry and immediate revocation');
+
+const oldJob=store.get(jobSlot).body;
+const probe=JSON.parse((await run('dreamwalker_read_request',{request_id:'connection-check'})).content[0].text);
+assert.equal(JSON.parse((await run('dreamwalker_read_request',{request_id:probe.id})).content[0].text).marker,probe.marker);
+assert((await run('dreamwalker_submit_reply',{request_id:probe.id,message:'잘못된 코드',changes:[]})).isError);
+assert((await run('dreamwalker_submit_reply',{request_id:probe.id,message:'설산 수첩 '+probe.marker,changes:[]},other)).isError);
+assert(!(await run('dreamwalker_submit_reply',{request_id:probe.id,message:'설산 수첩 '+probe.marker,changes:[]})).isError);
+const check=JSON.parse((await run('dreamwalker_read_request',{request_id:'connection-status'})).content[0].text);
+assert.equal(check.reply,'설산 수첩');assert.equal((await data()).lastChatCheck,check.checked_at);
+assert.equal(store.get(jobSlot).body,oldJob);assert(!store.has('project'));
+console.log('PASS authenticated real-connection challenge is isolated from the game and existing questions');

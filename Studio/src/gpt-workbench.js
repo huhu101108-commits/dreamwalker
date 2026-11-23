@@ -23,6 +23,7 @@
   function buttons(){
     const localJob=view?.job,waiting=localJob?.state==='waiting'&&localJob.screen===view.screen.id;
     by('screens').disabled=!ready||busy;by('send').disabled=!ready||!view||busy||view.busy||!by('prompt').value.trim()||!(host.canMessage()||host.canSample());
+    by('check').disabled=!ready||busy||!(host.canMessage()||host.canSample());
     by('link').disabled=!ready||linkRequest||!(host.canMessage()||host.canSample());
     by('link').textContent=linkKey?'이 대화 연결 해제':'이 대화 연결';
     by('waiting').hidden=!waiting;by('cancel').disabled=busy;
@@ -139,6 +140,13 @@
     if(!view?.job||busy)return;busy=true;buttons();
     try{await host.tool('dreamwalker_workbench_cancel',{request_id:view.job.id});await refresh();}
     catch(e){status(e.message);}finally{busy=false;buttons();}
+  };
+  by('check').onclick=async()=>{
+    if(busy||!ready)return;busy=true;buttons();
+    try{
+      const r=await host.tool('dreamwalker_read_request',{request_id:'connection-check'}),task=JSON.parse(r.content[0].text);
+      await deliver(task);by('check-status').textContent='시험 요청을 보냈어요. 응답이 오면 스튜디오의 내 GPT 설정에 확인 시각이 표시돼요.';
+    }catch(e){by('check-status').textContent=e.message;}finally{busy=false;buttons();}
   };
   by('screens').onchange=()=>refresh(by('screens').value).catch(e=>status(e.message));
   by('prompt').oninput=()=>buttons();by('refresh').onclick=()=>refresh().catch(e=>status(e.message));

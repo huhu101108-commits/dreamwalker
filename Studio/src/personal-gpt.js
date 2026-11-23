@@ -65,6 +65,7 @@ function gptSettingsCard(p){
   if(pref.mode==='chatgpt'){
     const dest=el('input');dest.type='url';dest.placeholder='https://chatgpt.com/g/g-…';dest.value=pref.destination;
     card.append(el('p','ChatGPT에서 Dreamwalker Studio를 선택해 “드림워커 제작 GPT 열어 줘”라고 하면 대화 안에 제작 패널이 열려요. 모델은 그 대화 상단에서 고를 수 있어요.'));
+    if(p.lastChatCheck)card.append(el('small','최근 ChatGPT 응답 확인 · '+new Date(p.lastChatCheck).toLocaleString('ko-KR')));
     if(p.chatLink)card.append(el('output','현재 대화가 스튜디오에 연결됐어요.'),action('ChatGPT 대화 연결 해제',()=>ownerGptSubmit('disconnect-chat',{id:p.chatLink.id})));
     else card.append(el('p','제작 패널에서 이 대화 연결을 한 번 누르고 열어 두면, 이후 질문과 답변은 스튜디오 안에서 주고받아요.'));
     const adv=el('details');adv.append(el('summary','내가 만든 GPT로 열기'),titled('내 GPT 주소 (선택)',dest),

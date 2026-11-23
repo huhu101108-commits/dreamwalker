@@ -24,8 +24,8 @@ function gptJobView(row) {
   return {id,mode,state,prompt,screen,stamp,model,effort,answer,error,expires,...(j.relay?{delivery:j.delivery}:{})};
 }
 async function personalGptState(env) {
-  const [prefs,device,job,link]=await Promise.all(['prefs','device','job','chat-link'].map(k=>get(env.BUCKET,accountGptKey(env,k))));
-  return {prefs:gptOwnerPrefs(prefs),device:gptDeviceView(device),job:gptJobView(job),chatLink:liveChatLink(link),
+  const [prefs,device,job,link,probe]=await Promise.all(['prefs','device','job','chat-link','chat-check'].map(k=>get(env.BUCKET,accountGptKey(env,k))));
+  return {prefs:gptOwnerPrefs(prefs),device:gptDeviceView(device),job:gptJobView(job),chatLink:liveChatLink(link),lastChatCheck:probe?.data?.at||null,
     apiModels:env.OPENAI_API_KEY?apiGptModels:[]};
 }
 async function gptJson(req,limit) {
@@ -64,7 +64,7 @@ async function saveGptPrefs(env,b) {
   if (!await put(env.BUCKET,key,next,old)) err(409,'설정이 변경됐어요. 다시 확인하세요.');
 }
 async function newPersonalGptJob(env,b,fromWorkbench=false) {
-  if (!validId(b.id)||!textValue(b.prompt,3500,true)||!Array.isArray(b.history)||b.history.length>10||
+  if (!validId(b.id)||b.id.startsWith('dwcheck_')||['connection-check','connection-status'].includes(b.id)||!textValue(b.prompt,3500,true)||!Array.isArray(b.history)||b.history.length>10||
       b.history.some(m=>!m||!['user','assistant'].includes(m.role)||!textValue(m.text,3500,true))||
       typeof b.stamp!=='string'||!/^[a-f0-9]{64}$/.test(b.stamp)) err(400,'제작 GPT 요청을 확인하세요.');
   const key=accountGptKey(env,'job');
