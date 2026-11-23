@@ -51,11 +51,27 @@ export async function testPresetDesigner(page,origin){
     await button(p,'스튜디오 배치').click();
     const dialog=p.getByRole('dialog'),ink=dialog.getByLabel('입력칸 바탕색');
     await ink.evaluate(n=>{n.value='#243c49';n.dispatchEvent(new Event('input',{bubbles:true}));});
+    await dialog.getByText('개별 버튼 · 입력칸 디자인',{exact:true}).click();
+    await dialog.getByLabel('개별 조작 선택').selectOption('id/save');
+    await dialog.getByLabel('이 조작만 별도로 디자인').check();
+    await dialog.getByLabel('개별 바탕색').fill('#38597d');
+    await dialog.getByLabel('개별 너비 (px, 0은 자동)').fill('176');
+    await dialog.getByLabel('같은 줄의 정렬 순서').fill('-2');
+    await dialog.getByLabel('개별 조작 선택').selectOption('interface/select/작업 화면');
+    await dialog.getByLabel('이 조작만 별도로 디자인').check();
+    await dialog.getByLabel('개별 바탕색').fill('#643754');
     await dialog.getByText('제작실 배치 프리셋',{exact:true}).click();
     await dialog.getByLabel('제작실 배치 프리셋 이름').fill('태블릿 설정');await button(dialog,'새 프리셋 저장').click();
     await button(dialog,'이 기기에 적용').click();
     assert.equal(await p.locator('#editor').evaluate(n=>n.style.getPropertyValue('--studio-entry')),'#243c49');
     assert.equal(await field('화면 이름').evaluate(n=>getComputedStyle(n).backgroundColor),'rgb(36, 60, 73)');
+    assert.deepEqual(await p.locator('#save').evaluate(n=>[getComputedStyle(n).backgroundColor,getComputedStyle(n).order,getComputedStyle(n).width]),['rgb(56, 89, 125)','-2','176px']);
+    assert.equal(await field('작업 화면').evaluate(n=>getComputedStyle(n).backgroundColor),'rgb(100, 55, 84)');
+    await button(p,'스튜디오 배치').click();
+    await dialog.getByText('개별 버튼 · 입력칸 디자인',{exact:true}).click();
+    await dialog.getByLabel('개별 바탕색').fill('#ffffff');
+    await button(dialog,'닫기').click();
+    assert.equal(await p.locator('#save').evaluate(n=>getComputedStyle(n).backgroundColor),'rgb(56, 89, 125)');
     const saving=p.waitForResponse(r=>r.url().endsWith('/api/save'));
     await p.locator('#save').click();const response=await saving;assert.equal(response.status(),200,await response.text());
     await p.reload();await p.locator('#editor').waitFor();
@@ -66,6 +82,8 @@ export async function testPresetDesigner(page,origin){
     const doc=await p.evaluate(()=>({presets:project.work.presets.map(s=>s.name),paint:readStudioLayout().paint.entry}));
     assert(doc.presets.includes('설원 이름칸')&&doc.presets.includes('설원 접수 양식')&&doc.presets.includes('태블릿 설정'));
     assert.equal(doc.paint,'#243c49');
+    assert.equal(await field('작업 화면').evaluate(n=>getComputedStyle(n).backgroundColor),'rgb(100, 55, 84)');
+    const savedParts=await p.evaluate(()=>project.work.presets.find(v=>v.name==='태블릿 설정').data.parts);assert.equal(savedParts.length,2);
     console.log('PASS Chrome owner UI: author field, keyboard hotspot, named component + screen templates, preview typed Korean without shortcuts, reflected value, editor theme, shared save/reload and undo');
   }finally{await ctx.close();}
 }

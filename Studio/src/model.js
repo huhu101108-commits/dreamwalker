@@ -1415,7 +1415,10 @@ const studioPaintDefaults=()=>({surface:'#233847',entry:'#152b38',ink:'#eef4f6',
 function validWorkspace(p){
   const t=p?.paint;
   return !!p && ['left','right'].includes(p.side) && ['normal','wide'].includes(p.width) && textValue(p.first,50,true) &&
-    (!t||(['surface','entry','ink','line','accent'].every(k=>color(t[k]))&&integer(t.radius,0,32)&&integer(t.height,32,64)));
+    (!t||(['surface','entry','ink','line','accent'].every(k=>color(t[k]))&&integer(t.radius,0,32)&&integer(t.height,32,64)))&&
+    (!Object.hasOwn(p,'parts')||(Array.isArray(p.parts)&&p.parts.length<=128&&new Set(p.parts.map(v=>v?.key)).size===p.parts.length&&p.parts.every(v=>
+      v&&textValue(v.key,164,true)&&['fill','ink','edge','accent'].every(k=>color(v[k]))&&integer(v.radius,0,40)&&integer(v.height,24,96)&&
+      integer(v.size,10,36)&&integer(v.width,0,700)&&integer(v.order,-32,32))));
 }
 function presetWidget(doc,w){
   const copy=structuredClone(boundMenuButton(doc,w));

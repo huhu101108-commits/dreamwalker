@@ -1261,3 +1261,12 @@ body { font-size:16px; }
 :is(#duel,.arena-design-sample) .arena-custom::placeholder{color:var(--arena-ink);opacity:.72}
 .arena-design-sample{position:relative;display:grid;align-items:center;min-height:96px;margin:8px 0;overflow:hidden;border:1px dashed #65818c;border-radius:6px;padding:7px}
 .arena-design-sample[data-pad]{height:128px}
+
+#editor :is(button,input,select,textarea).studio-part-painted{
+  box-sizing:border-box;background-color:var(--studio-part-fill);color:var(--studio-part-ink);border:1px solid var(--studio-part-edge);
+  border-radius:var(--studio-part-radius);min-height:var(--studio-part-height);font-size:var(--studio-part-size);accent-color:var(--studio-part-accent)
+}
+#editor .studio-part-painted:focus-visible{outline:2px solid var(--studio-part-accent);outline-offset:1px}
+#editor .studio-part-painted:is(.on,:active,[aria-current=page]){box-shadow:inset 0 -3px var(--studio-part-accent)}
+#editor .studio-part-painted.studio-part-fixed{width:min(var(--studio-part-width),100%);max-width:100%;flex-grow:0;flex-basis:auto}
+#editor .studio-part-order{order:var(--studio-part-order)}
