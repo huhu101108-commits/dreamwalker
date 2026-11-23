@@ -25,7 +25,9 @@ class ScreenInputClock {
 }
 
 function launchGame(mapId, screenId = '', inspection = false) {
-  const run = new FieldRun(structuredClone(project), mapId),
+  const direct=inspection && typeof inspection==='object' && !inspection.fromStart && (inspection.storyId||inspection.objectId||inspection.screenId);
+  const ruleCapture=inspection?.traceRules&&!inspection.resume?new FieldRuleCapture():null;
+  const run = new FieldRun(structuredClone(project), mapId,!!direct,ruleCapture),
     modal = $('#game'),
     stage = $('#arena'),
     layer = $('#overlay'),
@@ -42,7 +44,7 @@ function launchGame(mapId, screenId = '', inspection = false) {
   const saveKey =
     'dreamwalker-progress-v1:' +
     (typeof GAME_DATA === 'undefined' && location.pathname !== '/play' ? 'preview:' : 'game:') +
-    run.world.startMap;
+    (run.world.saveId||run.world.startMap);
   let saveStore,
     lastSaved = '',
     savedAt = 0;
@@ -476,7 +478,7 @@ function launchGame(mapId, screenId = '', inspection = false) {
         const clip = run.character.clips?.[pose],
           token = run.sequence || run.stroke || pose;
         if (!clipState || clipState.token !== token || clipState.node !== n){
-          audioBus.endFx();clipState={token,node:n,start:run.clock,heard:false,url:null};
+          audioBus.endFx();clipState={token,node:n,start:run.clock,heard:false,shown:false,url:null};
         }
         const t = Math.max(0, Math.round(60 * (run.clock - clipState.start)));
         const f = poseAt(clip, t, pose === 'idle' || pose === 'run');
@@ -489,15 +491,16 @@ function launchGame(mapId, screenId = '', inspection = false) {
           cssImage(n, url);
           clipState.url = url;
         }
-        if (clip && !clipState.heard && t >= clip.cueTick) {
-          clipState.heard = true;
-          audioBus.fx(clip.sound,clip.cue);
-          if (clip.fx) {
+        if (clip) {
+          const timing=clipMarkers(clip);
+          if(!clipState.heard && t>=timing.soundTick){
+            clipState.heard=true;audioBus.fx(clip.sound,clip.cue);
+          }
+          if(!clipState.shown && clip.fx && t>=clip.cueTick && t<clip.cueTick+timing.effectTicks){
+            clipState.shown=true;
             const fx = el('div');
-            fx.className = 'motion-fx';
-            cssImage(fx, imageUrl(clip.fx));
-            actors.append(fx);
-            effects.push({ n: fx, x: o.x + o.face * 4, y: o.y + 8, until: run.clock + 0.12 });
+            fx.className='motion-fx';cssImage(fx,imageUrl(clip.fx));actors.append(fx);
+            effects.push({n:fx,x:o.x+o.face*4,y:o.y+8,still:true,until:clipState.start+(clip.cueTick+timing.effectTicks)/60});
           }
         }
         n.classList.toggle('hurt', run.clock - run.hero.lastHit < 0.12);
@@ -534,7 +537,7 @@ function launchGame(mapId, screenId = '', inspection = false) {
         e.n.remove();
         return false;
       }
-      placeWorld(e.n, { x: e.x, y: e.y + (0.5 - e.until + run.clock) * 8 }, run.camera, run.viewport.y);
+      placeWorld(e.n, { x: e.x, y: e.still?e.y:e.y + (0.5 - e.until + run.clock) * 8 }, run.camera, run.viewport.y);
       return true;
     });
   }
@@ -577,7 +580,10 @@ function launchGame(mapId, screenId = '', inspection = false) {
     if(custom){e.preventDefault();if(e.repeat)return;
       if(custom.w.gesture)startWidget('key/'+e.code,e.code,custom.w);
       else{if(run.activate(custom.w)!==false)holdDirection('key/'+e.code,custom.w.action);render();}return;}
-    if(run.world.authoredKeysOnly)return;
+    if(run.world.authoredKeysOnly){
+      if(e.code==='Escape')e.preventDefault();
+      return;
+    }
     if(sample && !e.repeat && (codes[e.code] || ['Enter','Space','Escape'].includes(e.code))) sample.inputs++;
     if (e.repeat) return;
     if (e.code === 'Escape' && (run.customScreen || run.menu)) {
@@ -627,6 +633,7 @@ function launchGame(mapId, screenId = '', inspection = false) {
   const storeOnExit=()=>saveProgress();window.addEventListener('pagehide',storeOnExit);document.addEventListener('visibilitychange',storeOnHide);
   modal.onclose = () => {
     window.removeEventListener('pagehide',storeOnExit);document.removeEventListener('visibilitychange',storeOnHide);
+    if(ruleCapture)sample.ruleCapture=ruleCapture.close(run);
     metrics?.capture();sizeObserver.disconnect();cancelAnimationFrame(frame);
     if(sample) modal.removeEventListener('pointerdown',countTouch,true);
     clearControls();padHeld.clear();audioBus.close();sceneFade.remove();

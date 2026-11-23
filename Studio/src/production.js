@@ -35,14 +35,18 @@ function drawProduction() {
     scrub = el('input');
   figure.alt = actor.name + ' 모션';
   effect.alt = '타격 효과';
-  preview.append(figure, effect);
+  preview.append(figure,effect);
+  const overlay=el('canvas');overlay.className='hit-overlay';overlay.hidden=true;overlay.setAttribute('aria-hidden','true');
+  if(motionKey==='attack')preview.append(overlay);
   const total = clip.frames.reduce((n, f) => n + f.ticks, 0);
-  let duration = Math.max(1, total, clip.cueTick + 1);
-  if (motionKey === 'attack')
-    duration = Math.max(
-      duration,
-      phases.reduce((a, b) => a + b),
-    );
+  let timing=clipMarkers(clip);
+  const phaseLength=motionKey==='attack'?phases.reduce((a,b)=>a+b,0):0;
+  const length=()=>Math.max(1,total,phaseLength+1,timing.soundTick+1,clip.cueTick+(clip.fx?timing.effectTicks:1));
+  let duration=length();
+  function changeMarker(key,v){
+    edit(()=>{const target=ensure();if(key==='cueTick')target.cueTick=v;else target.markers[key]=v;},false);
+    stop();timing=clipMarkers(clip);duration=length();scrub.max=duration-1;paint();
+  }
   Object.assign(scrub, {
     type: 'range',
     min: 0,
@@ -59,15 +63,20 @@ function drawProduction() {
     figure.hidden = !url;
     const p=clip.paint||clipPaintDefaults();
     Object.assign(figure.style,{position:'absolute',left:'50%',top:'84%',width:'25%',height:'65%',objectFit:'contain',objectPosition:'center bottom',transformOrigin:p.pivotX+'% '+p.pivotY+'%',transform:'translate(-'+p.pivotX+'%,-'+p.pivotY+'%) scale('+p.scale/100+')'});
-    effect.hidden = !clip.fx || t < clip.cueTick || t >= clip.cueTick + 7;
+    effect.hidden = !clip.fx || t < clip.cueTick || t >= clip.cueTick + timing.effectTicks;
     if (!effect.hidden) effect.src = imageUrl(clip.fx);
     const [prep, active] = phases;
+    if(!overlay.hidden)paintCombatOverlay(overlay,{hero:{x:14,y:0,face:1},foes:[],viewport:{x:0,y:0},t:project.tuning,character:actor,stroke:{tick:t,startup:prep,active}},28,35.4,84);
     caption.textContent =
       t +
       ' / ' +
       (duration - 1) +
       '틱' +
-      (motionKey === 'attack' ? ' · ' + (t < prep ? '준비' : t < prep + active ? '공격 판정' : '회복') : '');
+      (motionKey === 'attack' ? ' · ' + (t <= prep ? '준비' : t <= prep + active ? '공격 판정' : '회복') : '');
+    if(actor.strike&&motionKey==='attack'){
+      for(const [key,label] of [['inv','무적'],['cancel','취소 가능'],['combo','콤보 입력']])
+        if(strikeWindow(actor.strike,key,t))caption.textContent+=' · '+label;
+    }
   };
   scrub.oninput = ()=>{stop();paint();};
   let running=false,token=0;
@@ -76,13 +85,13 @@ function drawProduction() {
     if(running){stop();return;}
     if(previewTick>=duration-1)previewTick=0;
     const start=performance.now()-previewTick/0.06,current=++token;
-    let heard=previewTick>clip.cueTick;running=true;play.textContent='일시정지';
+    let heard=previewTick>timing.soundTick;running=true;play.textContent='일시정지';
     function next(ts) {
       if (!preview.isConnected || !running || current!==token)return;
       const t = Math.min(duration - 1, Math.floor((ts - start) * 0.06));
       scrub.value = t;
       paint();
-      if (!heard && t >= clip.cueTick) {
+      if (!heard && t >= timing.soundTick) {
         if(clip.sound) {
           motionPreviewSound?.pause();
           motionPreviewSound=new Audio(imageUrl(clip.sound));
@@ -98,6 +107,7 @@ function drawProduction() {
   });
   const tickBy=amount=>{stop();scrub.value=clamp(Number(scrub.value)+amount,0,duration-1);paint();};
   main.append(preview,titled('프레임 탐색',scrub),row(play,action('이전 한 틱',()=>tickBy(-1)),action('다음 한 틱',()=>tickBy(1)),caption));
+  if(motionKey==='attack')main.append(checkField('공격 판정 겹쳐 보기',false,on=>{overlay.hidden=!on;paint();}));
   const look={...clipPaintDefaults(),...clip.paint};
   function poseSetting(key,v){edit(()=>{ensure().paint={...look,...clip.paint,[key]:v};},false);paint();}
   side.append(heading('프레임 기준점'),selectField('프레임 반복 방식',look.repeat,{state:'상태 기본값',loop:'반복',once:'마지막 프레임 유지'},v=>poseSetting('repeat',v)),
@@ -133,9 +143,14 @@ function drawProduction() {
     selectField('효과음', clip.cue, { '': '없음', slash: '단검', ice: '서리', bell: '종' }, (v) =>
       edit(() => (ensure().cue = v)),
     ),
-    numberField('효과 시작 틱', clip.cueTick, 0, 600, 1, (v) => edit(() => (ensure().cueTick = v))),
-    el('p', '60틱이 1초예요. 기본 공격의 준비·판정·회복 시간은 전투 수치에서 조절해요.'),
+    numberField('효과 시작 틱', clip.cueTick, 0, 600, 1, v=>changeMarker('cueTick',v)),
+    checkField('소리와 시각 효과 시점 개별 지정',!!clip.markers,on=>edit(()=>{if(on)ensure().markers={...timing};else delete ensure().markers;})),
+    el('p', '60틱이 1초예요.'),
+
   );
+  if(clip.markers)side.append(
+    numberField('소리 시작 틱',timing.soundTick,0,600,1,v=>changeMarker('soundTick',v)),
+    numberField('시각 효과 유지 틱',timing.effectTicks,1,240,1,v=>changeMarker('effectTicks',v)));
 }
 function drawRPG() {
   const [items, quests] = panels();

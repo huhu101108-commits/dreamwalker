@@ -13,6 +13,9 @@ import {testArenaBrowser} from './test-arena-browser.mjs';
 import {testPresetDesigner} from './test-preset-browser.mjs';
 import {testGptWorkbenchBrowser} from './test-gpt-workbench-browser.mjs';
 import {testPersonalGptBrowser} from './test-personal-gpt-browser.mjs';
+import {testInspectionWorkflow} from './test-inspection-browser.mjs';
+import {testStoryProbeBrowser} from './test-story-probe-browser.mjs';
+import {testTargetFile} from './test-target-file-browser.mjs';
 import { testSceneMediaBrowser } from './test-scene-media-browser.mjs';
 import { testRuleAuthoring } from './test-rule-authoring-browser.mjs';
 import { testScreenWorkflow } from './test-screen-workflow-browser.mjs';
@@ -84,20 +87,25 @@ try {
   console.log('PASS two independent Chrome processes, same runner: ' + await outcome.textContent());
   await host.getByRole('button', { name: '종료', exact: true }).click();
   await host.getByText('연결을 종료했어요.').waitFor();
-  await testTouchAuthoring(host);
-  await testDeskBrowser(host);
-  await testDialogueBrowser(host);
-  await testDeviceDesigner(host);
-  await testArenaBrowser(host,guest,'http://127.0.0.1:'+servers[0].address().port,'http://127.0.0.1:'+teammate.address().port);
-  await testPersonalGptBrowser(host,guest,'http://127.0.0.1:'+servers[0].address().port,'http://127.0.0.1:'+teammate.address().port);
-  await testGptWorkbenchBrowser(host,'http://127.0.0.1:'+servers[0].address().port,guest.context().browser());
-  await testPresetDesigner(host,'http://127.0.0.1:'+servers[0].address().port);
-  const origin='http://127.0.0.1:'+servers[0].address().port;
-  await testSceneMediaBrowser(host,origin);
-  await testRuleAuthoring(host,origin);
-  await testScreenWorkflow(host,origin);
-  await testPortablePipeline(host,origin);
-  assert.deepEqual(errors, []);
+  const origin='http://127.0.0.1:'+servers[0].address().port, peerOrigin='http://127.0.0.1:'+teammate.address().port;
+  // Run every independent workflow even if another one reports a regression.
+  const workflows=[
+    [testTouchAuthoring,host],[testDeskBrowser,host],[testDialogueBrowser,host],[testDeviceDesigner,host],
+    [testArenaBrowser,host,guest,origin,peerOrigin],[testPersonalGptBrowser,host,guest,origin,peerOrigin],
+    [testGptWorkbenchBrowser,host,origin,guest.context().browser()],[testPresetDesigner,host,origin],
+    [testSceneMediaBrowser,host,origin],[testRuleAuthoring,host,origin],[testScreenWorkflow,host,origin],
+    [testPortablePipeline,host,origin],[testTargetFile,host,origin],[testInspectionWorkflow,host,origin],[testStoryProbeBrowser,host,origin]
+  ];
+  const failures=[];
+  for(const [run,...args] of workflows){
+    try{await run(...args);}
+    catch(error){
+      failures.push(run.name);console.error('FAIL '+run.name+'\n'+error.stack);
+      const accept=dialog=>dialog.accept();host.on('dialog',accept);
+      try{await host.goto(origin+'/?tool=versions');}finally{host.off('dialog',accept);}
+    }
+  }
+  assert.deepEqual(failures,[]);assert.deepEqual(errors, []);
 } finally {
   await Promise.allSettled(browsers.map(browser => browser.close()));
   for (const server of servers) { server.closeAllConnections(); server.close(); }

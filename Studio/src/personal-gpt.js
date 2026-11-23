@@ -6,10 +6,6 @@ function gptLink(label,href,download=false) {
   if(download)a.download='dreamwalker-gpt.mjs';else{a.target='_blank';a.rel='noopener noreferrer';}
   return a;
 }
-async function gptFingerprint(text) {
-  const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text));
-  return [...new Uint8Array(digest)].map(n=>n.toString(16).padStart(2,'0')).join('');
-}
 function gptThread(id) {
   if(!designThreads.has(id))designThreads.set(id,{items:[],draft:'',pending:false,proposal:null});
   return designThreads.get(id);
@@ -20,7 +16,7 @@ async function receivePersonalGpt(job) {
   if(!screen)return;
   const thread=gptThread(gptThreadKey(job.screen,job.work));
   if(thread.received===job.id)return;
-  const stamp=designStamp(project,screen,job.work), matches=await gptFingerprint(stamp)===job.stamp;
+  const stamp=designStamp(project,screen,job.work), matches=await studioTextDigest(stamp)===job.stamp;
   if(thread.received===job.id)return;
   if(!thread.items.some(m=>m.ticket===job.id&&m.role==='user'))thread.items.push({role:'user',text:job.prompt,ticket:job.id});
   const message={role:'assistant',text:job.answer.message,changes:job.answer.changes,ticket:job.id};

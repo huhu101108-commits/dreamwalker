@@ -1,0 +1,36 @@
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import vm from 'node:vm';
+const ctx=vm.createContext({structuredClone,crypto,URLSearchParams,TextEncoder,location:{search:'?qa=00000000-0000-4000-8000-000000000001'}});
+for(const name of ['model','rule-machine','simulation','inspection-game','inspection-store','inspection-lab','capabilities']){
+  vm.runInContext(await readFile(new URL('../src/'+name+'.js',import.meta.url),'utf8'),ctx);
+}
+const lib=vm.runInContext('({seed,newMap,problem,migrateProject,revisionChanges,measuredPlay,cleanInspectionSample,inspectionSlot,FieldRun,beginInspectionAt,testProgressCompatibility,contentDigest,studioMediaMatches,studioChecks,studioCheckStates})',ctx);
+const original=lib.seed(),before=structuredClone(original);
+delete before.saveId;
+const old=lib.migrateProject(before);
+assert.equal(old.saveId,before.startMap);assert.equal(lib.problem(old),'');
+const initial=lib.inspectionSlot(old,'구간 A');
+old.scenes.push(lib.newMap('alternate','검수 사본의 지점'));old.startMap='alternate';
+assert.equal(lib.inspectionSlot(old,'구간 A'),initial);assert.notEqual(lib.inspectionSlot(old,'구간 B'),initial);
+assert.equal(original.scenes.length,1);
+const base=lib.seed(),run=new lib.FieldRun(base,base.startMap,true),spawn=run.map.objects.find(o=>o.type==='spawn');
+lib.beginInspectionAt(run,{objectId:spawn.id});assert.equal(run.hero.x,spawn.x);
+run.flags.add('compatibility');const progress=run.checkpoint();delete progress.combatTick;delete progress.combatState;delete progress.kills;
+const stored=JSON.stringify(progress);assert(lib.testProgressCompatibility(old,progress).passed);assert.equal(JSON.stringify(progress),stored);
+assert.equal(lib.testProgressCompatibility(old,{...progress,map:'deleted'}).passed,false);
+const changed=structuredClone(base);changed.scenes[0].name='편집';changed.scenes[0].objects.reverse();
+const differences=lib.revisionChanges(base,changed);assert(differences.some(d=>d.path==='/scenes/'+base.startMap+'/name'&&d.after==='편집'));
+assert(differences.some(d=>d.path.endsWith('/objects/순서')));
+assert.notEqual(await lib.contentDigest(changed),await lib.contentDigest(base));
+const qa=structuredClone(base);qa.work={brief:'QA-private',tasks:[],prefabs:[],assets:[],runs:[]};
+assert.equal(await lib.contentDigest(qa),await lib.contentDigest(base));
+const sampler=lib.measuredPlay({});sampler.record(0,base.startMap,true,100);sampler.record(16,base.startMap,true,100);sampler.record(48,base.startMap,true,200);
+sampler.record(80,base.startMap,false);sampler.record(1600,base.startMap,true,100);
+const sample=sampler.capture();assert.equal(sample.frames,2);assert.equal(sample.frameAvgMs,24);assert.equal(sample.frameP95Ms,32);
+assert.equal(lib.cleanInspectionSample(sample,base).mapStats.length,1);
+assert.equal(lib.cleanInspectionSample({mapStats:[{map:'other'}]},base).mapStats.length,0);
+assert.equal(lib.studioMediaMatches('audio/wav',new TextEncoder().encode('RIFF0000WAVE')),true);
+assert.equal(lib.studioMediaMatches('audio/wav',new Uint8Array([1,2,3])),false);
+assert(lib.studioChecks.every(row=>row.length===7&&lib.studioCheckStates[row[6]]));
+console.log('PASS isolated save namespaces across start-map changes, old checkpoint compatibility, stable-ID diffs, raw frame intervals and content-only release digest');

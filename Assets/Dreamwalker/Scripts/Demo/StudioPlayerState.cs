@@ -75,7 +75,7 @@ public sealed partial class StudioWorld
     private float nextProgressSave, poseStart;
     private int motionEpoch, lastEpoch;
     private string activeSkillKey, lastPose, lastSpriteRef;
-    private bool playedCue;
+    private bool playedCue,shownEffect;
     private SpriteRenderer motionFx;
     private float fxUntil;
     private AudioSource cuePlayer, musicPlayer, voicePlayer;
@@ -140,7 +140,17 @@ public sealed partial class StudioWorld
     }
     private readonly Dictionary<string, AudioClip> tones = new Dictionary<string, AudioClip>();
     private readonly Dictionary<string, Vector2> widgetScroll = new Dictionary<string, Vector2>();
-    private string SaveKey => "dreamwalker-player-v1:" + Project.startMap;
+    private string SaveKey
+    {
+        get
+        {
+#if UNITY_EDITOR
+            string slot = UnityEditor.SessionState.GetString(StoryProbeSlotKey, "");
+            if (IsStoryProbeSlot(slot)) return slot;
+#endif
+            return "dreamwalker-player-v1:" + (string.IsNullOrEmpty(Project.saveId) ? Project.startMap : Project.saveId);
+        }
+    }
     private StudioItem Item(string id) => Array.Find(Project.items ?? Array.Empty<StudioItem>(),
                                                      v => v.id == id);
 
@@ -458,7 +468,7 @@ public sealed partial class StudioWorld
             lastPose = pose;
             lastEpoch = epoch;
             poseStart = clock;
-            playedCue = false;
+            playedCue=false;shownEffect=false;
         }
         int t = Mathf.Max(0, Mathf.RoundToInt((clock - poseStart) * 60));
         var clip = Array.Find(Actor.motionClips, v => v.key == pose);
@@ -497,14 +507,14 @@ public sealed partial class StudioWorld
         }
         bodyImage.transform.localPosition=new Vector3((.5f-(paint?.pivotX??50)/100f)*1.65f*scale*motor.Facing,
             ((paint?.pivotY??100)/100f-.5f)*2.3f*scale,0);
-        if (clip != null && !playedCue && t >= clip.cueTick)
+        if (clip!=null && !playedCue && t>=clip.SoundTick)
         {
-            playedCue = true;
-            if (sound != null)
-                PlayAuthoredFx(ref cuePlayer,sound);
-            else if (string.IsNullOrEmpty(clip.sound))
-                PlayCue(clip.cue);
-            var sprite = GraphicsFor(clip.fx);
+            if(sound!=null){PlayAuthoredFx(ref cuePlayer,sound);playedCue=true;}
+            else if(string.IsNullOrEmpty(clip.sound)){PlayCue(clip.cue);playedCue=true;}
+        }
+        if (clip!=null && !shownEffect && t>=clip.cueTick && t<clip.cueTick+clip.EffectTicks)
+        {
+            var sprite=GraphicsFor(clip.fx);
             if (sprite != null)
             {
                 if (motionFx == null)
@@ -513,7 +523,7 @@ public sealed partial class StudioWorld
                 Fit(motionFx, new Vector2(2, 2), true);
                 motionFx.transform.position = body.position + new Vector2(motor.Facing * 1.2f, 1);
                 motionFx.enabled = true;
-                fxUntil = clock + .12f;
+                shownEffect=true;fxUntil=poseStart+(clip.cueTick+clip.EffectTicks)/60f;
             }
         }
         if (motionFx != null && clock >= fxUntil)

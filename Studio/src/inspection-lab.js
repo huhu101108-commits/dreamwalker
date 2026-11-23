@@ -1,6 +1,6 @@
 function inspectionSlot(doc,label){
   const name=(label||'기본').trim().slice(0,100);
-  return 'dreamwalker-inspection-progress-v2:'+(inspectionId||'team')+':'+encodeURIComponent(doc.startMap)+':'+encodeURIComponent(name);
+  return 'dreamwalker-inspection-progress-v2:'+(inspectionId||'team')+':'+encodeURIComponent(doc.saveId||doc.startMap)+':'+encodeURIComponent(name);
 }
 function cleanInspectionSample(data,doc){
   const stats=Array.isArray(data.mapStats)?data.mapStats.slice(0,doc.scenes.length).filter(m=>m&&named(doc.scenes,m.map)&&integer(m.frames,1,1e9)&&
@@ -19,6 +19,7 @@ function rememberMeasurement(row){
   });
 }
 async function playInspectionFrom(doc,target={},rev=record.rev){
+  saveEditorPosition();
   const copy=structuredClone(doc),map=named(copy.scenes,target.mapId)||named(copy.scenes,copy.startMap);
   if(!map)throw Error('검수할 맵을 먼저 선택하세요.');
   if(target.objectId&&!named(map.objects,target.objectId))throw Error('다시 열 검사 지점이 삭제됐어요.');
@@ -28,8 +29,12 @@ async function playInspectionFrom(doc,target={},rev=record.rev){
   const start={mapId:map.id,objectId:target.objectId||'',storyId:target.storyId||'',lineId:target.lineId||'',screenId:target.screenId||'',
     fromStart:!!target.fromStart,resume:!!target.resume,slot};
   const digest=await contentDigest(copy);
-  const modal=await playCustom(copy,map.id,start.screenId,{...start,slotKey:inspectionSlot(copy,slot)});
+  const modal=await playCustom(copy,map.id,start.screenId,{...start,revision:rev,traceRules:!!inspectionId&&!start.resume,slotKey:inspectionSlot(copy,slot)});
   if(modal?.open)modal.addEventListener('close',()=>{
+    if(inspectionId&&modal.fieldRuleCapture)inspectionWrite('drafts','field-rules/'+inspectionId,
+      {rev,digest,slot,capture:modal.fieldRuleCapture}).then(()=>{
+        for(const panel of document.querySelectorAll('[data-field-rules]'))panel.dispatchEvent(new Event('field-rule-capture'));
+      }).catch(e=>note(e.message));
     const sample=modal.inspectionSample;
     if(!sample?.frames)return;
     rememberMeasurement({id:uid(),when:Date.now(),rev,digest,start,sample}).then(()=>{
@@ -74,6 +79,7 @@ function addInspectionWorkspace(parent){
     selectField('검수 시작 줄',t.lineId,{'':'첫 줄',...Object.fromEntries((story?.nodes||[]).map((n,i)=>[n.id,(i+1)+' · '+n.text.slice(0,40)]))},v=>{t.lineId=v;}),
     selectField('검수 시작 화면',t.screenId,{'':'맵 화면',...optionMap(project.layouts)},v=>{t.screenId=v;}),
     textField('플레이 검수 슬롯 이름',t.slot,v=>{t.slot=v;},75)),checkField('지정한 게임 시작 화면과 전환 순서로 플레이',t.fromStart,on=>{t.fromStart=on;}),actionRow);
+  panel.append(row(action('저장본으로 검수 플레이',async()=>{const v=await api('runtime');return playInspectionFrom(v.project,{...t,mapId:map.id},v.rev);}),action('저장본 → 오프라인 게임 HTML',exportSavedWebGame)));
   const output=el('output');
   const compare=async save=>{const result=testProgressCompatibility(project,save);output.textContent=(result.passed?'통과 · ':'확인 필요 · ')+result.note;};
   panel.append(action('이 슬롯의 저장 호환성 검사',async()=>{

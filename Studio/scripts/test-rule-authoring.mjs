@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 const ctx=vm.createContext({structuredClone,crypto});
 for(const n of ['model','rule-machine','simulation'])vm.runInContext(fs.readFileSync('src/'+n+'.js','utf8'),ctx);
-const m=vm.runInContext('({seed,problem,FieldRun,EventRuleMachine,replayEventInputs,eventProgramCycle,eventProgramProblem,validStudioPreset,validRuleProbeSpec,portableProgramOutcome,firstProgramDifference,packNativeWorld,strikeDefaults,validStrike})',ctx);
+const m=vm.runInContext('({seed,problem,FieldRun,EventRuleMachine,FieldRuleCapture,validFieldCapture,programSpecKey,replayEventInputs,eventProgramCycle,eventProgramProblem,validStudioPreset,validRuleProbeSpec,portableProgramOutcome,firstProgramDifference,packNativeWorld,strikeDefaults,validStrike})',ctx);
 const f=JSON.parse(fs.readFileSync('scripts/native-check/rule-replay.json')),p=structuredClone(m.seed());
 const r=m.replayEventInputs({eventRules:f.rules},f.spec);
 assert.deepEqual([r.hp,r.damage,r.shield,r.scope[0].vars[0].value],[8,7,2,7]);
@@ -37,3 +37,25 @@ field.stepStroke();const first=enemy.hp;field.stepStroke();assert.equal(enemy.hp
 field.press('attack');for(let i=4;i<8;i++)field.stepStroke();assert.equal(field.stroke,null);
 field.press('attack');field.stepStroke();field.stepStroke();field.press('skill1');assert.equal(field.stroke,null);assert(field.sequence);
 console.log('PASS authored rule trace and replay, gate and timers in FieldRun, native vector, events and named presets, legacy checkpoint, cycles, authored attack/hit/guard/cancel/buffer windows');
+
+// Play a fresh verification copy through FieldRun, with field-owned HP/flags and fresh map memory between inputs.
+const captured=new m.FieldRuleCapture(),real=new m.FieldRun(p,undefined,false,captured);
+real.hero.hp=5;real.press('signal','permit');real.press('attack');real.press('attack');
+for(let i=0;i<7;i++)real.tick(1/60);
+real.press('signal','transient');real.hurtHero(2);real.flags.add('외부');real.fire('menu','pause');
+if(p.characters.length>1)real.chooseActor(p.characters[1].id);
+real.enter(real.map.id);real.fire('line','other');real.tick(1/60);
+const actual=captured.close(real);
+const sharedField=JSON.parse(fs.readFileSync('scripts/native-check/field-rule-replay.json'));
+assert.deepEqual(structuredClone(actual.spec),sharedField.spec);assert.deepEqual(structuredClone(actual.outcome),sharedField.outcome);
+assert(m.validFieldCapture(actual,p));assert(actual.spec.events.some(e=>e.context.healthDelta<0));assert(actual.spec.events.some(e=>e.context.on.includes('외부')));
+assert(actual.spec.events.some(e=>e.event==='clock'));assert(actual.outcome.steps.some(s=>s.split('/')[1]==='timer'));
+assert(actual.outcome.trace.length>0);assert(!m.packNativeWorld(p).work);
+assert.deepEqual(structuredClone(m.portableProgramOutcome(m.replayEventInputs(p,actual.spec))),structuredClone(actual.outcome));
+assert.notEqual(m.firstProgramDifference(actual.outcome,m.portableProgramOutcome(m.replayEventInputs({...p,eventRules:changed},actual.spec))),'');
+const altered=structuredClone(actual.spec);altered.events[0].context.map='missing';assert(!m.validRuleProbeSpec(altered,p));
+const busy=new m.FieldRuleCapture(),rapid=new m.FieldRun(q,undefined,false,busy);
+for(let i=0;i<246;i++)rapid.press('jump');
+const limited=busy.close(rapid);assert.equal(limited.spec.events.length,120);assert(limited.issue.includes('120'));
+assert.deepEqual(structuredClone(m.portableProgramOutcome(m.replayEventInputs(q,limited.spec))),structuredClone(limited.outcome));
+console.log('PASS live verification FieldRun capture against independent replay, external HP/flag changes, timers, support for capped input and zero release QA data');

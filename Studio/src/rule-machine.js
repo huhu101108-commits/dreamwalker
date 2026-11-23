@@ -154,33 +154,61 @@ function authoredStrikeTouches(s,hero,e){
   const w=e.enemy.hurtWidth||.7,h=e.enemy.hurtHeight||1.6;
   return Math.abs((e.x-hero.x)*hero.face/3.5-s.x)<=(s.w+w)/2&&Math.abs((e.y-hero.y)*.16+h/2-s.y)<=(s.h+h)/2;
 }
+function programScopes(machine){
+  return ['save','session','map'].map(scope=>({scope,...machine.stores[scope]}));
+}
 function replayEventInputs(project,spec){
-  const trace=[],flags=new Set(spec.flags),scope=[],outcomes=[];
-  const machine=new EventRuleMachine(project.eventRules||[],entry=>{if(trace.length>=2048)throw Error('규칙 기록이 2048건을 넘었어요. 입력 구간을 나눠서 재생하세요.');trace.push(entry);});
-  let hp=spec.hp,shield=0,damage=0,work=0,clock=0;
-  function send(event,key,tick){
-    const result=machine.dispatch(event,key,{tick,hp,maximum:spec.maximum,map:spec.map,actor:spec.actor,flags});
-    hp=result.hp;shield=Math.min(9999,shield+result.shield);damage+=result.damage;
+  const field=spec.kind==='field',trace=[],flags=new Set(spec.flags),outcomes=[];
+  const machine=new EventRuleMachine(project.eventRules||[],entry=>{
+    if(trace.length>=2048)throw Error('규칙 기록이 2048건을 넘었어요. 입력 구간을 나눠서 재생하세요.');
+    trace.push(entry);
+  });
+  let hp=spec.hp,maximum=spec.maximum,actor=spec.actor,map=spec.map,shield=0,damage=0,work=0;
+  function send(event,key,tick,record){
     if(++work>4096)throw Error('타이머 실행이 4096회를 넘었어요. 마지막 신호 '+key+' · '+tick+'틱');
-    return result;
+    const result=machine.dispatch(event,key,{tick,hp,maximum,map,actor,flags});
+    hp=result.hp;shield=Math.min(9999,shield+result.shield);damage+=result.damage;
+    if(record)outcomes.push({tick,event,key,hp,shield,damage,consumed:result.consumed});
+  }
+  function clocks(end){
+    let next;
+    while((next=Math.min(...Object.values(machine.stores).flatMap(b=>b.timers.map(t=>t.at))))<=end)
+      for(const key of machine.due(next))send('timer',key,next,field);
   }
   for(const step of spec.events){
-    let next;
-    while((next=Math.min(...Object.values(machine.stores).flatMap(b=>b.timers.map(t=>t.at))))<=step.tick){
-      clock=next;for(const key of machine.due(clock))send('timer',key,clock);
-    }
-    clock=step.tick;if(step.event==='enter')machine.enter();
-    const result=send(step.event,step.key,clock);outcomes.push({tick:clock,event:step.event,key:step.key,hp,shield,damage,consumed:result.consumed});
+    if(field){
+      const c=step.context;actor=c.actor;map=c.map;maximum=c.maximum;
+      hp=clamp(hp+c.healthDelta,0,maximum);shield=clamp(shield+c.shieldDelta,0,9999);
+      for(const k of c.off)flags.delete(k);for(const k of c.on)flags.add(k);
+      if(c.resetMap)machine.enter();
+      if(step.event==='clock'){clocks(step.tick);continue;}
+    }else{clocks(step.tick);if(step.event==='enter')machine.enter();}
+    send(step.event,step.key,step.tick,true);
   }
-  for(const name of ['save','session','map']){const b=machine.stores[name];scope.push({scope:name,vars:b.vars,counts:b.counts,timers:b.timers});}
-  return {hp,shield,damage,flags:[...flags].sort(),scope,outcomes,trace};
+  return {hp,shield,damage,flags:[...flags].sort(),scope:programScopes(machine),outcomes,trace};
 }
-
+function programFlags(list){
+  return Array.isArray(list)&&list.length<=64&&list.every(v=>signalKey(v))&&new Set(list).size===list.length;
+}
 function validRuleProbeSpec(spec,doc){
-  if(!spec||!named(doc.characters,spec.actor)||!named(doc.scenes,spec.map)||!integer(spec.maximum,1,99999)||!integer(spec.hp,0,spec.maximum)||
-    !Array.isArray(spec.flags)||spec.flags.length>64||spec.flags.some(v=>!signalKey(v))||new Set(spec.flags).size!==spec.flags.length||
-    !Array.isArray(spec.events)||spec.events.length>120)return false;
-  return spec.events.every((e,i)=>e&&integer(e.tick,i?spec.events[i-1].tick:0,36000)&&has(PROGRAM_EVENTS,e.event)&&signalKey(e.key,true));
+  const field=spec?.kind==='field';
+  if(!spec||(!field&&spec.kind)||!named(doc.characters,spec.actor)||!named(doc.scenes,spec.map)||!integer(spec.maximum,1,99999)||!integer(spec.hp,0,spec.maximum)||
+    !programFlags(spec.flags)||!Array.isArray(spec.events)||spec.events.length>120)return false;
+  return spec.events.every((e,i)=>{
+    if(!e||!integer(e.tick,i?spec.events[i-1].tick:0,36000)||!signalKey(e.key,true)||
+      !(field&&e.event==='clock')&&!has(PROGRAM_EVENTS,e.event))return false;
+    if(!field)return true;
+    const c=e.context;
+    return e.event!=='timer'&&c&&!!named(doc.characters,c.actor)&&!!named(doc.scenes,c.map)&&integer(c.maximum,1,99999)&&
+      integer(c.healthDelta,-99999,99999)&&integer(c.shieldDelta,-9999,9999)&&typeof c.resetMap==='boolean'&&
+      programFlags(c.on)&&programFlags(c.off)&&!c.on.some(k=>c.off.includes(k));
+  });
+}
+function programSpecKey(spec){
+  return JSON.stringify([spec.kind||'',spec.actor,spec.map,spec.maximum,spec.hp,spec.flags,spec.events.map(e=>{
+    const c=e.context;
+    return [e.tick,e.event,e.key,...(spec.kind==='field'?[c.actor,c.map,c.maximum,c.healthDelta,c.shieldDelta,+c.resetMap,c.on,c.off]:[])];
+  })]);
 }
 function portableProgramOutcome(result){
   const state=[];
@@ -212,4 +240,65 @@ function storedProgramProbe(p){
     b.scope.every(x=>x&&['save','session','map'].includes(x.scope)&&Array.isArray(x.vars)&&x.vars.every(v=>v&&signalKey(v.key)&&integer(v.value,-999999,999999))&&
       Array.isArray(x.counts)&&Array.isArray(x.timers))&&Array.isArray(b.outcomes)&&b.outcomes.length<=120&&Array.isArray(b.trace)&&b.trace.length<=2048&&
     b.trace.every(t=>t&&integer(t.tick,0,36000)&&has(PROGRAM_EVENTS,t.event)&&signalKey(t.key,true)&&validId(t.rule)&&typeof t.state==='string'&&integer(t.index,-1,15));
+}
+
+class FieldRuleCapture {
+  constructor(){
+    this.spec=null;this.last=null;this.resetMap=false;this.damage=0;this.outcomes=[];this.trace=[];
+    this.finished=null;this.issue='';this.stopped=false;
+  }
+  close(run,reason=''){
+    if(!this.stopped){
+      this.stopped=true;this.issue=this.issue||reason;
+      if(this.spec&&this.last){
+        const machine=run.eventMachine||new EventRuleMachine([]);
+        this.finished={spec:this.spec,issue:this.issue,outcome:portableProgramOutcome({
+          hp:this.last.hp,shield:this.last.shield,damage:this.damage,flags:[...this.last.flags].sort(),
+          scope:programScopes(machine),outcomes:this.outcomes,trace:this.trace})};
+      }
+    }
+    return this.finished;
+  }
+  log(entry){
+    if(this.stopped)return;
+    if(this.trace.length>=2048){this.issue='판정 2048건을 넘었어요. 짧은 구간으로 다시 플레이하세요.';return;}
+    this.trace.push(entry);
+  }
+  observe(run,event,key){
+    if(this.stopped || (event!=='clock'&&!has(PROGRAM_EVENTS,event)))return;
+    if(event==='timer')return;
+    const {characterId:actor,combatTick:tick,flags}=run,map=run.map.id,maximum=run.character.health,hp=run.hero.hp,shield=run.combatMemory.shield;
+    if(!this.spec){
+      this.spec={kind:'field',actor,map,maximum,hp,flags:[...flags].sort(),events:[]};
+      this.last={hp,shield:0,flags:new Set(flags)};
+    }
+    if(!integer(tick,0,36000)||!signalKey(key,true)||flags.size>64){
+      this.close(run,'시간·상태·이벤트 키가 기록 범위를 넘었어요. 마지막으로 기록한 구간까지만 비교합니다.');return;
+    }
+    const context={actor,map,maximum,healthDelta:hp-this.last.hp,shieldDelta:shield-this.last.shield,resetMap:this.resetMap,
+      on:[...flags].filter(k=>!this.last.flags.has(k)).sort(),off:[...this.last.flags].filter(k=>!flags.has(k)).sort()};
+    const empty=c=>!c.healthDelta&&!c.shieldDelta&&!c.resetMap&&!c.on.length&&!c.off.length;
+    const entries=this.spec.events,prior=entries.at(-1);
+    if(event==='clock'&&prior?.event==='clock'&&empty(context)&&empty(prior.context)&&
+      ['actor','map','maximum'].every(k=>context[k]===prior.context[k]))prior.tick=tick;
+    else{
+      if(entries.length>=120){this.close(run,'입력 구간 120개까지 기록했어요.');return;}
+      entries.push({event,key,tick,context});
+    }
+    this.resetMap=false;this.last={hp,shield,flags:new Set(flags)};
+  }
+  applied(run,event,key,result){
+    if(this.stopped||!this.last||!has(PROGRAM_EVENTS,event))return;
+    if(this.outcomes.length>=4096){this.issue='실행 결과가 4096건을 넘었어요. 짧은 구간으로 다시 플레이하세요.';return;}
+    this.damage+=result?.damage||0;
+    this.last={hp:run.hero.hp,shield:run.combatMemory.shield,flags:new Set(run.flags)};
+    this.outcomes.push({tick:run.combatTick,event,key,hp:this.last.hp,shield:this.last.shield,damage:this.damage,consumed:!!result?.consumed});
+  }
+}
+function validFieldCapture(capture,doc){
+  if(!capture||capture.spec?.kind!=='field'||!validRuleProbeSpec(capture.spec,doc)||!textValue(capture.issue,180))return false;
+  const b=capture.outcome;
+  const lines=(xs,max)=>Array.isArray(xs)&&xs.length<=max&&xs.every(x=>textValue(x,320));
+  return b&&integer(b.hp,0,99999)&&integer(b.shield,0,9999)&&Number.isSafeInteger(b.damage)&&b.damage>=0&&
+    programFlags(b.flags)&&lines(b.trace,2048)&&lines(b.steps,4096)&&lines(b.state,4096);
 }

@@ -69,7 +69,7 @@ function drawStudioGpt(dock){
         const message={role:'assistant',text:reply.message,changes:reply.changes};
         thread.items.push(message);thread.proposal=message.changes.length?{message,stamp,work:context.work}:null;
       }else{
-        await api('personal-gpt/ask',{id,prompt,context,history,stamp:await gptFingerprint(stamp),mode,revision:personal.prefs.revision,...(mode==='chatgpt'&&personal.chatLink?{linkId:personal.chatLink.id}:{})});
+        await api('personal-gpt/ask',{id,prompt,context,history,stamp:await studioTextDigest(stamp),mode,revision:personal.prefs.revision,...(mode==='chatgpt'&&personal.chatLink?{linkId:personal.chatLink.id}:{})});
         await refreshStudioGpt(true);
       }
       if(thread.items.length>30)thread.items.splice(0,thread.items.length-30);

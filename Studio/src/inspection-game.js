@@ -12,8 +12,7 @@ function beginInspectionAt(run,options){
   if(options.storyId){
     const story=named(run.world.stories,options.storyId),index=story?.nodes.findIndex(n=>n.id===options.lineId);
     if(!story||(options.lineId&&index<0))throw Error('선택한 대사 줄이 현재 버전에 없어요.');
-    run.layers.length=0;run.presentation=null;run.openStory(story.id);
-    if(index>=0){run.dialogue.index=index;run.dialogue.resetTrack?.();}
+    run.layers.length=0;run.presentation=null;run.openStory(story.id,null,options.lineId||'');
   }
   if(options.screenId)run.startPresentation(options.screenId);
 }

@@ -15,6 +15,7 @@ function deskText(label,work,obj,key,max,multi=false) {
 function goTool(tool,id='') {
   if(tool==='eventRules'){if(id)selectedEventRule=id;tool='rules';id='';}
   if (!document.querySelector('#tabs [data-tab="'+tool+'"]')) return;
+  if(tool!==tab)saveEditorPosition();
   if(id&&tool==='rules')selectedCombatRule=id;
   if (id && tool==='scene') { sceneId=id; mapPage=mapFloor=0; mapTool=mapObject=''; }
   if (id && tool==='characters') actorId=id;

@@ -14,7 +14,7 @@ public class StudioRelease
 public class StudioProject
 {
     public int schema;
-    public string startMap, customJson;
+    public string startMap, saveId, customJson;
     public bool authoredKeysOnly;
     public StudioTuning tuning;
     public StudioMix mix;
@@ -355,7 +355,13 @@ internal static class StudioOutline
 }
 [Serializable] public class StudioItem { public string id, name, slot; public int power; }
 [Serializable] public class StudioQuest { public string id, name, kind, target, reward; public int count, goal; }
-[Serializable] public class StudioClip { public string key, fx, cue, sound; public int cueTick; public StudioFrame[] frames; public StudioClipPaint paint; }
+[Serializable] public class StudioClip {
+    public string key,fx,cue,sound; public int cueTick;
+    public StudioFrame[] frames; public StudioClipPaint paint; public StudioClipMarkers markers;
+    public int SoundTick=>markers?.soundTick??cueTick;
+    public int EffectTicks=>Math.Max(1,markers?.effectTicks??7);
+}
+[Serializable] public class StudioClipMarkers { public int soundTick,effectTicks; }
 [Serializable] public class StudioClipPaint { public float pivotX=50,pivotY=100,scale=100; public string repeat; }
 [Serializable] public class StudioFrame { public string image; public int ticks; }
 }

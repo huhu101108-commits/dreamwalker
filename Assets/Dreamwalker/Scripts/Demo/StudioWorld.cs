@@ -431,10 +431,10 @@ public sealed partial class StudioWorld : MonoBehaviour
         }
     }
 
-    private void OpenStory(string id)
+    private void OpenStory(string id, int startLine = 0)
     {
         Story = string.IsNullOrEmpty(id) ? null : Project.Story(id);
-        lineIndex = 0;
+        lineIndex = startLine;
         BeginStage();
         if (Story != null){Fire("storyStart", id);DispatchProgram("line",Line.id);}
         SyncControls();

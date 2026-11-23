@@ -10,7 +10,8 @@
     <Compile Include="../../../Assets/Dreamwalker/Scripts/Demo/StudioCombatClock.cs" />
     <Compile Include="../../../Assets/Dreamwalker/Scripts/Demo/StudioEventMachine.cs" />
     <Compile Include="RuleReplay.cs" />
-    <None Include="rule-replay.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="rule-replay.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="field-rule-replay.json" CopyToOutputDirectory="PreserveNewest" />
     <Compile Include="../../../Assets/Dreamwalker/Scripts/Demo/StudioContent.cs" />
     <Compile Include="../../../Assets/Dreamwalker/Scripts/Demo/StudioRoadmap.cs" />
     <Compile Include="../../../Assets/Dreamwalker/Scripts/Demo/StudioScreenFlow.cs" />

@@ -29,12 +29,20 @@ export async function testSceneMediaBrowser(page,origin){
     await answer.click({timeout:8000});
     assert.equal(await editor.locator('#reader [data-stage-words]').textContent(),'경로 확인');
     await editor.locator('#readerClose').click();
+    await button('이 줄부터 검수 플레이').click();
+    const runtime=editor.frameLocator('dialog.source-player iframe'),gameArea=runtime.locator('#overlay');
+    const playChoice=gameArea.getByRole('button',{name:'경로 선택',exact:true});await playChoice.waitFor();
+    await playChoice.click({timeout:8000});await gameArea.getByText('경로 확인',{exact:true}).waitFor();
+    await editor.locator('dialog.source-player').getByRole('button',{name:'편집기로',exact:true}).click();
+    await editor.locator('dialog.source-player').waitFor({state:'detached'});
 
     await tab('scene');await open('카메라 · 배경 움직임');await field('카메라 확대 배율').fill('2');
     await field('추적 경계 오른쪽 (%)').fill('75');await field('장면 등장 전환 틱 (0은 즉시)').fill('30');await button('카메라 경계와 시야 적용').click();
     assert.equal(await field('카메라 확대 배율').inputValue(),'2');
     await tab('motion');await field('재생 동작').selectOption('attack');
+    await field('소리와 시각 효과 시점 개별 지정').check();await field('소리 시작 틱').fill('12');await field('시각 효과 유지 틱').fill('19');
     await field('프레임 반복 방식').selectOption('once');await field('피벗 가로 (%)').fill('35');
+    await field('공격 판정 겹쳐 보기').check();assert(await editor.locator('.motion-preview canvas').isVisible());
     const scrub=field('프레임 탐색');const start=Number(await scrub.inputValue());
     await button('다음 한 틱').click();assert.equal(Number(await scrub.inputValue()),start+1);
     await button('이전 한 틱').click();assert.equal(Number(await scrub.inputValue()),start);
@@ -44,7 +52,7 @@ export async function testSceneMediaBrowser(page,origin){
     await editor.waitForFunction(()=>{
       const p=JSON.parse(localStorage.getItem('dreamwalker-verification-draft-v1:'+new URL(location.href).searchParams.get('qa'))||'null')?.project;
       return p?.work?.artGuide?.notes==='장면과 기준 컷 대조'&&p.stories.some(s=>s.nodes[0].stageTrack?.cues.some(c=>c.key==='gate'))&&
-        p.characters.some(c=>c.clips?.attack?.paint?.pivotX===35&&c.clips.attack.paint.repeat==='once')&&p.scenes.some(m=>m.camera?.frame?.right===75&&m.camera.frame.zoom===2&&m.camera.frame.fadeTicks===30);
+        p.characters.some(c=>c.clips?.attack?.paint?.pivotX===35&&c.clips.attack.paint.repeat==='once'&&c.clips.attack.markers.soundTick===12&&c.clips.attack.markers.effectTicks===19)&&p.scenes.some(m=>m.camera?.frame?.right===75&&m.camera.frame.zoom===2&&m.camera.frame.fadeTicks===30);
     });
     assert.deepEqual(errors,[]);
     console.log('PASS isolated tablet browser scene cue and choice, dialogue branch, camera frame, motion pivot and tick stepping, art guide and draft persistence');

@@ -142,11 +142,21 @@ async function exportUnityPack(fullProject = false) {
   else note('Unity 팩을 내보냈어요. Unity의 Tools → Dreamwalker → 가져오기 변경 검토에서 ZIP을 선택하세요.');
 }
 
+function nativeOutputPath(path){
+  if(typeof path!=='string'||path.length>260||path.toLowerCase()==='projectsettings/dreamwalkerstudioimport.json')return false;
+  const parts=path.split('/');
+  return parts.length>1&&['Assets','Packages','ProjectSettings'].includes(parts[0])&&parts.every(part=>
+    /^[a-zA-Z0-9_가-힣 -][a-zA-Z0-9._가-힣 -]*$/.test(part)&&!/[. ]$/.test(part)&&!/^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\.|$)/i.test(part));
+}
 async function nativePackIndex(items,revision,full){
-  const files=[], seen=new Set();
+  const files=[],seen=new Set();let total=0;
+  if(items.length>10000)throw Error('Unity 팩은 파일 10,000개까지 담을 수 있어요.');
   for(const [path,bytes] of items){
     const canon=path.toLowerCase();
-    if(seen.has(canon)||canon==='projectsettings/dreamwalkerstudioimport.json')throw Error('중복되거나 예약된 Unity 파일 · '+path);
+    if(seen.has(canon)||!nativeOutputPath(path)||(!full&&!path.startsWith('Assets/Resources/DreamwalkerStudio/')))
+      throw Error('Unity에서 가져올 수 없는 파일 경로 · '+path);
+    total+=bytes.length;
+    if(bytes.length>64*1024*1024||total>1024*1024*1024)throw Error('Unity 팩 크기 한도를 넘었어요 · '+path);
     seen.add(canon);
     const digest=await crypto.subtle.digest('SHA-256',bytes);
     files.push({path,bytes:bytes.length,sha256:Array.from(new Uint8Array(digest),n=>n.toString(16).padStart(2,'0')).join('')});
@@ -197,8 +207,8 @@ async function inspectOutput(d,target,webBase){
   const issues=checkOutputLinks(d);
   if(issues.length)return issues;
   const native=target==='content'||target==='unity', files=d.sourceFiles||[];
-  if(native&&files.some(f=>f.path.toLowerCase()==='projectsettings/dreamwalkerstudioimport.json'))
-    issues.push({level:'error',tool:'source',owner:'ProjectSettings/DreamwalkerStudioImport.json',title:'Unity 가져오기 이력에 예약된 경로를 사용하고 있어요.'});
+  if(native)for(const f of files)if(f.text!==null&&!f.path.startsWith('Web/')&&!nativeOutputPath(f.path))
+    issues.push({level:'error',tool:'source',owner:f.path,title:'Unity에서 가져올 수 없는 파일 경로 · '+f.path});
   const scope=outputLocations(d),world=playableWorld(d);
   const media=[...new Set([...imageRefs(world),...soundRefs(world)])];
   for(let i=0;i<media.length;i+=6)await Promise.all(media.slice(i,i+6).map(async hash=>{

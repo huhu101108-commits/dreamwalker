@@ -51,4 +51,36 @@ const index=await m.nativePackIndex([['Assets/Tests/X.cs',png]],17,true);
 assert.equal(index.revision,17);assert.equal(index.files[0].sha256,img.slice(6));assert.equal(index.kind,'project');
 await assert.rejects(m.nativePackIndex([['Assets/Tests/X.cs',png],['Assets/Tests/x.cs',png]],17,true));
 await assert.rejects(m.nativePackIndex([['ProjectSettings/DreamwalkerStudioImport.json',png]],17,true));
+await assert.rejects(m.nativePackIndex([['Assets/NUL.txt',png]],17,true));
 console.log('PASS portable asset digests, missing-media repair, external target remap, actor inheritance and overrides, editor-only assets, export destinations, verified Unity index');
+
+for(const name of ['device-workspace','target-files'])vm.runInContext(await fs.readFile('src/'+name+'.js','utf8'),ctx);
+Object.assign(ctx,{project:m.seed(),sceneId:'mine',mapObject:'e1',tab:'scene',actorId:'',storyId:'',lineId:'',
+  layoutId:'',elementId:'',mapPage:0,mapFloor:0,mapTool:'',shotSelected:'',assetSelection:'',motionKey:'attack',previewTick:0,
+  sourcePath:'Web/probe.js',sourceBase:{'Web/probe.js':'original'},note:()=>{},workData:()=>ctx.project.work,
+  edit:mutate=>mutate(),goTool:t=>{ctx.tab=t;},convertArtwork:async f=>f,
+  uploadAsset:async f=>'asset:'+await hash(await f.arrayBuffer())});
+vm.runInContext("function activeMap(){return named(project.scenes,sceneId);} function activeActor(){return project.characters[0];} function activeLayout(){return named(project.layouts,layoutId);}",ctx);
+const evaluate=src=>vm.runInContext(src,ctx);
+const capture=()=>evaluate('deviceEditTarget=captureDeviceTarget()');
+const applyFiles=evaluate('applyDeviceDestination');
+const drawing={file:new File([png],'동작.png',{type:'image/png'}),text:null};
+const ctxEnemy=ctx.project.scenes[0].objects.find(o=>o.type==='enemy');
+let t=capture();assert(t.before.object!==undefined);
+ctxEnemy.image=replacement;await assert.rejects(applyFiles(t,'object',drawing,()=>true),/원래 편집값/);
+assert.equal(ctxEnemy.image,replacement);t=capture();await applyFiles(t,'object',drawing,()=>true);
+assert.equal(ctxEnemy.image,img);assert.equal(ctx.mapObject,ctxEnemy.id);
+ctx.tab='motion';t=capture();await applyFiles(t,'append',drawing,()=>true);assert.equal(ctx.project.characters[0].clips.attack.frames.length,1);
+t=capture();const broken={file:new File(['?'],'소리.wav',{type:'audio/wav'}),text:null};
+await assert.rejects(applyFiles(t,'sound',broken,()=>true),/실제 형식/);assert.equal(ctx.project.characters[0].clips.attack.sound,undefined);
+await applyFiles(t,'sound',{file:new File([sound],'소리.wav',{type:'audio/wav'}),text:null},()=>true);assert.equal(ctx.project.characters[0].clips.attack.sound,audio);
+ctx.tab='assets';ctx.project.work=m.emptyWork();ctx.project.work.assets=[{id:'picture',kind:'image',ref:img,name:'그림',folder:''}];ctx.assetSelection='picture';
+const replacementFile={file:new File(['next'],'그림.png',{type:'image/png'}),text:null};
+ctx.project.characters[0].summary=img;const changed='asset:'+await hash(Buffer.from('next'));t=capture();await applyFiles(t,'used',replacementFile,()=>true);
+assert.equal(ctxEnemy.image,changed);assert.equal(ctx.project.characters[0].clips.attack.frames[0].image,changed);
+assert.equal(ctx.project.characters[0].summary,img);assert.equal(ctx.project.work.assets[0].ref,changed);
+ctx.tab='stories';ctx.project.stories=[{id:'story',name:'검수',nodes:[{id:'line',text:'기존',choices:[]}]}];ctx.storyId='story';ctx.lineId='line';
+const textDoc={file:new File(['새 대사'],'다시.txt',{type:'text/plain'}),text:'새 대사'};
+t=capture();await assert.rejects(applyFiles(t,'words',{...textDoc,text:'가'.repeat(1201)},()=>true),/1,200/);assert.equal(ctx.project.stories[0].nodes[0].text,'기존');
+await applyFiles(t,'words',textDoc,()=>true);assert.equal(ctx.project.stories[0].nodes[0].text,'새 대사');
+console.log('PASS stable file targets, stale-field protection, retry, motion audio validation, linked game usage replacement, text length guard');

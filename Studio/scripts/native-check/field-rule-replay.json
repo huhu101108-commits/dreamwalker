@@ -1,0 +1,278 @@
+{
+  "spec": {
+    "kind": "field",
+    "actor": "baekseol",
+    "map": "mine",
+    "maximum": 100,
+    "hp": 100,
+    "flags": [],
+    "events": [
+      {
+        "event": "enter",
+        "key": "",
+        "tick": 0,
+        "context": {
+          "actor": "baekseol",
+          "map": "mine",
+          "maximum": 100,
+          "healthDelta": 0,
+          "shieldDelta": 0,
+          "resetMap": true,
+          "on": [],
+          "off": []
+        }
+      },
+      {
+        "event": "start",
+        "key": "",
+        "tick": 0,
+        "context": {
+          "actor": "baekseol",
+          "map": "mine",
+          "maximum": 100,
+          "healthDelta": 0,
+          "shieldDelta": 0,
+          "resetMap": false,
+          "on": [],
+          "off": []
+        }
+      },
+      {
+        "event": "input",
+        "key": "signal",
+        "tick": 0,
+        "context": {
+          "actor": "baekseol",
+          "map": "mine",
+          "maximum": 100,
+          "healthDelta": -95,
+          "shieldDelta": 0,
+          "resetMap": false,
+          "on": [],
+          "off": []
+        }
+      },
+      {
+        "event": "signal",
+        "key": "permit",
+        "tick": 0,
+        "context": {
+          "actor": "baekseol",
+          "map": "mine",
+          "maximum": 100,
+          "healthDelta": 0,
+          "shieldDelta": 0,
+          "resetMap": false,
+          "on": [],
+          "off": []
+        }
+      },
+      {
+        "event": "input",
+        "key": "attack",
+        "tick": 0,
+        "context": {
+          "actor": "baekseol",
+          "map": "mine",
+          "maximum": 100,
+          "healthDelta": 0,
+          "shieldDelta": 0,
+          "resetMap": false,
+          "on": [],
+          "off": []
+        }
+      },
+      {
+        "event": "input",
+        "key": "attack",
+        "tick": 0,
+        "context": {
+          "actor": "baekseol",
+          "map": "mine",
+          "maximum": 100,
+          "healthDelta": 0,
+          "shieldDelta": 0,
+          "resetMap": false,
+          "on": [],
+          "off": []
+        }
+      },
+      {
+        "event": "clock",
+        "key": "",
+        "tick": 7,
+        "context": {
+          "actor": "baekseol",
+          "map": "mine",
+          "maximum": 100,
+          "healthDelta": 0,
+          "shieldDelta": 0,
+          "resetMap": false,
+          "on": [],
+          "off": []
+        }
+      },
+      {
+        "event": "input",
+        "key": "signal",
+        "tick": 7,
+        "context": {
+          "actor": "baekseol",
+          "map": "mine",
+          "maximum": 100,
+          "healthDelta": 0,
+          "shieldDelta": 0,
+          "resetMap": false,
+          "on": [],
+          "off": []
+        }
+      },
+      {
+        "event": "signal",
+        "key": "transient",
+        "tick": 7,
+        "context": {
+          "actor": "baekseol",
+          "map": "mine",
+          "maximum": 100,
+          "healthDelta": 0,
+          "shieldDelta": 0,
+          "resetMap": false,
+          "on": [],
+          "off": []
+        }
+      },
+      {
+        "event": "hurt",
+        "key": "",
+        "tick": 7,
+        "context": {
+          "actor": "baekseol",
+          "map": "mine",
+          "maximum": 100,
+          "healthDelta": 0,
+          "shieldDelta": -2,
+          "resetMap": false,
+          "on": [],
+          "off": []
+        }
+      },
+      {
+        "event": "menu",
+        "key": "pause",
+        "tick": 7,
+        "context": {
+          "actor": "baekseol",
+          "map": "mine",
+          "maximum": 100,
+          "healthDelta": 0,
+          "shieldDelta": 0,
+          "resetMap": false,
+          "on": [
+            "외부"
+          ],
+          "off": []
+        }
+      },
+      {
+        "event": "enter",
+        "key": "",
+        "tick": 7,
+        "context": {
+          "actor": "baekseol",
+          "map": "mine",
+          "maximum": 100,
+          "healthDelta": 0,
+          "shieldDelta": 0,
+          "resetMap": true,
+          "on": [],
+          "off": []
+        }
+      },
+      {
+        "event": "line",
+        "key": "other",
+        "tick": 7,
+        "context": {
+          "actor": "baekseol",
+          "map": "mine",
+          "maximum": 100,
+          "healthDelta": 0,
+          "shieldDelta": 0,
+          "resetMap": false,
+          "on": [],
+          "off": []
+        }
+      },
+      {
+        "event": "clock",
+        "key": "",
+        "tick": 8,
+        "context": {
+          "actor": "baekseol",
+          "map": "mine",
+          "maximum": 100,
+          "healthDelta": 0,
+          "shieldDelta": 0,
+          "resetMap": false,
+          "on": [],
+          "off": []
+        }
+      }
+    ]
+  },
+  "outcome": {
+    "hp": 8,
+    "shield": 0,
+    "damage": 0,
+    "flags": [
+      "hasRun",
+      "ready",
+      "외부"
+    ],
+    "steps": [
+      "0/enter//100/0/0/0",
+      "0/start//100/0/0/0",
+      "0/input/signal/5/0/0/0",
+      "0/signal/permit/5/0/0/0",
+      "0/input/attack/8/0/0/0",
+      "0/input/attack/8/0/0/0",
+      "2/timer/pulse/8/2/0/0",
+      "7/input/signal/8/2/0/0",
+      "7/signal/transient/8/2/0/0",
+      "7/hurt//8/0/0/0",
+      "7/menu/pause/8/0/0/0",
+      "7/enter//8/0/0/0",
+      "7/line/other/8/0/0/0"
+    ],
+    "trace": [
+      "0/signal/permit/permit/run/-1",
+      "0/signal/permit/permit/action/0",
+      "0/input/attack/arm/run/-1",
+      "0/input/attack/arm/action/0",
+      "0/input/attack/arm/action/1",
+      "0/input/attack/arm/action/2",
+      "0/input/attack/gate/condition/0",
+      "0/signal/next/chained/run/-1",
+      "0/signal/next/chained/action/0",
+      "0/signal/next/chained/action/1",
+      "0/input/attack/arm/duplicate/-1",
+      "0/input/attack/gate/condition/0",
+      "2/timer/pulse/due/run/-1",
+      "2/timer/pulse/due/action/0",
+      "2/timer/pulse/due/action/1",
+      "7/signal/transient/step/run/-1",
+      "7/signal/transient/step/action/0"
+    ],
+    "state": [
+      "save/c/arm/0/0/0/1/0",
+      "save/c/chained/0/0/0/1/0",
+      "save/c/due/0/2/2/1/0",
+      "save/c/gate/0/0/-1/0/0",
+      "save/c/permit/0/0/0/1/0",
+      "save/v/charge/3",
+      "session/c/step/0/7/7/1/0",
+      "session/v/temp/9"
+    ]
+  }
+}

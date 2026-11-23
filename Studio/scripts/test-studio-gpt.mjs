@@ -3,7 +3,7 @@ import vm from 'node:vm';
 import {readFile} from 'node:fs/promises';
 import {worker,BUCKET,store,ownerDigest,previewOwnerHeaders,call} from './worker-fixture.mjs';
 const v=vm.createContext({crypto,structuredClone,File,TextDecoder,TextEncoder,Uint8Array});
-for(const script of ['model','simulation','design-plan','device-workspace'])vm.runInContext(await readFile('src/'+script+'.js','utf8'),v);
+for(const script of ['model','rule-machine','simulation','design-plan','device-workspace'])vm.runInContext(await readFile('src/'+script+'.js','utf8'),v);
 const {seed,designContext,planDesign,problem,packNativeWorld,removeMenuProgram,resetUIReferences,FieldRun,localFileBytes,writeDeviceOriginal}=
  vm.runInContext('({seed,designContext,planDesign,problem,packNativeWorld,removeMenuProgram,resetUIReferences,FieldRun,localFileBytes,writeDeviceOriginal})',v);
 const project=seed(),menu=project.layouts.find(l=>l.kind==='menu'),initial=JSON.stringify(project);
@@ -114,7 +114,16 @@ assert.throws(()=>planDesign(scoped,root.id,[change('editObject',m.objects[0].id
 assert.throws(()=>planDesign(scoped,root.id,[change('editMap',m.id,{characterId:'missing'})],mapWork));
 assert.throws(()=>planDesign(scoped,root.id,[change('editMap',m.id,{text:'blocked'})],mapWork));
 assert(!JSON.stringify(packNativeWorld(scoped)).includes('accountGptKey'));
-console.log('PASS scoped editor proposals for selected map/object, line/choice, actor/skill and combat/effect; property diffs, stale flags and cross-target rejection');
+const prog=vm.runInContext('newEventRule()',v);
+prog.conditions=[{kind:'hp',key:'',op:'ge',value:50}];prog.actions=[{kind:'heal',key:'',value:5}];
+scoped.eventRules=[prog];
+const workRule=vm.runInContext('studioWorkContext',v)(scoped,'rules',{eventRule:prog.id});
+const proposal=planDesign(scoped,root.id,[change('editEventRule',prog.id,{priority:5}),
+  change('editEventCondition',prog.id,{slot:0,value:35}),change('editEventAction',prog.id,{slot:0,value:9})],workRule);
+assert.equal(proposal.project.eventRules[0].conditions[0].value,35);assert.equal(proposal.project.eventRules[0].actions[0].value,9);
+assert.equal(prog.actions[0].value,5);
+assert.throws(()=>planDesign(scoped,root.id,[change('editEventAction',prog.id,{slot:1,value:9})],workRule));
+console.log('PASS scoped editor proposals for selected map/object, line/choice, actor/skill and combat/effect plus event trigger, conditions and ordered actions; property diffs, stale flags and cross-target rejection');
 
 const catalogBody=async()=> (await invoke()).json();
 const catalogRefresh=()=>worker.fetch(new Request('https://studio.test/api/personal-gpt/refresh-models',{method:'POST',headers:{...headers,'content-type':'application/json'},body:'{}'}),env);

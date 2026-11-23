@@ -277,7 +277,7 @@ function drawNetwork() {
     serverSample,
     status,
   );
-  a.append(arenaTransportPanel());
+  a.append(arenaTransportPanel(), competitivePanel());
   b.append(
     heading('입력 재생 검사'),
     el('p', '필드 시뮬레이션의 180틱 이동·첫 스킬·기본 공격 입력을 지연 및 손실 뒤 재생하고 최종 상태를 비교해요.'),
@@ -311,33 +311,6 @@ function drawNetwork() {
   );
 }
 
-function arenaDeliveryPlan(inputs,options){
-  const {rtt,jitter,loss,replyLoss,duplicate,outageAt,outageMs,seed}=options;
-  const bounds=[[rtt,0,2000],[jitter,0,1000],[loss,0,100],[replyLoss,0,100],[duplicate,0,100],[outageAt,0,20000],[outageMs,0,10000],[seed,1,999999]];
-  if(!bounds.every(([v,min,max])=>integer(v,min,max))||!Array.isArray(inputs)||inputs.length<1||inputs.length>48||
-    inputs.some(v=>!v||!integer(v.at,0,20000)||!integer(v.seat,0,1)||!integer(v.axis,-1,1)||!integer(v.press,0,7)))throw Error('검수 입력과 통신 범위를 확인하세요.');
-  const ready=[0,0],seq=[0,0],events=[],stats={lost:0,unacked:0,duplicate:0,retry:0,disconnected:0};
-  let rng=seed;
-  const rnd=()=>{rng=(Math.imul(rng,1664525)+1013904223)>>>0;return rng/4294967296;};
-  const leg=()=>Math.max(0,Math.round(rtt/2+(rnd()*2-1)*jitter));
-  for(const input of [...inputs].sort((a,b)=>a.at-b.at)){
-    const seat=input.seat,cmd={seq:++seq[seat],axis:input.axis,press:input.press};
-    let sent=Math.max(input.at,ready[seat]),attempt=0;
-    while(true){
-      if(seat===1&&outageMs&&sent>=outageAt&&sent<outageAt+outageMs){++stats.disconnected;sent=outageAt+outageMs;}
-      const at=sent+leg(),back=leg(),retryAt=at+back+150;
-      // One deliberately impaired attempt per command, then reliable delivery drains the replay.
-      if(attempt===0&&rnd()*100<loss){++stats.lost;++stats.retry;++attempt;sent=retryAt;continue;}
-      events.push({at,seat,cmd});
-      if(rnd()*100<duplicate){events.push({at:at+Math.max(1,back),seat,cmd});++stats.duplicate;}
-      if(attempt===0&&rnd()*100<replyLoss){++stats.unacked;++stats.retry;++attempt;sent=retryAt;continue;}
-      ready[seat]=at+back;break;
-    }
-  }
-  if(outageMs)events.push({at:outageAt+outageMs,seat:1,resume:true});
-  events.sort((a,b)=>a.at-b.at);
-  return {events,stats};
-}
 function arenaResult(v){
   return {release:v.release,revision:v.revision,tick:v.tick,status:v.status,winner:v.winner,reason:v.reason,
     players:v.players.map(f=>({actor:f.actor,hp:f.hp,shield:f.shield,hits:f.hits||0,x:f.x,y:f.y,seq:f.seq}))};
@@ -390,5 +363,110 @@ function arenaTransportPanel(){
       '\n'+v.players.map((f,i)=>(i+1)+'P · '+f.actor+' · HP '+f.hp+' · 적중 '+f.hits+' · 마지막 입력 '+f.seq).join('\n');
     report.textContent=summary+'\n'+test.log.join('\n');
   }),report,el('small','조건을 바꿔 같은 입력을 재생할 수 있어요. 실제 기기 지연은 위의 두 기기 연결 검사에서 측정해요. 필드의 캐릭터별 스킬과 경쟁전 입력 예측·상태 보정은 별도 검증 항목이에요.'));
+  return panel;
+}
+
+function competitivePanel() {
+  const panel = el('details'), roster = box('control-grid'), inputList = box('arena-input-list'), output = el('pre');
+  panel.append(el('summary', '경쟁전 스킬 예측 검증'),
+    el('p', '두 좌석의 입력 기록으로 단일 적중·자가 회복·보호막 중 선택한 스킬 효과를 검사해요. 각 클라이언트가 자기 입력을 먼저 실행하고 서버가 승인한 상태에서 미확인 입력을 다시 실행해요.'));
+  const seats = [0, 1].map(i => ({
+    actor: project.characters[Math.min(i, project.characters.length - 1)].id, slot: 0, effect: 'damage',
+    cooldown: -1, cap: 10, start: 10, cost: 3, regen: 2,
+  }));
+  const rules = (project.combatRules || []).filter(r => r.enabled && r.appliesTo !== 'field');
+  const selected = new Set(rules.slice(0, 12).map(r => r.id));
+  const inputs = [{at: 0, seat: 0}, {at: 20, seat: 1}, {at: 45, seat: 0}, {at: 70, seat: 1}, {at: 1100, seat: 0}];
+  const transport = {rtt: 160, jitter: 25, loss: 35, replyLoss: 30, duplicate: 50, outageAt: 300, outageMs: 200, seed: 29};
+  function drawRoster() {
+    roster.replaceChildren();
+    for (const [i, spec] of seats.entries()) {
+      const p = (i + 1) + 'P ', card = el('fieldset'), actor = named(project.characters, spec.actor);
+      card.append(el('legend', p + '스킬 검수 범위'),
+        selectField(p + '검증 캐릭터', spec.actor, optionMap(project.characters), actorId => {
+          spec.actor = actorId; spec.slot = 0; drawRoster();
+        }),
+        selectField(p + '검증 스킬', String(spec.slot), Object.fromEntries(actor.skills.map((s, j) => [j, (j+1)+' · '+s.name])), n => spec.slot = Number(n)),
+        selectField(p + '검증 효과', spec.effect, {damage:'상대 1회 적중', heal:'자신 회복', shield:'자신 보호막'}, v => spec.effect = v),
+        numberField(p + '스킬 재사용 틱 (-1은 제작값)', spec.cooldown, -1, 7200, 1, v => spec.cooldown = v));
+      for (const [key, label, min] of [['cap','자원 상한',1], ['start','시작 자원',0], ['cost','시전 비용',0], ['regen','초당 회복 자원',0]])
+        card.append(numberField(p + label, spec[key], min, 9999, 1, v => spec[key] = v));
+      roster.append(card);
+    }
+  }
+  function drawInputs() {
+    inputList.replaceChildren();
+    for (const [i, cmd] of inputs.entries()) {
+      const prefix = '스킬 입력 '+(i+1)+' ';
+      inputList.append(row(numberField(prefix+'시점 (ms)', cmd.at, 0, 20000, 1, v => cmd.at = v),
+        selectField(prefix+'좌석', String(cmd.seat), {0:'1P',1:'2P'}, v => cmd.seat = Number(v)),
+        action(prefix+'삭제', () => { inputs.splice(i, 1); drawInputs(); })));
+    }
+  }
+  drawRoster(); drawInputs();
+  const ruleOptions = el('fieldset');
+  ruleOptions.append(el('legend', '검증할 PvP 전투 규칙'), el('small', rules.length ? '전투 규칙 편집기에서 온라인에 허용한 규칙 중 최대 12개를 선택하세요.' : '온라인에 허용한 규칙이 없어 스킬 효과만 검사해요.'));
+  for (const rule of rules) ruleOptions.append(checkField(rule.name, selected.has(rule.id), on => on ? selected.add(rule.id) : selected.delete(rule.id)));
+  const faults = el('details');
+  faults.append(el('summary', '검증 회선 조건'));
+  for (const [key, title, min, max] of [['rtt','예측 왕복 지연 (ms)',0,2000],['jitter','예측 편도 지터 (ms)',0,1000],
+    ['loss','예측 요청 유실 (%)',0,100],['replyLoss','예측 승인 유실 (%)',0,100],['duplicate','예측 중복 전송 (%)',0,100],
+    ['outageAt','2P 연결 중단 시각 (ms)',0,20000],['outageMs','2P 연결 중단 길이 (ms)',0,10000],['seed','예측 재생 시드',1,999999]])
+    faults.append(numberField(title, transport[key], min, max, 1, value => transport[key] = value));
+  const code = el('input'), linked = el('output');
+  code.maxLength = 16;
+  let serial = 0, deviceSeat = 1;
+  async function verify(server) {
+    const item = ++serial, revision = record.rev, selection = structuredClone({seats, rules:[...selected]});
+    const cmds = structuredClone(inputs), settings = {...transport}, profile = competitiveProfile(project, selection);
+    const digest = await studioTextDigest(JSON.stringify(profile));
+    output.textContent = server ? '두 좌석의 서버 스냅샷을 확인하는 중이에요.' : '초안 입력을 재생하고 있어요.';
+    try {
+      let runs;
+      if (server) {
+        const first = await api('net-test/competitive', {revision, selection, inputs:cmds, transport:settings, profile:digest, seat:0});
+        const second = await api('net-test/competitive', {code:first.code, seat:1});
+        runs = [first, second];
+        if (item === serial) {
+          code.value = first.code;
+          linked.textContent = '팀 기기 공유 코드 '+first.code+' · '+new Date(first.expires).toLocaleTimeString('ko-KR')+'까지';
+        }
+      } else {
+        const recording = competitiveRecording(profile, cmds, settings);
+        runs = [competitiveSeat(recording, 0), competitiveSeat(recording, 1)];
+      }
+      if (item !== serial) return;
+      const clients = runs.map(run => competitiveClient(profile, cmds, run));
+      const same = runs[0].scenario === runs[1].scenario && JSON.stringify(runs[0].final) === JSON.stringify(runs[1].final);
+      const ok = same && clients.every(c => c.match), stats = runs[0].stats;
+      const lines = [(server ? '공유 버전 서버 검수 · v'+revision : '브라우저 초안 모사 · 기준 v'+revision) +
+        ' · '+digest.slice(0, 10)+' · '+(ok ? '두 예측 상태 수렴' : '두 좌석의 상태 불일치'),
+        '요청 유실 '+stats.lost+' · 승인 유실 '+stats.unacked+' · 중복 '+stats.duplicate+' · 재전송 '+stats.retry];
+      for (const [i, client] of clients.entries()) {
+        const p = runs[i].final.players[i], m = client.metrics, s = profile.seats[i];
+        lines.push((i+1)+'P · '+s.name+' · 서버 승인 #'+p.ack+' · 시전 '+p.casts+' · 적중 '+p.hits+' · 자원 '+p.energy+'/'+s.cap+
+          ' · HP '+p.hp+' · 보호막 '+p.memory.shield+' · 다음 사용 가능 '+p.ready+'틱',
+          '제한 횟수 · 재사용 '+p.cooldownBlocks+' · 자원 '+p.resourceBlocks+' · 전투 종료 '+p.downBlocks,
+          '예측 '+m.predicted+' · 스냅샷 '+m.snapshots+' · 과거 응답 '+m.stale+' · 보정 '+m.corrected+' · 미확인 재적용 '+m.replayed+' · 남은 입력 '+client.pending,
+          '최대 보정량 · HP '+m.maxHp+' · 자원 '+m.maxEnergy+' · 재사용 '+m.maxCooldown+'틱 · 보호막 '+m.maxShield);
+      }
+      const labels = {duplicate:'중복 무시', cast:'스킬 승인', cooldown:'재사용 대기', resource:'자원 부족', down:'전투 종료', rejoin:'재접속'};
+      output.textContent = lines.concat(runs[0].log.map(e => e.at+'ms · '+(e.seat+1)+'P #'+e.seq+' · '+labels[e.result])).join('\n');
+    } catch (e) { if (item === serial) output.textContent = e.message; }
+  }
+  panel.append(roster, ruleOptions, heading('입력 기록'), inputList,
+    action('스킬 검수 입력 추가', () => {
+      if (inputs.length >= 32) return note('검수 입력은 최대 32개예요.');
+      inputs.push({at: Math.min(20000,(inputs.at(-1)?.at || 0)+100), seat: 0}); drawInputs();
+    }), faults, row(action('초안에서 스킬 예측 재생', () => verify(false)), action('저장한 버전으로 서버 예측 검증', () => verify(true))),
+    output, titled('경쟁전 공유 검수 코드', code),
+    selectField('이 기기의 검수 좌석', String(deviceSeat), {0:'1P',1:'2P'}, n => deviceSeat = Number(n)),
+    action('이 기기에서 승인 기록 재생', async () => {
+      const run = await api('net-test/competitive', {code:code.value.trim().toLowerCase(), seat:deviceSeat});
+      const result = competitiveClient(run.profile, run.inputs, run), m = result.metrics;
+      linked.textContent = '공유 v'+run.revision+' · '+run.scenario.slice(0,10)+' · '+(deviceSeat+1)+'P · '+
+        (result.match?'서버 상태 일치':'상태 불일치')+' · 예측 '+m.predicted+' · 보정 '+m.corrected+' · 재적용 '+m.replayed+' · 남은 입력 '+result.pending;
+    }), linked, el('small', '팀 기기에서 같은 코드를 열면 한 서버 기록으로 각 좌석을 재생해요. 최근 검수 한 건을 15분간 열 수 있어요.'),
+    el('small', '입력 시간과 지연을 재현하는 검수용 프로토타입이에요. 친선전과 보상을 갱신하지 않아요. 실제 두 기기의 회선, 충돌·이동, 다단 스킬 모션은 별도로 검증하세요.'));
   return panel;
 }

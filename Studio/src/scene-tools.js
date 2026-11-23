@@ -145,7 +145,20 @@ function sceneHierarchy(side,map,object) {
     for(const change of prefabImpact(project,linked,object)){
       const map=named(project.scenes,change.mapId),instance=named(map.objects,change.objectId);
       const title=map.name+' / '+(instance.editorName||instance.label||OBJECTS[instance.type]);
-      impact.append(el('strong',title),el('p',change.source?'원본에 반영할 개체':'바뀔 속성 '+(change.changed.join(', ')||'없음')+' · 유지할 개별 속성 '+(change.overrides.join(', ')||'없음')));
+      const before=prefabFields(instance),next=prefabFields(object);
+      const value=(record,path)=>{
+        const v=path.split('.').reduce((item,key)=>item?.[key],record);
+        if(v===undefined)return '없음';if(v==='')return '비어 있음';
+        return (typeof v==='object'?JSON.stringify(v):String(v)).slice(0,90);
+      };
+      impact.append(el('strong',title));
+      if(change.source)impact.append(el('p','원본에 반영할 개체'));
+      else{
+        const rows=el('ul');
+        for(const path of change.changed)rows.append(el('li',path+' · '+value(before,path)+' → '+value(next,path)));
+        for(const path of change.overrides)rows.append(el('li',path+' · 개별 값 '+value(before,path)+' 유지 · 원본 '+value(next,path)));
+        impact.append(rows.children.length?rows:el('p','바뀌는 속성이 없어요.'));
+      }
     }
     library.append(el('p',linked.name+' · 연결 개체 '+count+'개'),impact,
       action('이 변경을 프리팹에 반영',()=>{changeWork(work,()=>publishPrefab(project,linked,object));note('연결된 개체의 공통 속성을 갱신했어요.');}),

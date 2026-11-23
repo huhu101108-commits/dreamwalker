@@ -137,6 +137,35 @@ async function flushWorkspaceDraft(){
     localStorage.setItem(draftKey,JSON.stringify(data));
   }
 }
+function saveEditorPosition(){
+  if(!project||!record||location.pathname!=='/')return;
+  try{
+    const url=deviceEditorUrl(),scope=inspectionId||'team';
+    const value=JSON.stringify({view:url.search,task:selectedTask,rule:selectedCombatRule,event:selectedEventRule});
+    const key='dreamwalker-position-v1:'+scope+':'+url.searchParams.get('tool');
+    sessionStorage.setItem(key,value);localStorage.setItem(key,value);
+    localStorage.setItem('dreamwalker-inspection-start-v1:'+scope,JSON.stringify(inspectionTarget));
+  }catch{}
+}
+function restoreEditorPosition(params){
+  try{
+    const scope=inspectionId||'team',key='dreamwalker-position-v1:'+scope+':'+tab;
+    const saved=JSON.parse(sessionStorage.getItem(key)||localStorage.getItem(key)||'null');
+    const target=JSON.parse(localStorage.getItem('dreamwalker-inspection-start-v1:'+scope)||'null');
+    if(target&&typeof target==='object'){
+      for(const k of Object.keys(inspectionTarget))if(typeof target[k]===typeof inspectionTarget[k])inspectionTarget[k]=typeof target[k]==='string'?target[k].slice(0,100):target[k];
+    }
+    if(saved){
+      if(named(project.work?.tasks||[],saved.task))selectedTask=saved.task;
+      if(named(project.combatRules||[],saved.rule))selectedCombatRule=saved.rule;
+      if(named(project.eventRules||[],saved.event))selectedEventRule=saved.event;
+      const view=new URLSearchParams(saved.view);
+      for(const [key,value] of params)view.set(key,value);
+      restoreDeviceView(view);return;
+    }
+  }catch{}
+  restoreDeviceView(params);
+}
 function revisionChanges(oldDoc,newDoc,limit=200){
   const rows=[];
   function compare(a,b,path){

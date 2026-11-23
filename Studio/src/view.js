@@ -417,7 +417,7 @@ function paintProgressWidget(n, w, run) {
     if (!n.childElementCount) n.textContent = '보유한 장비가 없어요.';
   }
 }
-function paintCombatOverlay(canvas, run) {
+function paintCombatOverlay(canvas,run,spanX=100,spanY=100,floor=82) {
   const width = canvas.clientWidth,
     height = canvas.clientHeight;
   if (!width || !height) return;
@@ -426,8 +426,7 @@ function paintCombatOverlay(canvas, run) {
   const ctx = canvas.getContext('2d'),
     camera = run.viewport,
     hero = run.hero;
-  const px = (x) => ((x - camera.x) * width) / 100,
-    py = (y) => ((82 - y + camera.y) * height) / 100;
+  const px=x=>(x-camera.x)*width/spanX,py=y=>(floor/100-(y-camera.y)/spanY)*height;
   ctx.clearRect(0, 0, width, height);
   ctx.lineWidth = 1.5;
   ctx.strokeStyle = '#ffb590';
@@ -435,18 +434,26 @@ function paintCombatOverlay(canvas, run) {
     if (e.hp > 0 && Math.abs(e.x - camera.x - 50) < 65) {
       const w = (e.enemy.hurtWidth || 0.7) * 3.5,
         h = (e.enemy.hurtHeight || 1.6) / 0.16;
-      ctx.strokeRect(px(e.x - w / 2), py(e.y + h), (w * width) / 100, (h * height) / 100);
+      ctx.strokeRect(px(e.x - w / 2), py(e.y + h), (w * width) / spanX, (h * height) / spanY);
     }
   const a = run.stroke;
   if (!a) return;
   const step = a.tick - a.startup,
     active = step > 0 && step <= a.active;
+  const authored=run.character.strike;
+  if(authored?.shape==='box'){
+    const w=authored.w*3.5,h=authored.h/.16;
+    const x=px(hero.x+hero.face*authored.x*3.5-w/2),y=py(hero.y+authored.y/.16+h/2);
+    ctx.strokeStyle=active?'#61f4ff':'#f4d771';ctx.fillStyle='#61f4ff80';
+    ctx.save();if(!active)ctx.setLineDash([4,3]);else ctx.fillRect(x,y,w*width/spanX,h*height/spanY);
+    ctx.strokeRect(x,y,w*width/spanX,h*height/spanY);ctx.restore();return;
+  }
   const from = active ? -55 + (110 * (step - 1)) / a.active : -55,
     to = active ? -55 + (110 * step) / a.active : 55;
   const reach = run.t.reach * run.character.reachScale;
   ctx.save();
   ctx.translate(px(hero.x + 0.25 * 3.5 * hero.face), py(hero.y + 1.01 / 0.16));
-  ctx.scale((hero.face * 3.5 * width) / 100, -height / (100 * 0.16));
+  ctx.scale((hero.face*3.5*width)/spanX,-height/(spanY*.16));
   ctx.fillStyle = active ? '#61f4ffb8' : '#f4d77155';
   ctx.beginPath();
   ctx.moveTo(0, 0);

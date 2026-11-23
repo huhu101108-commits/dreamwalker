@@ -16,7 +16,7 @@ for (const [path, name, type] of [
   files[path] = [type, read('src/' + name)];
 }
 for (const name of [
-  'app','planning','rule-machine','arena-simulation','inspection-store','inspection-game','inspection-lab','capabilities',
+  'app','story-probe','competitive-lab','planning','rule-machine','arena-simulation','inspection-store','inspection-game','inspection-lab','capabilities',
   'file-wire', 'device-files', 'file-import', 'desk', 'asset-desk', 'scene-tools',
   'production', 'combat-editor',
   'network-test',
@@ -27,7 +27,7 @@ for (const name of [
   'maps',
   'characters',
   'stories','shot-view','shot-editor',
-  'interface','preset-editor','screen-tools','design-plan','personal-gpt','studio-gpt','gpt-dock','studio-layout','device-open','device-workspace','device-standalone',
+  'interface','preset-editor','screen-tools','design-plan','personal-gpt','studio-gpt','gpt-dock','studio-layout','device-open','target-files','device-workspace','device-standalone',
   'flows',
   'export',
   'roadmap',
@@ -69,7 +69,7 @@ fs.writeFileSync(
     'const SOURCE_BASE=' +
     JSON.stringify(sourceBase) +
     ';\n' +
-    ['model','rule-machine','design-plan','gpt-service','personal-gpt-service','gpt-workbench-service','gpt-mcp', 'github-runner', 'android-service', 'link-test-service', 'file-relay-service', 'arena-simulation', 'arena-service', 'server']
+    ['model','rule-machine','design-plan','gpt-service','personal-gpt-service','gpt-workbench-service','gpt-mcp', 'github-runner', 'android-service', 'competitive-lab','link-test-service', 'file-relay-service', 'arena-simulation', 'arena-service', 'server']
       .map((n) => read('src/' + n + '.js'))
       .join('\n'),
 );

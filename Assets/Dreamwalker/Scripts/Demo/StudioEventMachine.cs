@@ -146,10 +146,14 @@ namespace Dreamwalker.Demo
 
 namespace Dreamwalker.Demo
 {
-    [Serializable] public class StudioProbeInput {public string @event,key;public int tick;}
+    [Serializable] public class StudioProbeContext
+    {
+        public string actor,map;public int maximum,healthDelta,shieldDelta;public bool resetMap;public string[] on,off;
+    }
+    [Serializable] public class StudioProbeInput {public string @event,key;public int tick;public StudioProbeContext context;}
     [Serializable] public class StudioProbeSpec
     {
-        public string actor,map;public int hp,maximum;public string[] flags;public StudioProbeInput[] events;
+        public string kind,actor,map;public int hp,maximum;public string[] flags;public StudioProbeInput[] events;
     }
     [Serializable] public class StudioProbeRequest
     {
@@ -157,7 +161,7 @@ namespace Dreamwalker.Demo
     }
     [Serializable] public class StudioProbeOutcome
     {
-        public int hp,shield,damage;public string[] flags,steps,trace,state;
+        public int hp,shield;public long damage;public string[] flags,steps,trace,state;
     }
     [Serializable] public class StudioProbeReply
     {
@@ -185,24 +189,44 @@ namespace Dreamwalker.Demo
                 throw new ArgumentException("입력 기록의 대상과 초기 상태를 확인하세요.");
             var flags=new HashSet<string>(StringComparer.Ordinal);
             foreach(var key in s.flags)if(key==null||!Key.IsMatch(key)||!flags.Add(key))throw new ArgumentException("잘못된 초기 상태");
-            int hp=s.hp,damage=0,shield=0,last=0,executed=0;
+            bool field=s.kind=="field";
+            if(!field&&!string.IsNullOrEmpty(s.kind))throw new ArgumentException("알 수 없는 기록 방식");
+            string actor=s.actor,map=s.map;
+            int hp=s.hp,maximum=s.maximum,shield=0,last=0,clock=0,executed=0;long damage=0;
             var machine=new StudioEventMachine(release.project.eventRules);
             var trace=new List<string>();var steps=new List<string>();
             machine.Trace=(t,e,k,r,status,i)=>{
                 if(trace.Count>=2048)throw new ArgumentException("규칙 기록이 2048건을 넘었어요.");
                 trace.Add(Row(t,e,k,r,status,i));
             };
-            StudioProgramResult Send(string moment,string key,int tick){
+            void Send(string moment,string key,int tick,bool record){
                 if(++executed>4096)throw new ArgumentException("규칙 타이머 실행 한도를 넘었어요.");
-                var result=machine.Dispatch(moment,key,tick,s.actor,s.map,hp,s.maximum,flags.Contains,(name,on)=>{if(on)flags.Add(name);else flags.Remove(name);});
-                hp=result.hp;shield=Math.Min(9999,shield+result.shield);damage+=result.damage;return result;
+                var result=machine.Dispatch(moment,key,tick,actor,map,hp,maximum,flags.Contains,(name,on)=>{if(on)flags.Add(name);else flags.Remove(name);});
+                hp=result.hp;shield=Math.Min(9999,shield+result.shield);damage+=result.damage;
+                if(record)steps.Add(Row(tick,moment,key,hp,shield,damage,result.consumed?1:0));
             }
             foreach(var e in s.events){
-                if(e==null||e.tick<last||e.tick>36000||!Events.Contains(e.@event)||e.key==null||(e.key!=""&&!Key.IsMatch(e.key)))
+                if(e==null||e.tick<last||e.tick>36000||(!Events.Contains(e.@event)&&!(field&&e.@event=="clock"))||e.key==null||(e.key!=""&&!Key.IsMatch(e.key)))
                     throw new ArgumentException("시간순 입력 기록과 이벤트 이름을 확인하세요.");
-                for(int tick=last+1;tick<=e.tick;tick++)foreach(var key in machine.Due(tick))Send("timer",key,tick);
-                if(e.@event=="enter")machine.Enter();var result=Send(e.@event,e.key,e.tick);
-                steps.Add(Row(e.tick,e.@event,e.key,hp,shield,damage,result.consumed?1:0));last=e.tick;
+                if(field){
+                    var c=e.context;
+                    if(e.@event=="timer"||c==null||release.project.Map(c.map)==null||release.project.Character(c.actor)==null||
+                        c.maximum<1||c.maximum>99999||Math.Abs((long)c.healthDelta)>99999||Math.Abs((long)c.shieldDelta)>9999||
+                        c.on==null||c.off==null||c.on.Length>64||c.off.Length>64)
+                        throw new ArgumentException("게임에서 기록한 상태 변화를 확인하세요.");
+                    var seen=new HashSet<string>(StringComparer.Ordinal);
+                    foreach(var key in c.off){if(key==null||!Key.IsMatch(key)||!seen.Add(key))throw new ArgumentException("잘못된 상태 변경");flags.Remove(key);}
+                    foreach(var key in c.on){if(key==null||!Key.IsMatch(key)||!seen.Add(key))throw new ArgumentException("잘못된 상태 변경");flags.Add(key);}
+                    actor=c.actor;map=c.map;maximum=c.maximum;
+                    hp=Math.Min(maximum,Math.Max(0,hp+c.healthDelta));shield=Math.Min(9999,Math.Max(0,shield+c.shieldDelta));
+                    if(c.resetMap)machine.Enter();
+                }
+                if(!field||e.@event=="clock"){
+                    for(int tick=clock+1;tick<=e.tick;tick++)foreach(var key in machine.Due(tick))Send("timer",key,tick,field);
+                    clock=e.tick;
+                }
+                if(!field&&e.@event=="enter")machine.Enter();
+                if(e.@event!="clock")Send(e.@event,e.key,e.tick,true);last=e.tick;
             }
             var state=new List<string>();
             foreach(string scope in new[]{"save","session","map"}){

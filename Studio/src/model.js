@@ -82,6 +82,9 @@ const STEP_TYPES = {
 };
 const skillStep = (kind = 'strike') => ({ kind, value: STEP_TYPES[kind][4], range: 12 });
 const usesRange = (k) => ['strike', 'front', 'area', 'seek'].includes(k);
+const DEFAULT_COOLDOWN = { dash: 'dashCd', flurry: 'flurryCd', shadow: 'shadowCd', nova: 'ultCd' };
+const skillCooldown = (skill, t) =>
+  skill.cooldown >= 0 ? skill.cooldown : (t[DEFAULT_COOLDOWN[skill.mechanic]] ?? 1);
 const skillSlot = (action) => (/^skill([1-9]|1[0-2])$/.test(action) ? Number(action.slice(5)) - 1 : -1);
 const OBJECTS = {
   spawn: '시작점',
@@ -589,6 +592,7 @@ function seed() {
     tuning: tuningDefaults(),
     characters: [newCharacter('baekseol', '백설', true)],
     startMap: map.id,
+    saveId: map.id,
     scenes: [map],
     stories: [],
     layouts: [...defaultScreens(), ...resultScreens(defaultScreens()), ...Object.keys(FRONT_SCREENS).map(role => frontScreen('front-' + role, role, 'Dreamwalker'))],
@@ -600,6 +604,7 @@ function withProductionDefaults(doc) {
   if (doc?.schema !== SCHEMA || !Array.isArray(doc.scenes) || !doc.tuning || typeof doc.tuning !== 'object')
     return doc;
   const d = structuredClone(doc);
+  if (d.saveId===undefined)d.saveId=d.startMap;
   if (d.items === undefined) d.items = [];
   if (d.quests === undefined) d.quests = [];
   if (d.combatRules === undefined) d.combatRules = [];
@@ -746,6 +751,7 @@ function problem(d) {
     !rows(d.layouts, 3, LIMIT.layouts)
   )
     return '목록 수 또는 항목 ID를 확인하세요.';
+  if(d.saveId!==undefined&&!validId(d.saveId))return '플레이 저장 식별자를 확인하세요.';
   const character = (id) => !!named(d.characters, id),
     story = (id) => id === '' || !!named(d.stories, id),
     screen = (id, kind) => named(d.layouts, id)?.kind === kind;
@@ -1187,6 +1193,7 @@ const motionNames = (actor) => ({
   ...Object.fromEntries(actor.skills.map((s, i) => ['skill' + (i + 1), s.name])),
 });
 const newClip = () => ({ frames: [], fx: '', cue: '', cueTick: 0 });
+const clipMarkers=clip=>clip.markers||{soundTick:clip.cueTick,effectTicks:7};
 function poseAt(clip, ticks, loop) {
   if (!clip?.frames?.length) return null;
   const duration = clip.frames.reduce((n, f) => n + f.ticks, 0);
@@ -1232,7 +1239,7 @@ function productionProblem(d) {
         !v.frames.every((f) => f && f.image && imageRef(f.image) && integer(f.ticks, 1, 120)) ||
         !validClipPaint(v.paint) || !soundRef(v.sound ?? '') || !imageRef(v.fx) ||
         !['', 'slash', 'ice', 'bell'].includes(v.cue) ||
-        !integer(v.cueTick, 0, 600)
+        !integer(v.cueTick, 0, 600) || (v.markers!==undefined && (!v.markers||!integer(v.markers.soundTick,0,600)||!integer(v.markers.effectTicks,1,240)))
       )
         return c.name + '의 모션 프레임과 효과 시점을 확인하세요.';
     }
@@ -1299,7 +1306,10 @@ async function contentDigest(doc) {
   content.sourceFiles=doc.sourceFiles;
   const canonical=(k,v)=>v && typeof v==='object' && !Array.isArray(v)
     ? Object.fromEntries(Object.keys(v).sort().map(key=>[key,v[key]])) : v;
-  const bytes=new TextEncoder().encode(JSON.stringify(content,canonical));
+  return studioTextDigest(JSON.stringify(content,canonical));
+}
+async function studioTextDigest(text) {
+  const bytes=new TextEncoder().encode(text);
   return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),v=>v.toString(16).padStart(2,'0')).join('');
 }
 function studioMediaMatches(mime,bytes) {
@@ -1852,7 +1862,7 @@ function validStageTrack(line,story){
     if(!integer(c.at,0,3600)||!has(STAGE_CUES,c.kind))return false;
     if(c.kind==='sound')return soundRef(c.sound);
     if(c.kind==='flag')return signalKey(c.key,true)&&typeof c.on==='boolean';
-    if(c.kind!=='camera' && !line.shot?.layers.some(l=>l.id===c.target && l.kind!=='choices'))return false;
+    if(!line.shot || (c.kind!=='camera' && !line.shot.layers.some(l=>l.id===c.target && l.kind!=='choices')))return false;
     return !['camera','move'].includes(c.kind)||(num(c.dx,-100,100)&&num(c.dy,-100,100));
   });
 }

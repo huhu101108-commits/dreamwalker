@@ -19,7 +19,7 @@ export async function testPortablePipeline(page,origin){
     const save=async()=>{await p.locator('#save').click();await p.waitForFunction(()=>!dirty&&record.rev>0);};
     await open(ids[0]);
     await p.getByLabel('최대 체력',{exact:true}).fill('317');
-    await p.getByLabel('대화용 초상화',{exact:true}).setInputFiles({name:'검수.png',mimeType:'image/png',buffer:await readFile('art/player.png')});
+    await p.getByLabel('대화용 초상화',{exact:true}).setInputFiles({name:'검수.png',mimeType:'image/png',buffer:await readFile(new URL('../art/player.png',import.meta.url))});
     await p.waitForFunction(()=>activeActor().portrait.startsWith('asset:'));
     const ref=await p.evaluate(()=>activeActor().portrait);
     await expand(shelf);await shelf.getByLabel('캐릭터 세팅 프리셋 이름').fill('가져오기 검수');

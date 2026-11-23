@@ -7,7 +7,9 @@ const DESIGN_TARGETS={
   editSkill:{group:'characters',label:'선택 스킬',fields:{name:'text',power:'number',cooldown:'number'}},
   editCombatRule:{group:'combatRules',label:'전투 규칙',fields:{name:'text',enabled:'bool',actor:'text',event:'text',every:'number',hpBelow:'number',cooldown:'number',appliesTo:'text'}},
   editRuleEffect:{group:'combatRules',label:'규칙 효과',fields:{kind:'text',amount:'number'}},
-  editEventRule:{group:'eventRules',label:'공통 규칙',fields:{name:'text',enabled:'bool',key:'text',actor:'text',map:'text',priority:'number',scope:'text',repeat:'text',duplicate:'text',every:'number',cooldown:'number'}}
+  editEventRule:{group:'eventRules',label:'공통 규칙',fields:{name:'text',enabled:'bool',event:'text',key:'text',actor:'text',map:'text',priority:'number',scope:'text',repeat:'text',duplicate:'text',every:'number',cooldown:'number'}},
+  editEventCondition:{group:'eventRules',label:'공통 규칙 조건',fields:{kind:'text',key:'text',op:'text',value:'number'}},
+  editEventAction:{group:'eventRules',label:'공통 규칙 동작',fields:{kind:'text',key:'text',value:'number'}}
 };
 const DESIGN_OPS=[...Object.keys(DESIGN_TARGETS),'screen','addWidget','editWidget','submenu','newFunction','addStep','bindFunction'];
 const DESIGN_FIELDS=[...new Set(['slot',...Object.values(DESIGN_TARGETS).flatMap(row=>Object.keys(row.fields)),'name','kind','contents','text','x','y','w','h','tint','shade','color','background','opacity','fontSize','align','shape','radius','borderColor','borderWidth','pressedColor','visible','action','target','flag','flagState','functionId','controlMode','valueKey','hint','initial','limit','min','max','step','options','signal','shortcut','hotspot','thumb','dead','knob','ring'])];
@@ -81,6 +83,8 @@ function designTargets(doc,work){
     add('editCombatRule',s.rule,rule);
     rule?.effects.forEach((effect,i)=>add('editRuleEffect',s.rule,effect,i));
     add('editEventRule',s.eventRule,event);
+    event?.conditions.forEach((condition,i)=>add('editEventCondition',s.eventRule,condition,i));
+    event?.actions.forEach((action,i)=>add('editEventAction',s.eventRule,action,i));
   }
   return out;
 }
@@ -169,7 +173,7 @@ function planDesign(doc,screenId,changes,work){
     entryStory:'입장 대화',exitStory:'퇴장 대화',actor:'대상 캐릭터',event:'발동 시점',hpBelow:'체력 조건',every:'발동 횟수',cooldown:'재사용 대기',health:'체력',
     color:'글자색',background:'바탕색',enabled:'활성',appliesTo:'적용 모드',power:'피해 배율',speaker:'화자',speakerName:'화자 이름',nextLabel:'다음 문구',side:'초상 위치',layout:'대화 화면',
     region:'소속',summary:'소개',label:'선택 문구',to:'목적지',kind:'종류',amount:'효과량',priority:'우선순위',repeat:'반복',duplicate:'중복 처리',scope:'저장 범위',key:'변수 이름',
-    slot:'슬롯',action:'동작',target:'연결 대상',flag:'상태',contents:'내용',radius:'모서리',opacity:'불투명도',fontSize:'글자 크기',visible:'표시',editorName:'오브젝트 이름'};
+    op:'조건 비교',value:'기준값·수치',slot:'슬롯',action:'동작',target:'연결 대상',flag:'상태',contents:'내용',radius:'모서리',opacity:'불투명도',fontSize:'글자 크기',visible:'표시',editorName:'오브젝트 이름'};
   const valueText=v=>v===undefined?'미설정':v===''?'빈 값':String(v).slice(0,140);
   function valuesBefore(w,v){
     const spec={controlMode:'mode',valueKey:'key',hint:'hint',initial:'initial',limit:'limit',min:'min',max:'max',step:'step',options:'options',signal:'signal'};

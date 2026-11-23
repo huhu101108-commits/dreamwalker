@@ -60,6 +60,9 @@ public static class Verify
         inputClock.Down("f8","double",twice,650,()=>inputLog+="d");inputClock.End("f8",660);
         if(inputLog!="hd")throw new Exception("native independent gestures "+inputLog);
         Console.WriteLine("PASS native anchors, held/released/double/canceled controls, text validation and stable binding");
+        var clipMarks=new StudioClip{cueTick=5};if(clipMarks.SoundTick!=5||clipMarks.EffectTicks!=7)throw new Exception("legacy motion cue");
+        clipMarks.markers=new StudioClipMarkers{soundTick=14,effectTicks=20};
+        if(clipMarks.SoundTick!=14||clipMarks.EffectTicks!=20)throw new Exception("independent media timings");
         var cut = new StudioStageTrack{rate=60,autoTick=3,skipTo="end",completeOnSkip=true,cues=new[]{
             new StudioStageCue{id="one",kind="flag",at=2},new StudioStageCue{id="two",kind="camera",at=2},new StudioStageCue{id="late",kind="flag",at=8}}};
         var lineStage=new StudioLine{id="start",text="눈😀길",stageTrack=cut,choices=Array.Empty<StudioChoice>()};
@@ -93,7 +96,8 @@ public static class Verify
     }
     public static async System.Threading.Tasks.Task Main(string[] args)
     {
-        if (args.Length==2) await OnlineMatch.Run(args[0],args[1]);
+        if (args.Length==4 && args[0]=="rule-replay") RuleReplay.RunFile(args[1],args[2],args[3]);
+        else if (args.Length==2) await OnlineMatch.Run(args[0],args[1]);
         else Console.WriteLine(Run());
     }
 }

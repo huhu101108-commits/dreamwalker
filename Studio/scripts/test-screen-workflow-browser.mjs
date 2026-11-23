@@ -47,6 +47,7 @@ export async function testScreenWorkflow(browserPage,origin){
       return {area:game.locator('#overlay'),close:()=> (embed?p.locator('dialog.source-player[open]>.bar button'):btn(p.locator('#game'),'편집기로')).click()};
     }
     let run=await play(),control=btn(run.area,'조작 확정');await control.waitFor();
+    await control.focus();await p.keyboard.press('Escape');assert(await control.isVisible());
     const bounds=await control.boundingBox();await p.mouse.move(bounds.x+bounds.width/2,bounds.y+bounds.height/2);await p.mouse.down();
     assert.equal(await btn(run.area,'✓ 조작 확정').count(),0);
     await p.mouse.move(bounds.x-8,bounds.y-8);await p.mouse.up();assert.equal(await btn(run.area,'✓ 조작 확정').count(),0);

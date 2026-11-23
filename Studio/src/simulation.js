@@ -1,7 +1,4 @@
 // All positions use map units. One screen is 100 units wide; the ground is y = 0.
-const DEFAULT_COOLDOWN = { dash: 'dashCd', flurry: 'flurryCd', shadow: 'shadowCd', nova: 'ultCd' };
-const skillCooldown = (skill, t) =>
-  skill.cooldown >= 0 ? skill.cooldown : (t[DEFAULT_COOLDOWN[skill.mechanic]] ?? 1);
 class DialogueCursor {
   constructor(story,flags=new Set()) {
     this.story=story;this.flags=flags;this.index=0;this.sounds=[];this.resetTrack();
@@ -105,11 +102,12 @@ function slashTouches(hero, target, reach, from, to) {
 }
 
 class FieldRun {
-  constructor(world, mapId) {
+  constructor(world, mapId, directEntry = false, ruleCapture = null) {
     if(world.menuFunctions?.length) world={...world,layouts:resolvedScreens(world)};
     this.world = world;
     this.t = world.tuning;
-    this.eventMachine=world.eventRules?.length?new EventRuleMachine(world.eventRules):null;
+    this.ruleCapture=ruleCapture;
+    this.eventMachine=world.eventRules?.length?new EventRuleMachine(world.eventRules,ruleCapture?entry=>ruleCapture.log(entry):null):null;
     this.events = [];
     this.serial = 0;
     this.keys = new Set();
@@ -134,8 +132,8 @@ class FieldRun {
     this.combatState = {};
     this.kills = new Map();
     this.mapMemory = new Map();
-    this.enter(mapId || world.startMap);
-    this.fire('start');
+    this.enter(mapId || world.startMap, directEntry ? 'restore' : 'travel');
+    if (!directEntry) this.fire('start');
   }
   get character() {
     return named(this.world.characters, this.characterId);
@@ -250,6 +248,7 @@ class FieldRun {
     )
       return false;
     const pairs = (xs) => (Array.isArray(xs) ? xs.filter((x) => Array.isArray(x) && x.length === 2) : []);
+    this.ruleCapture?.close(this,'진행 세이브를 연 시점까지 기록했어요.');
     this.combatTick=Number.isSafeInteger(data.combatTick) && data.combatTick>=0 ? data.combatTick : 0;
     this.eventMachine?.restore(data.eventState,this.combatTick);
     this.combatState={};
@@ -322,6 +321,7 @@ class FieldRun {
     this.stickAxis = 0;
     const fraction = mode === 'travel' && this.hero ? this.hero.hp / this.character.health : 1;
     if (mode === 'travel') this.rememberMap();
+    if(this.ruleCapture)this.ruleCapture.resetMap=true;
     this.eventMachine?.enter();
     this.map = named(this.world.scenes, id);
     this.sceneAge=mode==='restore'?Infinity:0;
@@ -378,7 +378,7 @@ class FieldRun {
       if (showLoading) this.present('loading');
     }
   }
-  openStory(id, after = null) {
+  openStory(id, after = null, startLine = '') {
     const story = named(this.world.stories, id);
     if (!story) {
       after?.();
@@ -386,6 +386,11 @@ class FieldRun {
     }
     this.keys.clear();
     this.dialogue = new DialogueCursor(story,this.flags);
+    if (startLine) {
+      const at = story.nodes.findIndex(n => n.id === startLine);
+      if (at < 0) throw Error('선택한 대사 줄이 없어요.');
+      this.dialogue.index = at;
+    }
     this.dialogue.step(0);
     this.afterStory = after;
     this.fire('storyStart', id);
@@ -470,10 +475,13 @@ class FieldRun {
     this.serial++;
   }
   dispatchProgram(event,key=''){
-    if(!this.eventMachine||!this.hero||!this.eventMachine.index.has(event))return null;
+    if(!this.hero)return null;
+    this.ruleCapture?.observe(this,event,key);
+    if(!this.eventMachine?.index.has(event)){this.ruleCapture?.applied(this,event,key,null);return null;}
     const out=this.eventMachine.dispatch(event,key,{tick:this.combatTick,actor:this.characterId,map:this.map.id,hp:this.hero.hp,maximum:this.character.health,flags:this.flags});
     this.hero.hp=out.hp;
     if(out.shield)this.combatMemory.shield=Math.min(9999,this.combatMemory.shield+out.shield);
+    this.ruleCapture?.applied(this,event,key,out);
     if(out.changed){this.progressVersion++;this.serial++;}
     for(const signal of out.signals)if(this.screenEvent('signal',signal))out.opened=true;
     return out;
@@ -581,6 +589,7 @@ class FieldRun {
       return;
     }
     if (action === 'newRun') {
+      this.ruleCapture?.close(this,'새 게임을 시작한 시점까지 기록했어요.');
       this.flags.clear();
       this.inputValues.clear();
       this.runRules.clear();
@@ -929,6 +938,7 @@ class FieldRun {
     const priorClock = this.clock;
     this.clock += dt;
     this.combatTick++;
+    this.ruleCapture?.observe(this,'clock','');
     if(this.eventMachine){for(const key of this.eventMachine.due(this.combatTick))this.fire('timer',key);if(this.paused)return;}
     if (this.rulesByEvent.has('elapsed') && this.fire('elapsed', '', priorClock) && this.paused) return;
     const h = this.hero,

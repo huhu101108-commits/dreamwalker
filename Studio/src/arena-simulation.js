@@ -86,3 +86,38 @@ function arenaSnapshot(row,s,seat,now) {
     players:s.players.map(f=>({actor:f.actor,name:f.name,x:f.x,y:f.y,face:f.face,hp:f.hp,maxHp:f.maxHp,
       hits:f.hits||0,shield:f.memory.shield,attacking:f.strike>=0,dodging:f.dodge>s.tick,seq:f.seq}))};
 }
+
+function arenaDeliveryPlan(inputs,options){
+  const {rtt,jitter,loss,replyLoss,duplicate,outageAt,outageMs,seed}=options;
+  const bounds=[[rtt,0,2000],[jitter,0,1000],[loss,0,100],[replyLoss,0,100],[duplicate,0,100],[outageAt,0,20000],[outageMs,0,10000],[seed,1,999999]];
+  if(!bounds.every(([v,min,max])=>integer(v,min,max))||!Array.isArray(inputs)||inputs.length<1||inputs.length>48||
+    inputs.some(v=>!v||!integer(v.at,0,20000)||!integer(v.seat,0,1)||!integer(v.axis,-1,1)||!integer(v.press,0,7)))throw Error('검수 입력과 통신 범위를 확인하세요.');
+  const ready=[0,0],seq=[0,0],events=[],stats={lost:0,unacked:0,duplicate:0,retry:0,disconnected:0};
+  let rng=seed;
+  const rnd=()=>{rng=(Math.imul(rng,1664525)+1013904223)>>>0;return rng/4294967296;};
+  const leg=()=>Math.max(0,Math.round(rtt/2+(rnd()*2-1)*jitter));
+  for(const input of [...inputs].sort((a,b)=>a.at-b.at)){
+    const seat=input.seat,cmd={seq:++seq[seat],axis:input.axis,press:input.press};
+    let sent=Math.max(input.at,ready[seat]),attempt=0;
+    while(true){
+      if(seat===1&&outageMs&&sent>=outageAt&&sent<outageAt+outageMs){++stats.disconnected;sent=outageAt+outageMs;}
+      const at=sent+leg(),back=leg(),retryAt=at+back+150;
+      // One deliberately impaired attempt per command, then reliable delivery drains the replay.
+      if(attempt===0&&rnd()*100<loss){++stats.lost;++stats.retry;++attempt;sent=retryAt;continue;}
+      const delivery={at,seat,cmd,ackAt:at+back};
+      events.push(delivery);
+      const copy=rnd()*100<duplicate;
+      const lostReply=attempt===0&&rnd()*100<replyLoss;
+      if(lostReply)delivery.ackAt=null;
+      if(copy){
+        const copyAt=at+Math.max(1,back);
+        events.push({at:copyAt,seat,cmd,ackAt:lostReply?null:copyAt+back});++stats.duplicate;
+      }
+      if(lostReply){++stats.unacked;++stats.retry;++attempt;sent=retryAt;continue;}
+      ready[seat]=at+back;break;
+    }
+  }
+  if(outageMs)events.push({at:outageAt+outageMs,seat:1,resume:true});
+  events.sort((a,b)=>a.at-b.at);
+  return {events,stats};
+}

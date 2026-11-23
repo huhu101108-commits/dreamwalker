@@ -33,9 +33,10 @@ function persistDraft() {
     note('기기 초안을 저장할 공간이 부족해요. 백업을 내보내세요.');
   }
 }
-window.addEventListener('pagehide', persistDraft);
+window.addEventListener('pagehide',persistDraft);
+window.addEventListener('pagehide',saveEditorPosition);
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) persistDraft();
+  if(document.hidden){persistDraft();saveEditorPosition();}
 });
 const activeMap = () => named(project.scenes, sceneId) || named(project.scenes, project.startMap);
 const activeActor = () => named(project.characters, actorId) || project.characters[0];
@@ -161,7 +162,9 @@ function draw() {
   if (!hasInspector) $('#editor').classList.remove('inspect-mode');
   if(typeof showWorkReturn==='function')showWorkReturn();
   if(tab==='quality'||tab==='versions')addInspectionWorkspace($('#content .canvas-panel')||$('#content'));
-  if(tab==='quality')addCapabilityMatrix($('#content .canvas-panel')||$('#content'));
+  if(tab==='quality'){
+    const main=$('#content .canvas-panel')||$('#content');addStoryProbe(main);addCapabilityMatrix(main);
+  }
   if(tab==='versions')addRevisionComparison($('#content .canvas-panel')||$('#content'));
   for (const section of document.querySelectorAll('#content details')) {
     const key = tab + '|' + (section.dataset.persist || section.querySelector('summary').textContent);
@@ -494,7 +497,7 @@ async function openEditor() {
       } catch {}
     $('#gate').hidden = true;
     $('#editor').hidden = false;
-    if(location.pathname!=='/play') restoreDeviceView(new URLSearchParams(location.search));
+    if(location.pathname!=='/play')restoreEditorPosition(new URLSearchParams(location.search));
     if (location.pathname === '/play') {
       document.body.classList.add('game-only');
       await playProject(r.project.startMap);
@@ -528,7 +531,7 @@ $('#login').onsubmit = async (e) => {
 };
 $('#studio-layout').onclick=editStudioLayout;
 $('#gpt-work-toggle').onclick=toggleGptDock;
-$('#project-import').append(filePicker('프로젝트 파일 선택',true,bringProjectFiles,false,pickLocalFromToolbar));
+$('#project-import').append(integratedDevicePicker());
 $('#tabs').onclick=e=>{const b=e.target.closest('[data-tab]');if(b)goTool(b.dataset.tab);};
 $('#tool-menu').onclick=()=>{
   const open=$('#editor').classList.toggle('rail-open');

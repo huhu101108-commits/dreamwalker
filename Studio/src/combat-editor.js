@@ -46,7 +46,9 @@ function drawCombatRules() {
     if (rule.effects.length < 8) main.append(action('+ 효과', () => edit(() => rule.effects.push({kind:'heal', amount:1}))));
     main.append(action('규칙 삭제', () => { if (confirm(rule.name + ' 규칙을 삭제할까요?')) edit(() => rules.splice(rules.indexOf(rule), 1)); }, 'danger'));
   }
-  side.append(ruleReplayEditor(),arenaDesignPanel());
+  side.append(ruleReplayEditor());
+  if(typeof inspectionId!=='undefined'&&inspectionId)side.append(fieldRuleReplayEditor());
+  side.append(arenaDesignPanel());
   side.append(heading('Unity 연결'),el('p','프로젝트를 공유 저장한 뒤 내보내면 현재 전투 규칙과 맵, 캐릭터가 Unity 프로젝트에 함께 들어가요.'),
     action('Unity 프로젝트 내보내기', async () => { try { if (dirty) throw Error('먼저 공유 저장하세요.'); await exportUnityPack(true); } catch(e) { note(e.message); } }),
     heading('온라인 친선전'),el('p','게임 반영 후 게시하면 로비와 터치 버튼 디자인도 공개돼요. 새 전투 규칙은 다음 방부터 적용돼요.'));
@@ -170,8 +172,9 @@ function ruleReplayEditor(){
   panel.append(row(action('현재 판정을 비교 기준으로 저장',()=>{save({baseline:trial(),baselineInput:JSON.stringify(spec)});}),action('같은 입력 재생',()=>{
     const now=trial(),lines=[];
     if(saved.baseline){if(saved.baselineInput!==JSON.stringify(spec))lines.push('입력 기록이 기준과 달라졌어요.');
-      else lines.push(JSON.stringify(saved.baseline)===JSON.stringify(now)?'기준과 모든 판정이 일치해요.':'기준과 판정이 달라졌어요.',
-        '수정 전 · 체력 '+saved.baseline.hp+' · 보호막 '+saved.baseline.shield+' · 추가 피해 '+saved.baseline.damage);}
+      else{const difference=firstProgramDifference(portableProgramOutcome(saved.baseline),portableProgramOutcome(now));
+        lines.push(difference?'기준과 판정이 달라졌어요. 첫 차이 '+difference:'기준과 모든 판정이 일치해요.',
+          '수정 전 · 체력 '+saved.baseline.hp+' · 보호막 '+saved.baseline.shield+' · 추가 피해 '+saved.baseline.damage);}}
     lines.push('재생 결과 · 체력 '+now.hp+' · 보호막 '+now.shield+' · 추가 피해 '+now.damage,'상태 · '+now.flags.join(', '));
     for(const store of now.scope)for(const v of store.vars)lines.push(store.scope+' · '+v.key+' = '+v.value);
     if(now.trace.length>140)lines.push('전체 '+now.trace.length+'개 중 첫 140개 판정');
@@ -203,13 +206,42 @@ function ruleProbeTransfer(panel,output,spec){
       if(!active())throw Error('검수 화면을 다시 열어 주세요.');
       if(result.format!=='dreamwalker-rule-result-v1'||!['unity-editor','dotnet-contract'].includes(result.environment)||
         result.revision!==b.revision||result.contentDigest!==b.contentDigest)throw Error('다른 버전이나 다른 프로젝트의 검수 결과예요.');
-      if(!validRuleProbeSpec(result.spec,b.doc)||spec.actor!==result.spec.actor||spec.map!==result.spec.map||spec.hp!==result.spec.hp||
-        spec.maximum!==result.spec.maximum||JSON.stringify(spec.flags)!==JSON.stringify(result.spec.flags)||
-        spec.events.length!==result.spec.events.length||spec.events.some((v,i)=>['tick','event','key'].some(k=>v[k]!==result.spec.events[i][k])))
+      if(!validRuleProbeSpec(result.spec,b.doc)||programSpecKey(spec)!==programSpecKey(result.spec))
         throw Error('입력 기록이나 시작 상태가 달라요. 비교할 때 사용한 입력을 선택하세요.');
       const expected=portableProgramOutcome(replayEventInputs(b.doc,spec));
       const difference=firstProgramDifference(expected,result.outcome);
       output.textContent=(result.environment==='unity-editor'?'Unity 에디터':'독립 C# 실행')+' · 공유 버전 v'+b.revision+' · '+(difference?'첫 차이 '+difference:
         '입력 '+spec.events.length+'개, 판정 '+expected.trace.length+'개와 저장 범위별 상태가 모두 일치해요.');
     }));
+}
+
+function fieldRuleReplayEditor(){
+  const panel=el('details'),body=box('group');
+  panel.dataset.persist='field-rule-inspection';panel.dataset.fieldRules='true';
+  panel.append(el('summary','검수 플레이에서 기록한 규칙 입력'),body);
+  async function refresh(){
+    const row=await inspectionGet('drafts','field-rules/'+inspectionId);
+    if(!body.isConnected)return;
+    body.replaceChildren();
+    if(!row){body.append(el('p','검수 사본에서 장면을 선택해 새 검수 플레이를 시작하세요. 편집기로 돌아오면 마지막 플레이의 입력과 판정이 여기에 남아요.'));return;}
+    const {spec,outcome,issue}=row.capture,output=el('pre');output.className='spec-output';output.setAttribute('aria-live','polite');
+    body.append(el('strong','검수 슬롯 '+row.slot+' · v'+row.rev+' · '+row.digest.slice(0,8)),
+      el('p','실제 행동·대화·적중 등 '+outcome.steps.length+'건 · 규칙 판정 '+outcome.trace.length+'건. 맵·캐릭터와 게임에서 바뀐 체력·상태를 같은 틱에 재현합니다.'),
+      el('small','위치·물리·조작감은 같은 장면을 다시 플레이해 확인하세요.'));
+    if(issue)body.append(el('p',issue));
+    body.append(action('플레이 관찰값과 현재 규칙 비교',()=>{
+      if(!validRuleProbeSpec(spec,project))throw Error('규칙 입력 기록이 참조하는 맵과 캐릭터를 확인하세요.');
+      const played=portableProgramOutcome(replayEventInputs(project,spec)),difference=firstProgramDifference(outcome,played);
+      const report=[difference?'플레이 관찰값과 첫 차이 '+difference:'플레이 관찰값과 규칙 재실행이 모두 일치해요.',
+        '관찰된 적중 '+outcome.steps.filter(s=>s.split('/')[1]==='hit').length+'회 · 대화 분기 '+outcome.steps.filter(s=>s.split('/')[1]==='choice').length+'회'];
+      for(const line of played.steps.slice(0,100)){const [t,e,k,hp,shield,damage,stop]=line.split('/');
+        report.push(t+'틱 · '+PROGRAM_EVENTS[e]+' '+k+' · 체력 '+hp+' · 보호막 '+shield+' · 누적 추가 피해 '+damage+(stop==='1'?' · 입력 취소':''));}
+      if(played.steps.length>100)report.push('전체 '+played.steps.length+'개 중 첫 100개 결과');
+      output.textContent=report.join('\n');
+    }),output);
+    ruleProbeTransfer(body,output,spec);
+  }
+  panel.addEventListener('toggle',()=>{if(panel.open)refresh().catch(e=>note(e.message));});
+  panel.addEventListener('field-rule-capture',()=>{if(panel.open)refresh().catch(e=>note(e.message));});
+  return panel;
 }

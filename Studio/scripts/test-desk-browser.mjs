@@ -56,6 +56,7 @@ export async function testDeskBrowser(page) {
   await picker.click();
   const img=await readFile(new URL('../art/player.png',import.meta.url));
   await (await choose).setFiles({name:'빙결시트.png',mimeType:'image/png',buffer:img});
+  await button('프로젝트에 사용').click();
   await field('에셋 이름').waitFor();assert.equal(await field('에셋 이름').inputValue(),'빙결시트.png');
   await page.getByText('스프라이트 시트 자르기',{exact:true}).click();
   await field('가로 칸').fill('2');await field('세로 칸').fill('2');await field('마지막 프레임').fill('4');
@@ -83,6 +84,7 @@ export async function testDeskBrowser(page) {
     await page.bringToFront();
     await page.locator('dialog[data-file-link]').waitFor({state:'detached'});
   } finally {await external.close();}
+  await button('프로젝트에 새 파일로 가져오기').click();
   assert.equal(await field('에셋 이름').inputValue(),'설원.wav');
   await page.getByRole('button',{name:/배경음으로 사용$/}).click();
   await button('선택한 대사의 음성으로 사용').click();

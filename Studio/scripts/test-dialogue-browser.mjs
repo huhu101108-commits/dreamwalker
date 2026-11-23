@@ -133,10 +133,11 @@ export async function testDialogueBrowser(page){
   assert(world.stories.some(s=>s.id!==storyId && s.nodes.every(n=>!n.shot)));
   await page.reload();await tab('quality');
   await button('이 맵 검수 플레이').click();
-  const overlay=page.locator('#overlay');
+  const inspection=page.frameLocator('dialog.source-player[open] iframe');
+  const overlay=inspection.locator('#overlay');
   await overlay.getByText(lineText,{exact:true}).waitFor();
   assert.deepEqual(await bounds(overlay.locator('.shot-text')),exact);
-  const queries=await page.evaluate(async()=>{
+  const queries=await overlay.evaluate(async()=>{
     let count=0,query=MapGrid.prototype.query;
     MapGrid.prototype.query=function(...args){count++;return query.apply(this,args);};
     try{for(let i=0;i<12;i++)await new Promise(requestAnimationFrame);return count;}finally{MapGrid.prototype.query=query;}
@@ -144,7 +145,8 @@ export async function testDialogueBrowser(page){
   assert.equal(queries,0);
   await overlay.getByRole('button',{name:'눈길로'}).click();
   await overlay.getByText('눈길에 도착했어.',{exact:true}).waitFor();
-  await overlay.getByRole('button',{name:'발자국 따라가기'}).click();await page.locator('#stop').click();
+  await overlay.getByRole('button',{name:'발자국 따라가기'}).click();await inspection.locator('#stop').click();
+  await page.locator('dialog.source-player').waitFor({state:'detached'});
   await tab('source');await field('실행 환경').selectOption('Web/');
   const download=page.waitForEvent('download');await button('초안 → 오프라인 게임 HTML').click();
   const dir=await mkdtemp(join(tmpdir(),'dw-dialogue-test-')),path=join(dir,'game.html');

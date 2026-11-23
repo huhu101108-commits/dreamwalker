@@ -235,6 +235,7 @@ function drawSource() {
       ),
       action('▶ 소스 적용 플레이', () => playCustom(project, activeMap().id), 'accent'),
       action('초안 → 오프라인 게임 HTML', exportWebGame),
+      action('저장본 → 오프라인 게임 HTML',exportSavedWebGame),
     );
   else
     b.append(
@@ -246,7 +247,7 @@ function drawSource() {
       action('저장본 → 전체 Unity 프로젝트', () => exportUnityPack(true), 'accent'),
     );
 }
-async function packWeb(d, mapId, base, screenId = '', checkpoint = null, inspection = false) {
+async function packWeb(d, mapId, base, screenId = '', checkpoint = null, inspection = false, revision = null) {
   const issue = problem(d);
   if (issue) throw Error(issue);
   const files = effectiveFiles(base, d.sourceFiles);
@@ -293,13 +294,14 @@ async function packWeb(d, mapId, base, screenId = '', checkpoint = null, inspect
   const init = doc.createElement('script');
   init.textContent =
     'const GAME_DATA=' +
-    JSON.stringify({ project: world, mapId, screenId, images, checkpoint, inspection }).replaceAll('<', '\\u003c') +
+    JSON.stringify({ project: world, mapId, screenId, images, checkpoint, inspection, revision, contentDigest:await contentDigest(d) }).replaceAll('<', '\\u003c') +
     ';\n' +
     "addEventListener('error',e=>{const out=document.getElementById('runtime-error')||document.createElement('pre');out.id='runtime-error';out.textContent='게임 실행 오류 · '+(e.message||'소스를 확인하세요.');(document.body||document.documentElement).prepend(out);});";
   doc.head.prepend(policy, init);
   return '<!doctype html>\n' + doc.documentElement.outerHTML;
 }
 async function playCustom(d, mapId, screenId = '', inspection = false) {
+  if(!inspection&&typeof inspectionId!=='undefined'&&inspectionId)return playInspectionFrom(d,{mapId,screenId,slot:'작업 중 플레이',fromStart:!screenId,resume:!screenId});
   const snapshot = structuredClone(d),
     modal = el('dialog');
   const scoped=inspection && typeof inspection==='object',openedAt=performance.now();let firstFrameAt=null,closeTimer;
@@ -315,7 +317,7 @@ async function playCustom(d, mapId, screenId = '', inspection = false) {
   modal.append(bar, state);
   document.body.append(modal);
   const key = scoped?inspection.slotKey:
-    'dreamwalker-progress-v1:' + (location.pathname === '/play' ? 'game:' : 'preview:') + snapshot.startMap;
+    'dreamwalker-progress-v1:' + (location.pathname === '/play' ? 'game:' : 'preview:') + (snapshot.saveId||snapshot.startMap);
   let saved = null;
   try {
     if(!inspection||scoped&&inspection.resume)saved=localStorage.getItem(key);
@@ -326,6 +328,7 @@ async function playCustom(d, mapId, screenId = '', inspection = false) {
         integer(e.data.ticks,0,1e9) && integer(e.data.inputs,0,1e9)){
       firstFrameAt??=performance.now();
       const clean=typeof cleanInspectionSample==='function'?cleanInspectionSample(e.data,snapshot):{};
+      if(scoped&&inspection.traceRules&&e.data.dreamwalker==='close'&&validFieldCapture(e.data.ruleCapture,snapshot))modal.fieldRuleCapture=e.data.ruleCapture;
       modal.inspectionSample={...clean,ticks:e.data.ticks,inputs:e.data.inputs,loadMs:Math.round(firstFrameAt-openedAt)};
     }
     if (
@@ -350,7 +353,7 @@ async function playCustom(d, mapId, screenId = '', inspection = false) {
   };
   modal.showModal();
   try {
-    const html = await packWeb(snapshot, mapId, await getSourceBase(), screenId, saved, inspection);
+    const html = await packWeb(snapshot, mapId, await getSourceBase(), screenId, saved, inspection, scoped?inspection.revision??null:null);
     if (!modal.open) return;
     frame.srcdoc = html;
     state.replaceWith(frame);
@@ -368,14 +371,20 @@ function playProject(mapId, screenId = '', inspection = false) {
     : launchGame(mapId, screenId, inspection);
 }
 async function exportWebGame() {
-  const snapshot=structuredClone(project),base=await getSourceBase();
+  return exportWebSnapshot(project,null);
+}
+async function exportSavedWebGame(){
+  const release=await api('runtime');return exportWebSnapshot(release.project,release.rev);
+}
+async function exportWebSnapshot(doc,revision){
+  const snapshot=structuredClone(doc),base=await getSourceBase();
   const issue=(await inspectOutput(snapshot,'offline',base)).find(s=>s.level==='error');
   if(issue)throw Error(issue.title+' · 게임 소스의 출력별 지원 검사에서 수정 위치를 열 수 있어요.');
-  const html=await packWeb(snapshot,snapshot.startMap,base);
+  const html=await packWeb(snapshot,snapshot.startMap,base,'',null,false,revision);
   const url = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' })),
     a = el('a');
   a.href = url;
-  a.download = 'Dreamwalker-Play.html';
+  a.download = revision===null?'Dreamwalker-Play.html':'Dreamwalker-Play-v'+revision+'.html';
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
