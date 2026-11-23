@@ -100,11 +100,7 @@ async function api(req, env, path) {
       const max = audio ? 8000000 : 2000000;
       if (Number(req.headers.get('content-length')) > max) err(413,'에셋 파일이 너무 커요.');
       const bytes = new Uint8Array(await limitedFileBody(req,max));
-      const starts = (sig,at=0) => sig.every((v,i)=>bytes[at+i]===v);
-      const ascii = s => Array.from(s,c=>c.charCodeAt(0));
-      const matches = mime==='image/png' ? starts([137,80,78,71,13,10,26,10]) : mime==='image/jpeg' ? starts([255,216,255]) :
-        mime==='audio/wav' ? starts(ascii('RIFF')) && starts(ascii('WAVE'),8) : mime==='audio/ogg' ? starts(ascii('OggS')) :
-        starts(ascii('ID3')) || (bytes[0]===255 && (bytes[1]&224)===224);
+      const matches = studioMediaMatches(mime,bytes);
       if (!matches) err(400,'선택한 에셋의 파일 형식을 확인하세요.');
       const digest = hex(await crypto.subtle.digest('SHA-256', bytes));
       await b.put('asset/' + digest, bytes, {

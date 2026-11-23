@@ -32,7 +32,7 @@
       const f=s.players[i]; sprite.hidden=!f;
       if (!f) continue;
       const badge=document.createElement('span');
-      badge.textContent=(i===s.seat?'나':'상대')+' · '+f.name+' '+f.hp+'/'+f.maxHp+(f.shield?' ◇'+f.shield:'');
+      badge.textContent=(i===s.seat?'나':'상대')+' · '+f.name+' '+f.hp+'/'+f.maxHp+' · '+(f.hits||0)+'회 적중'+(f.shield?' ◇'+f.shield:'');
       $('bars').append(badge);
       sprite.style.left=(f.x/s.width*100)+'%'; sprite.style.bottom=(8+f.y*.13)+'%';
       sprite.style.transform='translateX(-50%) scaleX('+f.face+')';

@@ -37,8 +37,12 @@ namespace Dreamwalker.Combat
         private bool requestAttack;
 
         public event System.Action<CombatTarget> TargetHit;
+        public System.Func<string,bool> StudioHardwareGate { get; set; }
         public System.Action<float, float> StudioSweep { get; set; }
         public int StudioSequence { get; private set; }
+        public Dreamwalker.Demo.StudioStrike StudioStrike { get; set; }
+        public int StudioTick=>studioTick;
+        private int bufferUntil=-1;
         private int studioTick, startupTicks, activeTicks, recoveryTicks;
         public void SetStudioTiming(int startup, int activeFrames, int recoveryFrames)
         {
@@ -50,6 +54,7 @@ namespace Dreamwalker.Combat
         public void ResetStudioAttack()
         {
             studioTick = 0;
+            bufferUntil=-1;
             attacking = bufferedAttack = requestAttack = false;
             if (vfx != null) vfx.Hide();
         }
@@ -79,7 +84,7 @@ namespace Dreamwalker.Combat
             }
             else
             {
-                bool repeat = bufferedAttack;
+                bool repeat = StudioStrike!=null?bufferUntil>=studioTick:bufferedAttack;
                 ResetStudioAttack();
                 SetBladeAngle(-70f);
                 if (repeat) RequestAttack();
@@ -110,6 +115,7 @@ namespace Dreamwalker.Combat
         {
             if (StudioSweep == null) { requestAttack = true; return; }
             if (!attacking) { StudioSequence++; studioTick = 0; StartSlash(); }
+            else if(StudioStrike!=null){if(StudioStrike.Combo(studioTick)&&StudioStrike.buffer>0)bufferUntil=studioTick+StudioStrike.buffer;}
             else if (studioTick >= startupTicks + activeTicks) bufferedAttack = true;
         }
 
@@ -117,7 +123,7 @@ namespace Dreamwalker.Combat
         {
             if (StudioSweep != null)
             {
-                if (DreamwalkerInput.AttackPressed()) RequestAttack();
+                if (DreamwalkerInput.AttackPressed() && (StudioHardwareGate==null||StudioHardwareGate("attack"))) RequestAttack();
                 return;
             }
             bool pressed = DreamwalkerInput.AttackPressed() || requestAttack;

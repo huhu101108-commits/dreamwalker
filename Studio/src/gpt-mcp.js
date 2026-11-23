@@ -1,14 +1,15 @@
 // Only the verified Studio owner can read a workbench or exchange a design request.
 const gptToolId={type:'string',description:'The request ID returned by dreamwalker_read_request.'};
 const optionalScreen={type:'string',description:'Saved Dreamwalker screen ID.'};
+const workSelection={target:{type:'string',maxLength:64},detail:{type:'string',maxLength:50}};
 const emptySchema={type:'object',properties:{},additionalProperties:false};
 const gptMcpTools=[
   {name:'dreamwalker_open_workbench',title:'드림워커 제작 GPT 열기',description:'Open the interactive Dreamwalker Studio GPT production panel in this chat. Use when the owner asks to open or use Studio, edit alongside GPT or select a game screen. The panel uses this conversation’s model.',
     inputSchema:{...emptySchema,properties:{screen_id:optionalScreen}},annotations:{readOnlyHint:true,destructiveHint:false,openWorldHint:false},_meta:workbenchDisplay},
   {name:'dreamwalker_workbench_view',description:'Read the owner’s current screen preview or check the completion of a particular request.',
-    inputSchema:{...emptySchema,properties:{screen_id:optionalScreen,waiting_for:gptToolId}},annotations:{readOnlyHint:true,destructiveHint:false,openWorldHint:false},_meta:workbenchAppOnly},
+    inputSchema:{...emptySchema,properties:{screen_id:optionalScreen,waiting_for:gptToolId,...workSelection}},annotations:{readOnlyHint:true,destructiveHint:false,openWorldHint:false},_meta:workbenchAppOnly},
   {name:'dreamwalker_workbench_ask',description:'Stage one question explicitly sent from the Studio panel to this chat. Never modifies the game.',
-    inputSchema:{...emptySchema,required:['request_id','revision','screen_id','prompt'],properties:{request_id:gptToolId,revision:{type:'integer'},screen_id:optionalScreen,prompt:{type:'string'},
+    inputSchema:{...emptySchema,required:['request_id','revision','screen_id','prompt'],properties:{request_id:gptToolId,revision:{type:'integer'},screen_id:optionalScreen,prompt:{type:'string'},...workSelection,
       history:{type:'array',maxItems:10,items:{type:'object',properties:{role:{type:'string',enum:['user','assistant']},text:{type:'string'}},required:['role','text'],additionalProperties:false}}}},
     annotations:{readOnlyHint:false,destructiveHint:false,openWorldHint:false,idempotentHint:true},_meta:workbenchAppOnly},
   {name:'dreamwalker_workbench_link',description:'Connect this open Studio panel to owner-initiated questions from the studio website, poll one question, report delivery, or disconnect.',
@@ -16,10 +17,10 @@ const gptMcpTools=[
     annotations:{readOnlyHint:false,destructiveHint:false,openWorldHint:false},_meta:workbenchAppOnly},
   {name:'dreamwalker_workbench_cancel',description:'Cancel only the specified waiting Studio chat request.',
     inputSchema:{...emptySchema,required:['request_id'],properties:{request_id:gptToolId}},annotations:{readOnlyHint:false,destructiveHint:false,openWorldHint:false},_meta:workbenchAppOnly},
-  {name:'dreamwalker_read_request',description:'With no pending request and no request_id this opens the Studio workbench. Pass connection-check to get a short-lived, owner-only connection test, or connection-status to read its last acknowledged time. Otherwise read the Dreamwalker Studio GPT request the signed-in owner explicitly sent to this ChatGPT conversation. Use its selected screen and task to draft a reply. For screen edits call dreamwalker_submit_reply. For a question send a message with an empty changes array.',
+  {name:'dreamwalker_read_request',description:'With no pending request and no request_id this opens the Studio workbench. Pass connection-check to get a short-lived, owner-only connection test, or connection-status to read its last acknowledged time. Otherwise read the Dreamwalker Studio GPT request the signed-in owner explicitly sent to this ChatGPT conversation. Use its selected screen, editable work targets and task to draft a reply. For proposed edits call dreamwalker_submit_reply. For a question send a message with an empty changes array.',
     inputSchema:{type:'object',properties:{request_id:gptToolId},additionalProperties:false},
     annotations:{readOnlyHint:true,destructiveHint:false,openWorldHint:false}},
-  {name:'dreamwalker_submit_reply',description:'Return your reply and optional screen proposal to the owner’s current Studio request. The owner reviews it in Studio before any edit. Use the exact ID from dreamwalker_read_request.',
+  {name:'dreamwalker_submit_reply',description:'Return your reply and optional scoped editor proposal to the owner’s current Studio request. The owner reviews it in Studio before any edit. Use the exact ID from dreamwalker_read_request.',
     inputSchema:{type:'object',required:['request_id','message','changes'],additionalProperties:false,
       properties:{request_id:gptToolId,...designFormat.properties}},
     annotations:{readOnlyHint:false,destructiveHint:false,idempotentHint:true,openWorldHint:false},_meta:{ui:{visibility:['model','app']},'openai/widgetAccessible':true}}

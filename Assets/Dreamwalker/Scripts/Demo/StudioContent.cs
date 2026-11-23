@@ -7,6 +7,7 @@ namespace Dreamwalker.Demo
 public class StudioRelease
 {
     public int rev;
+    public string contentDigest;
     public StudioProject project;
 }
 [Serializable]
@@ -14,6 +15,7 @@ public class StudioProject
 {
     public int schema;
     public string startMap, customJson;
+    public bool authoredKeysOnly;
     public StudioTuning tuning;
     public StudioMix mix;
     public StudioMap[] scenes;
@@ -25,6 +27,7 @@ public class StudioProject
     public StudioQuest[] quests;
     public int combatContract;
     public StudioCombatRule[] combatRules;
+    public StudioEventRule[] eventRules;
     public StudioMap Map(string id) => Array.Find(scenes, v => v.id == id);
     public StudioCharacter Character(string id) => Array.Find(characters, v => v.id == id);
     public StudioStory Story(string id) => Array.Find(stories, v => v.id == id);
@@ -33,12 +36,13 @@ public class StudioProject
 [Serializable]
 public class StudioMix
 {
+    public string musicMode,voiceMode,fxMode;
     public float music = 65, voice = 100, fx = 85;
 }
 [Serializable]
 public class StudioFrontScreens
 {
-    public string title, roster, loading;
+    public string title, roster, loading, entry, home, inventory, settings;
     public float seconds = .8f;
 }
 [Serializable]
@@ -76,6 +80,7 @@ public class StudioCharacter
     public StudioSkill[] skills;
     public StudioRoadmap roadmap;
     public StudioClip[] motionClips;
+    public StudioStrike strike;
 }
 [Serializable]
 public class StudioSkill
@@ -108,10 +113,12 @@ public class StudioMap
     public bool requireClear;
     public StudioObject[] objects;
 }
+[Serializable] public class StudioCameraFrame { public float zoom=1,left,right=100,bottom,top=100; public int fadeTicks; public string fadeColor="#000000"; }
 [Serializable]
 public class StudioCamera
 {
     public float follow = 5, deadX = 6, deadY = 8, parallax = .18f, drift;
+    public StudioCameraFrame frame;
 }
 [Serializable]
 public class StudioMotion
@@ -139,6 +146,51 @@ public class StudioLine
     public string id, speaker, text, speakerName, side, portrait, backdrop, layout, nextLabel, voice;
     public StudioChoice[] choices;
     public StudioShot shot;
+    public StudioStageTrack stageTrack;
+}
+[Serializable]
+public class StudioStageCue { public string id, kind, target, sound, key; public int at; public float dx,dy; public bool on; }
+[Serializable]
+public class StudioStageTrack
+{
+    public int rate, autoTick;
+    public bool completeOnSkip;
+    public string skipTo;
+    public StudioStageCue[] cues;
+    public string Visible(string text,int tick){
+        if(rate<=0 || string.IsNullOrEmpty(text))return text;
+        int count=tick*rate/60,index=0;
+        while(index<text.Length && count-->0)index+=char.IsSurrogatePair(text,index)?2:1;
+        return text.Substring(0,index);
+    }
+    public StudioStageTrack WithPrefix(string prefix){
+        return new StudioStageTrack{rate=rate,autoTick=autoTick,completeOnSkip=completeOnSkip,skipTo=string.IsNullOrEmpty(skipTo)?"":prefix+skipTo,cues=cues};
+    }
+    public int Destination(StudioStory story){
+        if(string.IsNullOrEmpty(skipTo))return -1;
+        return Array.FindIndex(story.nodes,n=>n.id==skipTo);
+    }
+}
+public sealed class StudioStageClock
+{
+    private StudioStageCue[] cues=Array.Empty<StudioStageCue>();
+    private int next;
+    public float ticks { get; private set; }
+    public StudioLine line { get; private set; }
+    public void Reset(StudioLine value){
+        line=value;ticks=0;next=0;
+        cues=value?.stageTrack?.cues==null?Array.Empty<StudioStageCue>():System.Linq.Enumerable.ToArray(System.Linq.Enumerable.OrderBy(value.stageTrack.cues,c=>c.at));
+    }
+    public bool Step(float dt,Action<StudioStageCue> emit){
+        var t=line?.stageTrack;if(t==null)return false;
+        ticks+=Math.Max(0,dt)*60;
+        while(next<cues.Length && cues[next].at<=ticks+.0001f)emit(cues[next++]);
+        return t.autoTick>0 && ticks+.0001f>=t.autoTick && line.choices.Length==0;
+    }
+    public void Finish(Action<StudioStageCue> emit){
+        if(line?.stageTrack?.completeOnSkip!=true)return;
+        for(int i=next;i<cues.Length;i++)if(cues[i].kind=="flag")emit(cues[i]);
+    }
 }
 [Serializable]
 public class StudioShot
@@ -167,7 +219,8 @@ public class StudioChoiceSlot { public int index; public float x,y,w,h,radius; p
 [Serializable]
 public class StudioChoice
 {
-    public string label, to;
+    public string label, to, flag;
+    public bool on;
 }
 [Serializable]
 public class StudioLayout
@@ -177,6 +230,7 @@ public class StudioLayout
     public bool pauseGame;
     public StudioRule[] rules;
     public StudioWidget[] elements;
+    public StudioNavigation navigation;
 }
 [Serializable]
 public class StudioWidget
@@ -190,7 +244,10 @@ public class StudioWidget
     public StudioControlSpec control;
     public StudioStickStyle stick;
     public StudioItemSkin itemSkin;
-    public string shortcut;
+    public string shortcut, fontFamily;
+    public StudioAnchor anchor;
+    public StudioButtonStates states;
+    public StudioGesture gesture;
     public bool hotspot;
     public bool showValue, enableValue;
     public StudioAction[] steps;
@@ -200,17 +257,63 @@ public class StudioWidget
 
 namespace Dreamwalker.Demo
 {
+[Serializable] public class StudioNavigation {public string next,back,resume;public string Route(string action) => action=="next"?next:action=="back"?back:action=="resume"?resume:null;}
+[Serializable] public class StudioGesture {public string phase;public int pad,ms;public bool cancelOutside;}
+public sealed class StudioInputGestureClock
+{
+    private sealed class Pending { public string group; public StudioGesture spec; public long time; public bool fired; public Action fire; }
+    private readonly System.Collections.Generic.Dictionary<string,Pending> held=new System.Collections.Generic.Dictionary<string,Pending>();
+    private readonly System.Collections.Generic.Dictionary<string,long> taps=new System.Collections.Generic.Dictionary<string,long>();
+    private static void Emit(Pending p){if(!p.fired){p.fired=true;p.fire();}}
+    public bool Active(string key)=>held.ContainsKey(key);
+    public void Down(string key,string group,StudioGesture s,long now,Action fire){
+        if(held.ContainsKey(key))return;
+        var p=new Pending{group=group,spec=s,time=now,fire=fire};held.Add(key,p);
+        if(s.phase=="press")Emit(p);
+        if(s.phase=="double"){if(taps.TryGetValue(group,out long before)&&now-before<=s.ms){taps.Remove(group);Emit(p);}}
+    }
+    public void Tick(string key,long now){if(held.TryGetValue(key,out var p)&&p.spec.phase=="hold"&&now-p.time>=p.spec.ms)Emit(p);}
+    public void End(string key,long now,bool cancel=false){
+        if(!held.TryGetValue(key,out var p))return;held.Remove(key);
+        if(cancel){taps.Remove(p.group);return;}
+        if(p.spec.phase=="double"&&!p.fired&&now-p.time<=p.spec.ms)taps[p.group]=now;
+        if(p.spec.phase=="release"||(p.spec.phase=="hold"&&now-p.time>=p.spec.ms))Emit(p);
+    }
+    public void Clear(){held.Clear();taps.Clear();}
+}
+[Serializable] public class StudioButtonStates {public string selected,disabled,flag,selectedMark,disabledMark;}
+[Serializable] public class StudioAnchor
+{
+    public string horizontal,vertical;
+    public float dx,dy;
+    public static float Resolve(string axis,float delta,float extent,float size,float fallback,float scale){
+        if(string.IsNullOrEmpty(axis)||axis=="free"||extent<=0)return fallback;
+        float d=delta*scale*100/extent;
+        float result=axis=="center"?(100-size)*.5f+d:axis=="right"||axis=="bottom"?100-size-d:d;
+        return Math.Max(0,Math.Min(100-size,result));
+    }
+}
 [Serializable] public class StudioItemSkin { public string color,fill,press,edge; public float radius,width; public int size; }
 [Serializable] public class StudioStickStyle { public int thumb, dead; public string knob, ring; }
+[Serializable] public class StudioTextValidation {public int minLength;public string format,message;}
 [Serializable] public class StudioControlSpec
 {
     public string mode, key, hint, initial, signal;
+    public StudioTextValidation validation;
     public int limit, min, max, step;
     public string[] options;
     public string Value(string raw)
     {
         raw = raw ?? "";
-        if (mode == "text") return raw.Substring(0, Math.Min(raw.Length, Math.Max(0, limit)));
+        if(mode=="text"){
+            string text=raw.Substring(0,Math.Min(raw.Length,Math.Max(0,limit)));
+            if(validation!=null){
+                if(text.Trim().Length<validation.minLength)return null;
+                if(text.Length>0&&validation.format=="digits"&&!System.Text.RegularExpressions.Regex.IsMatch(text,@"^[0-9]+\z"))return null;
+                if(text.Length>0&&validation.format=="word"&&!System.Text.RegularExpressions.Regex.IsMatch(text,@"^[A-Za-z0-9_가-힣-]+\z"))return null;
+            }
+            return text;
+        }
         if (mode == "toggle") return raw == "true" || raw == "false" ? raw : null;
         if (mode == "choice") return options != null && Array.IndexOf(options,raw) >= 0 ? raw : null;
         if (step < 1 || max < min || !System.Text.RegularExpressions.Regex.IsMatch(raw, @"^[+-]?[0-9]{1,9}\z") ||
@@ -252,6 +355,7 @@ internal static class StudioOutline
 }
 [Serializable] public class StudioItem { public string id, name, slot; public int power; }
 [Serializable] public class StudioQuest { public string id, name, kind, target, reward; public int count, goal; }
-[Serializable] public class StudioClip { public string key, fx, cue, sound; public int cueTick; public StudioFrame[] frames; }
+[Serializable] public class StudioClip { public string key, fx, cue, sound; public int cueTick; public StudioFrame[] frames; public StudioClipPaint paint; }
+[Serializable] public class StudioClipPaint { public float pivotX=50,pivotY=100,scale=100; public string repeat; }
 [Serializable] public class StudioFrame { public string image; public int ticks; }
 }

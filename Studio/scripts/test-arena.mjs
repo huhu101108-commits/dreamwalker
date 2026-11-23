@@ -6,8 +6,14 @@ import {arenaFixture} from './arena-fixture.mjs';
 
 const fixture=arenaFixture(), env={BUCKET,DB:fixture.DB,STUDIO_OWNER_EMAIL_SHA256:ownerDigest};
 const ctx=vm.createContext({crypto,structuredClone});
-vm.runInContext(['model','simulation','arena-simulation'].map(n=>fs.readFileSync('src/'+n+'.js','utf8')).join('\n'),ctx);
+vm.runInContext(['model','simulation','arena-simulation','network-test'].map(n=>fs.readFileSync('src/'+n+'.js','utf8')).join('\n'),ctx);
 const model=vm.runInContext('({seed,emptyWork,newCombatRule,defaultArenaControl,validArenaControls,validStudioPreset,problem,combatEvent,combatMemory,combatProfile,arenaStart,arenaJoin,arenaAdvance,arenaCommand,FieldRun,packNativeWorld,absorbCombatDamage})',ctx);
+const qa=vm.runInContext('({arenaDeliveryPlan,replayArenaDelivery,arenaResult})',ctx);
+const scoped=model.seed(),ownerRule={...model.newCombatRule(),every:1,appliesTo:'field',effects:[{kind:'damage',amount:6}]};
+scoped.combatRules=[ownerRule,{...ownerRule,id:'arenarule',appliesTo:'arena',effects:[{kind:'damage',amount:9}]}];
+assert.equal(model.problem(scoped),'');assert.equal(model.combatProfile(scoped).rules.length,1);
+assert.equal(model.combatEvent(scoped.combatRules,model.combatMemory(),'hit','baekseol',0,100,100).damage,6);
+assert.equal(model.combatEvent(scoped.combatRules,model.combatMemory(),'hit','baekseol',0,100,100,'arena').damage,9);
 const rule={...model.newCombatRule(),actor:'baekseol',every:2,hpBelow:50,cooldown:4,effects:[{kind:'damage',amount:7},{kind:'shield',amount:3}]};
 const memory=model.combatMemory();
 assert.deepEqual([1,2,3,4,5,6].map(t=>model.combatEvent([rule],memory,'hit','baekseol',t,50,100).damage),[0,7,0,0,0,7]);
@@ -99,6 +105,23 @@ try {
   const wallet=(await get('arena/me',undefined,a)).wallet;assert.equal(wallet.credits,15);assert.equal(wallet.medals,0);
   const cancelled=crypto.randomUUID();await get('arena/sell',{id:cancelled,price:7},buyer);
   await get('arena/cancel',{id:cancelled},buyer);assert.equal((await get('arena/cancel',{id:cancelled},buyer)).wallet.medals,2);
+  const seats=await Promise.all([guest(true),guest(true)]),pv=await get('arena/create',{},seats[0]),entered=await get('arena/join',{code:pv.code},seats[1]);
+  const schedule=[{at:0,seat:0,axis:0,press:0},{at:150,seat:1,axis:0,press:0},{at:1000,seat:0,axis:0,press:1}];
+  const faults={rtt:180,jitter:25,loss:35,replyLoss:100,duplicate:100,outageAt:100,outageMs:350,seed:29};
+  const impairment=qa.arenaDeliveryPlan(schedule,faults),epoch=now+entered.countdown,actors=[p.characters[0].id,p.characters[0].id];
+  const expected=qa.replayArenaDelivery(model.combatProfile(p),actors,schedule,faults,pv.revision,pv.release);
+  assert(impairment.stats.lost>0&&impairment.stats.unacked>0&&impairment.stats.retry>0&&impairment.stats.duplicate>0&&impairment.stats.disconnected>0);
+  const dropped=qa.arenaDeliveryPlan(schedule,{...faults,loss:100});assert.equal(dropped.stats.lost,3);
+  for(const event of impairment.events){
+    now=epoch+event.at;
+    if(event.resume){const reconnected=await get('arena/me',undefined,seats[1]);assert.equal(reconnected.room.release,pv.release);continue;}
+    await get('arena/input',{code:pv.code,...event.cmd},seats[event.seat]);
+  }
+  now=epoch+90001;const agreed=await Promise.all(seats.map(auth=>get('arena/room',{code:pv.code},auth)));
+  const results=agreed.map(v=>JSON.parse(JSON.stringify(qa.arenaResult(v))));assert.deepEqual(results[0],results[1]);assert.deepEqual(results[0],JSON.parse(JSON.stringify(expected.views[0])));
+  assert.equal(results[0].players[0].hits,1);assert.equal(results[0].winner,0);assert.equal((await get('arena/me',undefined,seats[0])).wallet.medals,1);
+  assert.equal((await get('arena/me',undefined,seats[1])).wallet.medals,0);
+  console.log('PASS same release on two real Worker clients, seeded jitter, lost request and acknowledgement, retransmission, duplicate commands and reconnection match authoring replay, exactly one hit and reward');
   const stale=await get('arena/create',{},a);now+=600001;
   assert.equal((await get('arena/room',{code:stale.code},a)).reason,'expired');
   assert.equal((await get('arena/me',undefined,a)).room,null);

@@ -2,6 +2,7 @@ function drawCharacters() {
   const [a, b] = panels(),
     c = activeActor();
   actorId = c.id;
+  characterPresetPanel(b,c);
   function create(copy) {
     if (project.characters.length >= LIMIT.characters) return note('캐릭터 한도에 도달했어요.');
     const id = uid(),

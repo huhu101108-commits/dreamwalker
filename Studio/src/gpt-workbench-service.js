@@ -8,7 +8,7 @@ const workbenchDisplay={
 };
 const workbenchAppOnly={ui:{visibility:['app']},'openai/visibility':'private','openai/widgetAccessible':true};
 const workbenchAssetMeta={ui:{prefersBorder:true,csp:{connectDomains:[],resourceDomains:[]}},
-  'openai/widgetDescription':'드림워커의 실제 화면을 선택해 현재 ChatGPT 모델에 질문하고 화면 변경안을 검토합니다.'};
+  'openai/widgetDescription':'드림워커의 화면·맵·대사·캐릭터·규칙을 선택해 현재 ChatGPT 모델에 질문하고 변경안을 검토합니다.'};
 function workbenchText(message){return [{type:'text',text:message}];}
 async function workbenchProject(env){
   const record=await get(env.BUCKET,'project');
@@ -19,6 +19,30 @@ function workbenchPicture(screen){
     elements:screen.elements.filter(w=>w.visible).map(w=>({id:w.id,type:w.type,text:w.text||WIDGETS[w.type],x:w.x,y:w.y,
       w:w.w,h:w.h,color:w.color,background:w.background,opacity:w.opacity,align:w.align}))};
 }
+function workbenchSelection(doc,screen,target='screen',detail=''){
+  const options=[{id:'screen',name:'현재 화면'}];
+  for(const [kind,rows,label] of [['map',doc.scenes,'맵'],['story',doc.stories,'대화'],['actor',doc.characters,'캐릭터'],['rule',doc.combatRules,'전투 규칙'],['eventRule',doc.eventRules,'공통 규칙']])
+    for(const r of rows||[])options.push({id:kind+'/'+r.id,name:label+' · '+r.name});
+  if(!options.some(o=>o.id===target))err(404,'선택한 제작 항목이 바뀌었어요.');
+  const [kind,id]=target.split('/'),ids={screen:screen.id},area={screen:'interface',map:'scene',story:'stories',actor:'characters',rule:'rules',eventRule:'rules'}[kind];
+  if(id)ids[kind]=id;
+  let details=[],label='';
+  if(kind==='map'){
+    label='작업 오브젝트';details=[{id:'',name:'맵 전체'},...named(doc.scenes,id).objects.map(o=>({id:o.id,name:o.editorName||o.type+' · '+o.id}))];
+  }else if(kind==='actor'){
+    label='작업 스킬';details=named(doc.characters,id).skills.map((a,i)=>({id:String(i),name:(i+1)+' · '+a.name}));
+  }else if(kind==='story'){
+    label='작업 대사 줄';details=named(doc.stories,id).nodes.map(n=>({id:n.id,name:n.text.slice(0,44)||n.id}));
+  }
+  if(details.length){
+    if(!detail)detail=details[0].id;
+    if(!details.some(e=>e.id===detail))err(404,'해당 항목의 선택 대상을 다시 확인하세요.');
+    if(kind==='map')ids.object=detail;
+    if(kind==='actor')ids.skill=Number(detail);
+    if(kind==='story')ids.line=detail;
+  }else if(detail)err(400,'해당 항목은 세부 대상을 지정할 수 없어요.');
+  return {work:studioWorkContext(doc,area,ids),picker:{target,detail,options,details,label}};
+}
 async function workbenchView(env,args={}){
   const [{rev,doc},record]=await Promise.all([workbenchProject(env),get(env.BUCKET,accountGptKey(env,'job'))]);
   const job=gptJobView(record),visible=job?.mode==='chatgpt'?job:null;
@@ -26,18 +50,19 @@ async function workbenchView(env,args={}){
   const screen=named(doc.layouts,id)||(args.screen_id?null:doc.layouts[0]);
   if(!screen)err(404,'화면이 삭제됐어요. 제작 패널을 다시 여세요.');
   const view={revision:rev,screens:doc.layouts.map(({id,name})=>({id,name})),screen:workbenchPicture(screen),job:null,busy:!!job&&['waiting','running'].includes(job.state)};
+  view.picker=workbenchSelection(doc,screen,args.target,args.detail).picker;
   if(visible){
     const {id,state,screen:screenId,prompt,answer}=visible;
     view.job={id,state,screen:screenId,...(screenId===screen.id?{prompt,answer:answer?{message:answer.message}:null}:{})};
     if(screenId===screen.id && state==='done' && answer?.changes.length){
-      if(await hash(designStamp(doc,screen))!==visible.stamp)view.reviewError='요청을 보낸 편집 초안의 화면이 달라요. 원래 초안에서 변경안을 검토하세요.';
+      if(await hash(designStamp(doc,screen,visible.work))!==visible.stamp)view.reviewError='요청을 보낸 편집 항목의 값이 달라요. 원래 초안에서 변경안을 검토하세요.';
       else try{
-        const plan=planDesign(doc,screen.id,answer.changes);
-        view.review={notes:plan.notes,screens:plan.screenIds.map(id=>workbenchPicture(named(plan.project.layouts,id)))};
+        const plan=planDesign(doc,screen.id,answer.changes,visible.work);
+        view.review={notes:plan.notes.map((n,i)=>n+" · "+plan.diffs[i]),screens:plan.screenIds.map(id=>workbenchPicture(named(plan.project.layouts,id)))};
       }catch(e){view.reviewError=e.message;}
     }
   }
-  return {content:workbenchText('드림워커 제작 GPT를 열었어요. 화면을 고르고 제작 패널에서 질문하세요.'),
+  return {content:workbenchText('드림워커 제작 GPT를 열었어요. 작업 대상을 고르고 제작 패널에서 질문하세요.'),
     structuredContent:{screen_id:screen.id,revision:rev},_meta:{...workbenchDisplay,workspace:view}};
 }
 async function workbenchPrepare(env,args){
@@ -45,12 +70,13 @@ async function workbenchPrepare(env,args){
   const {rev,doc}=await workbenchProject(env);
   if(args.revision!==rev)err(409,'공유 버전이 바뀌었어요. 화면을 새로 읽고 다시 보내세요.');
   const screen=named(doc.layouts,args.screen_id);if(!screen)err(404,'선택한 화면을 찾을 수 없어요.');
-  const context=designContext(doc,screen);context.work=studioWorkContext(doc,'interface',{screen:screen.id});
-  await newPersonalGptJob(env,{id:args.request_id,mode:'chatgpt',prompt:args.prompt,context,history:args.history||[],stamp:await hash(designStamp(doc,screen))},true);
+  const context=designContext(doc,screen);context.work=workbenchSelection(doc,screen,args.target,args.detail).work;
+  const stamp=await hash(designStamp(doc,screen,context.work));
+  await newPersonalGptJob(env,{id:args.request_id,mode:'chatgpt',prompt:args.prompt,context,history:args.history||[],stamp},true);
   const row=await get(env.BUCKET,accountGptKey(env,'job')), j=row?.data;
-  if(!gptJobView(row)||j.id!==args.request_id||j.mode!=='chatgpt'||j.screen!==screen.id||j.state!=='waiting'||j.prompt!==args.prompt.trim())
+  if(!gptJobView(row)||j.id!==args.request_id||j.mode!=='chatgpt'||j.screen!==screen.id||j.stamp!==stamp||j.state!=='waiting'||j.prompt!==args.prompt.trim())
     err(409,'현재 질문이 바뀌었어요. 패널을 새로 읽으세요.');
-  return {content:workbenchText('선택한 화면으로 질문을 준비했어요.'),structuredContent:{request_id:j.id},_meta:{task:gptTaskPayload(j)}};
+  return {content:workbenchText('선택한 제작 항목으로 질문을 준비했어요.'),structuredContent:{request_id:j.id},_meta:{task:gptTaskPayload(j)}};
 }
 async function workbenchCancel(env,args){
   const key=accountGptKey(env,'job'),old=await get(env.BUCKET,key), j=old?.data;

@@ -25,6 +25,9 @@ namespace Dreamwalker.Player
         private float previousX;
         private int facing = 1;
         private bool requestJump, requestDash;
+        public System.Func<string,bool> StudioHardwareGate { get; set; }
+        private int lastKeyboardDirection;
+        private bool keyboardAllowed=true;
 
         public Vector4 MovementTuning => new Vector4(runSpeed, jumpSpeed, dashSpeed, dashDuration);
         public int Facing => facing;
@@ -57,10 +60,13 @@ namespace Dreamwalker.Player
         private void Update()
         {
             float keyboard = DreamwalkerInput.Horizontal;
+            int direction=(int)keyboard;
+            if(direction!=lastKeyboardDirection){lastKeyboardDirection=direction;keyboardAllowed=direction==0||StudioHardwareGate==null||StudioHardwareGate(direction<0?"left":"right");}
+            if(!keyboardAllowed)keyboard=0;
             horizontal = Mathf.Abs(virtualHorizontal) > .05f ? virtualHorizontal : keyboard;
 
-            if (DreamwalkerInput.JumpPressed() || requestJump) jumpBufferRemaining = .12f;
-            if (DreamwalkerInput.DashPressed() || requestDash)
+            if ((DreamwalkerInput.JumpPressed() && (StudioHardwareGate==null||StudioHardwareGate("jump"))) || requestJump) jumpBufferRemaining = .12f;
+            if ((DreamwalkerInput.DashPressed() && (StudioHardwareGate==null||StudioHardwareGate("dodge"))) || requestDash)
             {
                 if (dashCooldownRemaining <= 0f && dashRemaining <= 0f)
                 {

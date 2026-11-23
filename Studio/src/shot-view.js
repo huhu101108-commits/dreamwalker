@@ -49,7 +49,7 @@ function makeShotView(world,line,map,advance,design=false) {
         content.replaceChildren();
         labels.forEach((label,i)=>{
           const b=el('button',label);b.type='button';b.tabIndex=design?-1:0;
-          if(!design) b.onclick=()=>advance(line.choices.length?i:undefined);
+          if(!design){b.onclick=()=>advance(line.choices.length?i:undefined);if(line.choices.length)b.dataset.stageChoice=i;}
           content.append(b);
         });
         entry.labels=signature;
@@ -73,9 +73,30 @@ function makeShotView(world,line,map,advance,design=false) {
       img=el('img');img.alt='';img.draggable=false;img.hidden=true;node.append(img);
     }
     if(['name','text','caption','choices'].includes(p.kind)){
-      content=box(p.kind==='choices'?'shot-options':'shot-words');node.append(content);
+      content=box(p.kind==='choices'?'shot-options':'shot-words');if(p.kind==='text')content.dataset.stageWords='';node.append(content);
     }
     entries.set(p.id,{node,img,content,url:null});board.append(node);update(p);
   }
   return {board,update,nodes:entries};
+}
+
+function paintDialogueTime(root,cursor,audioBus){
+  const line=cursor.node;if(!line)return;
+  while(cursor.sounds.length)audioBus.fx(cursor.sounds.shift(),'','stageFx');
+  const t=line.stageTrack;
+  if(t?.rate){const text=cursor.visibleText();for(const el of root.querySelectorAll('[data-stage-words]'))if(el.textContent!==text)el.textContent=text;}
+  if(t?.cues.length){
+    const {changes,camera}=cursor.layers;
+    for(const node of root.querySelectorAll('[data-layer-id]')){
+      const id=node.dataset.layerId,state=changes.get(id);
+      if(typeof state?.visible==='boolean')node.hidden=!state.visible;
+      const pan=camera&&node.matches('.shot-backdrop,.shot-art,.shot-portrait')?camera:null;
+      if(state?.dx!==undefined || pan){
+        const layer=line.shot.layers.find(l=>l.id===id);if(!layer)continue;
+        node.style.left=(layer.x+(state?.dx||0)+(pan?.dx||0))+'%';
+        node.style.top=(layer.y+(state?.dy||0)+(pan?.dy||0))+'%';
+      }
+    }
+  }
+  if(line.choices.some(c=>c.flag))for(const el of root.querySelectorAll('[data-stage-choice]'))el.disabled=!cursor.allowed(Number(el.dataset.stageChoice));
 }

@@ -9,7 +9,7 @@ namespace Dreamwalker.Demo
         [Serializable] public class Fighter
         {
             public string actor, name;
-            public int hp, maxHp, x, y, seq, face, shield;
+            public int hp, maxHp, x, y, seq, face, shield, hits;
             public bool attacking, dodging;
         }
         [Serializable] public class Snapshot

@@ -92,3 +92,39 @@ try{
   assert(!store.has('project'));assert(!JSON.stringify([...store.values()]).includes(req.prompt));
 }finally{globalThis.fetch=savedFetch;}
 console.log('PASS GPT service using simulated OpenAI transport: editor/reader scope, sanitized context, requested model, strict plan, duplicate and concurrent requests, incomplete/refusal/quota, no project or chat writes');
+
+const scoped=JSON.parse(initial);
+scoped.stories.push({id:'conversation',name:'대화 검수',nodes:[{id:'first',text:'시작',speaker:'',choices:[{label:'전진',to:'second'}]},{id:'second',speaker:'',text:'도착',choices:[]}]});
+scoped.combatRules=[vm.runInContext('newCombatRule()',v)];
+const scopeOf=vm.runInContext('studioWorkContext',v),stampOf=vm.runInContext('designStamp',v);
+const root=scoped.layouts[0],original=JSON.stringify(scoped);
+const expectPatch=(area,ids,changes,check)=>{
+  const scope=scopeOf(scoped,area,ids),o=planDesign(scoped,root.id,changes,scope);
+  check(o.project);assert(o.diffs.every(s=>s.includes('→')));assert.equal(JSON.stringify(scoped),original);
+  assert.notEqual(stampOf(scoped,root,scope),stampOf(o.project,o.project.layouts[0],scope));
+  return scope;
+};
+const m=scoped.scenes[0],foe=m.objects.find(o=>o.type==='enemy'),a=scoped.characters[0],rr=scoped.combatRules[0];
+const mapWork=expectPatch('scene',{map:m.id,object:foe.id},[change('editMap',m.id,{name:'통과 검수'}),change('editObject',foe.id,{x:35})],p=>{assert.equal(p.scenes[0].name,'통과 검수');assert.equal(p.scenes[0].objects.find(o=>o.id===foe.id).x,35);});
+expectPatch('stories',{story:'conversation',line:'first'},[change('editLine','first',{text:'확정',speaker:a.id}),change('editChoice','first',{slot:0,label:'복귀',to:''})],p=>{const l=p.stories.at(-1).nodes[0];assert.equal(l.text,'확정');assert.equal(l.choices[0].label,'복귀');});
+expectPatch('characters',{actor:a.id,skill:0},[change('editActor',a.id,{health:200}),change('editSkill',a.id,{slot:0,power:2})],p=>{assert.equal(p.characters[0].health,200);assert.equal(p.characters[0].skills[0].power,2);});
+expectPatch('rules',{rule:rr.id},[change('editCombatRule',rr.id,{every:3,appliesTo:'arena'}),change('editRuleEffect',rr.id,{slot:0,amount:8})],p=>{assert.equal(p.combatRules[0].every,3);assert.equal(p.combatRules[0].effects[0].amount,8);});
+assert.throws(()=>planDesign(scoped,root.id,[change('editActor',a.id,{health:500})],mapWork));
+assert.throws(()=>planDesign(scoped,root.id,[change('editObject',m.objects[0].id,{x:25})],mapWork));
+assert.throws(()=>planDesign(scoped,root.id,[change('editMap',m.id,{characterId:'missing'})],mapWork));
+assert.throws(()=>planDesign(scoped,root.id,[change('editMap',m.id,{text:'blocked'})],mapWork));
+assert(!JSON.stringify(packNativeWorld(scoped)).includes('accountGptKey'));
+console.log('PASS scoped editor proposals for selected map/object, line/choice, actor/skill and combat/effect; property diffs, stale flags and cross-target rejection');
+
+const catalogBody=async()=> (await invoke()).json();
+const catalogRefresh=()=>worker.fetch(new Request('https://studio.test/api/personal-gpt/refresh-models',{method:'POST',headers:{...headers,'content-type':'application/json'},body:'{}'}),env);
+const priorFetch=globalThis.fetch;
+try{
+  let calls=0;globalThis.fetch=async(url)=>{calls++;assert.equal(url,'https://api.openai.com/v1/models');return Response.json({data:[{id:'gpt-6.2-sol'},{id:'gpt-4.1-mini'},{id:'some-image-model'},{id:'gpt-6.2-sol'}]});};
+  assert.equal((await catalogBody()).personal.apiStatus.state,'unverified');assert.equal(calls,0);
+  assert.equal((await catalogRefresh()).status,200);assert.equal(calls,1);
+  const catalog=(await catalogBody()).personal;assert.equal(catalog.apiStatus.state,'verified');
+  assert.deepEqual(catalog.apiModels.map(m=>m.id),['gpt-4.1-mini','gpt-6.2-sol']);assert.equal(calls,1);
+  assert(!JSON.stringify(catalog).includes(env.OPENAI_API_KEY));
+}finally{globalThis.fetch=priorFetch;}
+console.log('PASS owner-initiated API model list uses only metadata transport and account-scoped availability');

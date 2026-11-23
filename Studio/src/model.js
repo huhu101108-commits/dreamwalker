@@ -243,6 +243,8 @@ function attachSubmenu(doc,parent,name,content='empty') {
 }
 function resetUIReferences(d, type, id, fallback = '') {
   if (type === 'screen') {
+    for(const k of ['entry',...Object.keys(screenAliases)])if(d.frontScreens?.[k]===id)d.frontScreens[k]=fallback;
+    for(const l of d.layouts)for(const k of ['back','resume','next'])if(l.navigation?.[k]===id)l.navigation[k]=fallback;
     for (const role of Object.keys(FRONT_SCREENS))
       if (d.frontScreens?.[role] === id) d.frontScreens[role] = '';
     for (const story of d.stories) for (const line of story.nodes)
@@ -685,7 +687,7 @@ function validMenuStep(d,s) {
     signalKey(s.flag,true) && typeof s.flagState==='boolean';
 }
 function validScreenWidget(d,w) {
-  return !!w && !(!has(WIDGETS, w.type) ||
+  return !!w && validWidgetDesign(w) && !(!has(WIDGETS, w.type) ||
         (w.type === 'input' && !validInputSpec(w.control)) ||
         (w.itemSkin!==undefined && (!['dialogue','inventory'].includes(w.type)||!validItemSkin(w.itemSkin))) ||
         (w.shortcut !== undefined && (w.type !== 'button' || !validShortcut(w.shortcut))) ||
@@ -835,15 +837,17 @@ function problem(d) {
         (n.speaker !== '' && !character(n.speaker)) ||
         !textValue(n.text, 1200) ||
         !textValue(n.speakerName ?? '', 50) || !textValue(n.nextLabel ?? '', 80) ||
-        !validShot(n.shot) || !soundRef(n.voice ?? '') || !imageRef(n.backdrop ?? '') || !imageRef(n.portrait ?? '') ||
+        !validShot(n.shot) || !validStageTrack(n,s) || !soundRef(n.voice ?? '') || !imageRef(n.backdrop ?? '') || !imageRef(n.portrait ?? '') ||
         !['left','right','hidden'].includes(n.side ?? 'left') ||
         (!!n.layout && !screen(n.layout, 'dialogue')) ||
         !Array.isArray(n.choices) ||
         n.choices.length > LIMIT.choices ||
-        !n.choices.every((c) => c && textValue(c.label, 80, true) && (c.to === '' || !!named(s.nodes, c.to)))
+        !n.choices.every((c) => c && signalKey(c.flag??'',true) && (c.on===undefined||typeof c.on==='boolean') && textValue(c.label, 80, true) && (c.to === '' || !!named(s.nodes, c.to)))
       )
         return s.name + '의 화자 또는 선택지 연결을 확인하세요.';
   }
+  if(d.authoredKeysOnly!==undefined&&typeof d.authoredKeysOnly!=='boolean')return '기본 키보드 입력 설정을 확인하세요.';
+  if(!validScreenRoutes(d))return '화면 흐름에서 시작·진행·복귀 연결을 확인하세요. 로딩 완료가 자신을 다시 열 수 없어요.';
   for (const kind of ['hud', 'menu', 'dialogue'])
     if (!d.layouts.some((l) => l.kind === kind)) return SCREEN_TYPES[kind] + ' 화면이 하나 이상 필요해요.';
   for (const l of d.layouts) {
@@ -876,6 +880,8 @@ function problem(d) {
       return 'UI 화면 목록을 확인하세요.';
     if (l.kind === 'dialogue' && l.elements.filter((w) => w.type === 'dialogue' && w.visible).length !== 1)
       return l.name + '에 표시되는 대화 상자가 하나 필요해요.';
+    const pads=l.elements.map(w=>w.gesture?.pad).filter(i=>i>=0);
+    if(new Set(pads).size!==pads.length)return l.name+'의 패드 버튼을 서로 다르게 연결하세요.';
     const shortcuts=l.elements.map(w=>w.shortcut).filter(Boolean);
     if(new Set(shortcuts).size!==shortcuts.length)return l.name+'에 같은 단축키가 두 번 지정됐어요.';
     for (const w of l.elements)
@@ -895,7 +901,7 @@ function problem(d) {
           !num(s.camera.deadX, 0, 35) ||
           !num(s.camera.deadY, 0, 35) ||
           !num(s.camera.parallax, 0, 1) ||
-          !num(s.camera.drift, 0, 5))) ||
+          !num(s.camera.drift, 0, 5) || (s.camera.frame && !validCameraFrame(s.camera.frame)))) ||
       !soundRef(s.music ?? '') || !imageRef(s.backdrop) ||
       !character(s.characterId) ||
       !screen(s.hudId, 'hud') ||
@@ -957,13 +963,11 @@ function imageRefs(d) {
     add = (v) => {
       if (typeof v === 'string' && v.startsWith('asset:')) refs.add(v.slice(6));
     };
+  if(d.work?.artGuide)add(d.work.artGuide.image);
   for (const a of d.work?.assets || []) if (a.kind === 'image') add(a.ref);
   for (const p of d.work?.prefabs || []) add(p.object.image);
-  for(const p of d.work?.presets||[]) {
-    if(p.kind==='widget')add(p.data.image);
-    if(p.kind==='layout'){add(p.data.skin);p.data.elements.forEach(w=>add(w.image));}
-    if(p.kind==='shot')p.data.layers.forEach(layer=>add(layer.image));
-  }
+  for(const release of d.work?.releases||[])for(const shot of release.screenshotFiles||[])add(shot.ref);
+  for(const p of d.work?.presets||[])for(const ref of presetFileRefs(p))if(ref.kind==='image')add(ref.ref);
   d.characters.forEach((c) => {
     add(c.sprite);
     add(c.portrait);
@@ -1009,9 +1013,9 @@ function roadmapStory(world, character, startId = '') {
     if (story)
       story.nodes.forEach((line, i) => {
         const choices = line.choices.length
-          ? line.choices.map((c) => ({ label: c.label, to: c.to ? prefix + c.to : end }))
+          ? line.choices.map((c) => ({ ...c, to: c.to ? prefix + c.to : end }))
           : [{ label: line.nextLabel || '다음', to: story.nodes[i + 1] ? prefix + story.nodes[i + 1].id : end }];
-        nodes.push({ ...line, mapId: e.mapId, id: prefix + line.id, choices });
+        nodes.push({ ...line, ...(line.stageTrack?{stageTrack:{...line.stageTrack,skipTo:line.stageTrack.skipTo?prefix+line.stageTrack.skipTo:''}}:{}), mapId: e.mapId, id: prefix + line.id, choices });
       });
     nodes.push({
       id: end,
@@ -1042,7 +1046,7 @@ function inspectScreens(doc) {
     destinations = new Set();
   for (const scene of doc.scenes)
     for (const id of [scene.hudId, scene.menuId, scene.dialogueId]) destinations.add(id);
-  for (const role of Object.keys(FRONT_SCREENS)) if (doc.frontScreens?.[role]) destinations.add(doc.frontScreens[role]);
+  for (const role of [...Object.keys(FRONT_SCREENS),'entry']) if (doc.frontScreens?.[role]) destinations.add(doc.frontScreens[role]);
   for (const s of doc.stories) for (const n of s.nodes) if (n.layout) destinations.add(n.layout);
   const transitions = w => {
     const button=boundMenuButton(doc,w);
@@ -1058,6 +1062,7 @@ function inspectScreens(doc) {
   const reachable = new Set(destinations);
   for (let changed = true; changed;) {
     changed = false;
+    for(const l of doc.layouts)if(reachable.has(l.id))for(const route of Object.values(l.navigation||{}))if(route&&route!=='$field'&&!reachable.has(route)){reachable.add(route);changed=true;}
     for (const l of doc.layouts)
       if (reachable.has(l.id))
         for (const w of l.elements)
@@ -1118,6 +1123,7 @@ function validateCombatRules(rules, actors) {
   if (!rows(rules,0,48)) return '전투 규칙 ID와 개수를 확인하세요.';
   for (const r of rules) {
     if (!textValue(r.name,50,true) || typeof r.enabled !== 'boolean' || !has(COMBAT_EVENTS,r.event) ||
+        (r.appliesTo!==undefined && !['both','field','arena'].includes(r.appliesTo)) ||
         (r.actor !== '' && !named(actors,r.actor)) || !integer(r.every,1,999) ||
         !integer(r.hpBelow,1,100) || !integer(r.cooldown,0,3600) || !Array.isArray(r.effects) ||
         r.effects.length < 1 || r.effects.length > 8 || r.effects.some(e => !e || !has(COMBAT_EFFECTS,e.kind) ||
@@ -1129,11 +1135,11 @@ function validateCombatRules(rules, actors) {
 function combatMemory() { return {count:{},ready:{},shield:0}; }
 // Each event is delivered once. Eligible occurrences count even during cooldown.
 // Damage modifiers resolve before contact; hurt and kill recovery cannot revive a defeated actor.
-function combatEvent(rules, memory, event, actor, tick, hp, maximum) {
+function combatEvent(rules, memory, event, actor, tick, hp, maximum, scope='field') {
   let damage=0, heal=0;
   if (hp<=0) return {damage,heal};
   for (const r of rules) {
-    if (!r.enabled || r.event!==event || (r.actor && r.actor!==actor) || hp*100>maximum*r.hpBelow) continue;
+    if (!r.enabled || (r.appliesTo && r.appliesTo!=='both' && r.appliesTo!==scope) || r.event!==event || (r.actor && r.actor!==actor) || hp*100>maximum*r.hpBelow) continue;
     const k='r_'+r.id;
     const count=(memory.count[k]||0)+1;
     memory.count[k]=count%r.every;
@@ -1158,7 +1164,7 @@ function combatProfile(project) {
     damage:t.damage,reach:Math.round(t.reach*100),run:Math.round(t.runSpeed*100),
     jump:Math.round(t.jumpSpeed*100),dash:Math.round(t.dashSpeed*100),dashTicks:Math.max(1,Math.round(t.dashDuration*60)),actors:project.characters.map(c=>({
       id:c.id,name:c.name,hp:c.health,attack:Math.round(c.attackScale*100),speed:Math.round(c.speedScale*100),jump:Math.round(c.jumpScale*100)})),
-    rules:structuredClone(project.combatRules||[])};
+    rules:structuredClone((project.combatRules||[]).filter(r=>r.appliesTo!=='field'))};
 }
 
 const GEAR_SLOTS = {
@@ -1184,7 +1190,8 @@ const newClip = () => ({ frames: [], fx: '', cue: '', cueTick: 0 });
 function poseAt(clip, ticks, loop) {
   if (!clip?.frames?.length) return null;
   const duration = clip.frames.reduce((n, f) => n + f.ticks, 0);
-  let at = loop ? ticks % duration : Math.min(ticks, duration - 1);
+  const repeats=clip.paint?.repeat==='loop'||(clip.paint?.repeat!=='once'&&loop);
+  let at = repeats ? ticks % duration : Math.min(ticks, duration - 1);
   for (const f of clip.frames) {
     if (at < f.ticks) return f;
     at -= f.ticks;
@@ -1192,6 +1199,8 @@ function poseAt(clip, ticks, loop) {
   return clip.frames.at(-1);
 }
 function productionProblem(d) {
+  if(d.eventRules!==undefined){const issue=eventProgramProblem(d.eventRules,d);if(issue)return issue;}
+  for(const c of d.characters)if(c.strike!==undefined&&!validStrike(c.strike))return '모션 · 효과 / '+c.name+' / 기본 공격 판정 구간';
   const ruleError=validateCombatRules(d.combatRules === undefined ? [] : d.combatRules,d.characters);
   if (ruleError) return ruleError;
   if (!rows(d.items || [], 0, 200) || !rows(d.quests || [], 0, 200))
@@ -1221,7 +1230,7 @@ function productionProblem(d) {
         !Array.isArray(v.frames) ||
         v.frames.length > 64 ||
         !v.frames.every((f) => f && f.image && imageRef(f.image) && integer(f.ticks, 1, 120)) ||
-        !soundRef(v.sound ?? '') || !imageRef(v.fx) ||
+        !validClipPaint(v.paint) || !soundRef(v.sound ?? '') || !imageRef(v.fx) ||
         !['', 'slash', 'ice', 'bell'].includes(v.cue) ||
         !integer(v.cueTick, 0, 600)
       )
@@ -1238,7 +1247,8 @@ function mergeProject(base, mine, live) {
   const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   const merge = (a, b, c, path) => {
     if (path==='/work' && a===undefined && b && c) a=emptyWork();
-    if(path==='/work/presets' && a===undefined && Array.isArray(b) && Array.isArray(c))a=[];
+    if(/^\/work\/(presets|levels|studies|releases)$/.test(path) && a===undefined && Array.isArray(b) && Array.isArray(c))a=[];
+    if(path==='/work/design' && a===undefined && b && c)a={};
     if (same(b, c) || same(b, a)) return c;
     if (same(c, a)) return b;
     const arrays = [a, b, c].every(Array.isArray);
@@ -1281,12 +1291,32 @@ function mergeProject(base, mine, live) {
 }
 function playableWorld(project) {
   const {work,menuFunctions,...content}=project;
-  const layouts=resolvedScreens(project).map(l=>({...l,elements:l.elements.map(({editorLocked,...w})=>w)}));
+  const layouts=resolvedScreens(project).map(l=>({...l,elements:l.elements.map(({editorLocked,editorGroup,...w})=>w)}));
   return {...content,layouts,scenes:content.scenes.map(s=>({...s,objects:s.objects.map(({editorName,locked,prefab,...object})=>object)})),sourceFiles:[]};
+}
+async function contentDigest(doc) {
+  const content=packNativeWorld(doc);
+  content.sourceFiles=doc.sourceFiles;
+  const canonical=(k,v)=>v && typeof v==='object' && !Array.isArray(v)
+    ? Object.fromEntries(Object.keys(v).sort().map(key=>[key,v[key]])) : v;
+  const bytes=new TextEncoder().encode(JSON.stringify(content,canonical));
+  return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),v=>v.toString(16).padStart(2,'0')).join('');
+}
+function studioMediaMatches(mime,bytes) {
+  const starts = (sig,at=0) => sig.every((v,i)=>bytes[at+i]===v);
+  const ascii = s => Array.from(s,c=>c.charCodeAt(0));
+  return mime==='image/png' ? starts([137,80,78,71,13,10,26,10]) : mime==='image/jpeg' ? starts([255,216,255]) :
+    mime==='audio/wav' ? starts(ascii('RIFF')) && starts(ascii('WAVE'),8) : mime==='audio/ogg' ? starts(ascii('OggS')) :
+    mime==='audio/mpeg' && (starts(ascii('ID3')) || (bytes.length>=2 && bytes[0]===255 && (bytes[1]&224)===224));
 }
 function packNativeWorld(project) {
   const world = playableWorld(project);
-  world.stories=world.stories.map(s=>({...s,nodes:s.nodes.map(n=>n.shot?{...n,shot:{...n.shot,layers:n.shot.layers.map(l=>l.slots?{...l,manualChoices:true}:l)}}:n)}));
+  world.stories=world.stories.map(story=>({...story,nodes:story.nodes.map(n=>{
+    const line={...n};
+    if(n.shot)line.shot={...n.shot,layers:n.shot.layers.map(l=>l.slots?{...l,manualChoices:true}:l)};
+    if(n.choices.some(c=>c.flag))line.choices=n.choices.map(c=>c.flag?{...c,on:c.on!==false}:c);
+    return line;
+  })}));
   world.combatContract = 1;
   world.combatRules = project.combatRules || [];
   world.characters = project.characters.map(({ clips, ...c }) => ({
@@ -1298,25 +1328,141 @@ function packNativeWorld(project) {
 
 const WORK_STATES = { plan:'기획', doing:'제작 중', review:'검수', done:'완료' };
 const WORK_KINDS = { feature:'기능', art:'아트', story:'연출', bug:'버그' };
-const WORK_TARGETS = {scene:'scenes', characters:'characters', stories:'stories', interface:'layouts'};
+const WORK_TARGETS = {scene:'scenes',characters:'characters',stories:'stories',interface:'layouts',rules:'combatRules',eventRules:'eventRules'};
 const emptyWork = () => ({ brief:'', milestone:'', tasks:[], assets:[], prefabs:[], runs:[] });
 const soundRef = v => v === '' || (typeof v==='string' && /^asset:[0-9a-f]{64}$/.test(v));
 function soundRefs(d) {
   const refs = new Set();
   const add = v => { if (v && soundRef(v)) refs.add(v.slice(6)); };
   for (const a of d.work?.assets || []) if (a.kind === 'audio') add(a.ref);
+  for(const p of d.work?.presets||[])for(const ref of presetFileRefs(p))if(ref.kind==='audio')add(ref.ref);
   for (const m of d.scenes) add(m.music);
   for (const c of d.characters) for (const clip of Object.values(c.clips || {})) add(clip.sound);
-  for (const s of d.stories) for (const n of s.nodes) add(n.voice);
+  for (const s of d.stories) for (const n of s.nodes) {add(n.voice);for(const cue of n.stageTrack?.cues||[])if(cue.kind==='sound')add(cue.sound);}
   return [...refs];
 }
+
+const designQuestions={
+  audience:'목표 플레이어',platform:'목표 플랫폼',fun:'핵심 재미',early:'초반에 의도한 플레이어 행동',
+  loop:'반복 플레이 구조',start:'한 판의 시작',end:'한 판의 종료',progress:'진행 방식',reward:'보상 구조',
+  retry:'재도전 방식',question:'핵심 재미 검증 질문',observation:'플레이 관찰 결과'
+};
+const studyTypes={prototype:'프로토타입',slice:'버티컬 슬라이스'};
+const releaseStages={alpha:'알파',beta:'베타',rc:'출시 후보',patch:'운영 패치'};
+const milestoneChecks={flow:'시작부터 끝까지 진행',contents:'주요 콘텐츠 검증',features:'주요 기능 검증',
+  package:'실제 배포 파일 확인',install:'새 설치',update:'업데이트 설치',legacy:'기존 저장으로 이어하기',
+  first:'첫 실행',ending:'엔딩 도달',regression:'제보를 재현한 저장본으로 재검수'};
+const checksForStage={alpha:['flow'],beta:['flow','contents','features'],rc:['flow','contents','features','package','install','update','legacy','first','ending'],
+  patch:['package','update','legacy','regression']};
+const observationFields={device:'검수 기기',stuck:'멈춘 지점',understanding:'목표 이해 여부',misinput:'잘못 입력한 조작',abandoned:'중단한 장면',difficulty:'체감 난이도'};
+const bugFields={device:'제보 기기',steps:'버그 재현 순서',expected:'기대 결과',actual:'실제 결과',retest:'수정 후 재검증 결과'};
+const storeFields={description:'상점 설명',price:'가격과 통화',languages:'지원 언어',trailer:'트레일러 주소',contact:'문의 창구'};
+function planHours(work){
+  const total={system:0,content:0,actualSystem:0,actualContent:0,plannedCost:0,actualCost:0,candidate:0,candidateCost:0};
+  for(const t of work.tasks){
+    const count=t.workClass==='content'?(t.quantity??1):1,hours=(t.estimate??0)*count;
+    const content=t.workClass==='content';
+    total[content?'actualContent':'actualSystem']+=t.spent??0;total.actualCost+=t.cost??0;
+    if(t.priority==='later'){total.candidate+=hours;total.candidateCost+=t.budget??0;}
+    else{total[content?'content':'system']+=hours;total.plannedCost+=t.budget??0;}
+  }
+  return total;
+}
+function dependencyProblem(tasks){
+  const byId=new Map(tasks.map(t=>[t.id,t])), done=new Set(),active=new Set();
+  function walk(t,path){
+    if(active.has(t.id))return '선행 작업이 순환해요 · '+[...path,t.title].join(' → ');
+    if(done.has(t.id))return '';
+    active.add(t.id);
+    for(const id of t.needs||[]){
+      const dep=byId.get(id);
+      if(!dep)return t.title+'의 선행 작업을 찾을 수 없어요.';
+      const issue=walk(dep,[...path,t.title]);if(issue)return issue;
+    }
+    active.delete(t.id);done.add(t.id);return '';
+  }
+  for(const t of tasks){const issue=walk(t,[]);if(issue)return issue;}
+  return '';
+}
+function releaseEvidence(rel){
+  return checksForStage[rel.stage].map(key=>{
+    const c=rel.checks?.[key],artifact=key==='package';
+    const seen=!!(c?.env?.trim()&&c?.note?.trim());
+    return {key,label:milestoneChecks[key],state:c?.state==='pass' && seen && (!artifact||rel.buildId||rel.artifact?.trim())?'pass':
+      c?.state==='fail'?'fail':c?.state==='pass'?'evidence':'pending'};
+  });
+}
+function planDay(v){
+  if(v==='')return true;
+  if(typeof v!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(v))return false;
+  const dt=new Date(v+'T00:00:00.000Z');
+  return !Number.isNaN(dt.valueOf())&&dt.toISOString().slice(0,10)===v;
+}
+function planIds(v,max){
+  return Array.isArray(v)&&v.length<=max&&v.every(validId)&&new Set(v).size===v.length;
+}
+function archiveReleaseEvidence(release,run){
+  if(release.digest!==run.digest||(run.testDigest&&run.testDigest!==release.digest))return;
+  const entries=release.evidence||=[];
+  if(entries.some(e=>e.id===run.id))return;
+  entries.unshift({id:run.id,when:run.when,rev:run.rev,kind:run.kind,passed:run.passed,map:run.map||'',
+    target:run.target,note:run.note.slice(0,1000),environment:run.environment||(run.kind==='checks'?'자동 검사':'웹 브라우저')});
+  entries.splice(24);
+}
+const optPlan=(o,k,fn)=>o[k]===undefined||fn(o[k]);
+function planTextObject(o,fields,max){
+  return !!o && typeof o==='object'&&!Array.isArray(o) && Object.keys(o).every(k=>has(fields,k)&&textValue(o[k],max));
+}
+function planningProblem(w){
+  if(!optPlan(w,'design',v=>planTextObject(v,designQuestions,1500)))return '한 장 기획서의 항목과 길이를 확인하세요.';
+  for(const t of w.tasks){
+    if(!optPlan(t,'release',v=>v===''||validId(v))||!optPlan(t,'priority',v=>['must','later'].includes(v))||!optPlan(t,'workClass',v=>['system','content'].includes(v))||
+      !optPlan(t,'estimate',v=>num(v,0,1e6))||!optPlan(t,'spent',v=>num(v,0,1e6))||!optPlan(t,'quantity',v=>integer(v,1,100000))||
+      !optPlan(t,'budget',v=>integer(v,0,1e12))||!optPlan(t,'cost',v=>integer(v,0,1e12))||
+      !optPlan(t,'begin',planDay)||!optPlan(t,'due',planDay)||(t.begin&&t.due&&t.due<t.begin)||!optPlan(t,'needs',v=>planIds(v,240)))
+      return t.title+'의 선행 작업·일정·작업 시간·비용을 확인하세요.';
+    if(t.bug!==undefined){
+      const b=t.bug;
+      if(!b||typeof b!=='object'||!Object.keys(bugFields).every(k=>optPlan(b,k,v=>textValue(v,1500)))||
+        !['map','object','story','line','release','saveSlot'].every(k=>optPlan(b,k,v=>v===''||validId(v)))||
+        !optPlan(b,'rev',v=>integer(v,0,1e9))||!optPlan(b,'urgency',v=>['auto','p0','p1','p2','p3'].includes(v))||!['progress','save'].every(k=>optPlan(b,k,v=>['unknown','none','degraded','blocked'].includes(v))))
+        return t.title+'의 버그 제보와 재현 정보를 확인하세요.';
+    }
+  }
+  const deps=dependencyProblem(w.tasks);if(deps)return deps;
+  if(!optPlan(w,'levels',levels=>rows(levels,0,240)&&levels.every(l=>
+    ['goal','practice','application','difficulty','observed'].every(k=>optPlan(l,k,v=>textValue(v,1500)))&&
+    ['combat','events'].every(k=>optPlan(l,k,v=>planIds(v,128))))))return '맵 학습 목표와 선행 규칙을 확인하세요.';
+  if(!optPlan(w,'studies',arr=>rows(arr,0,80)&&arr.every(s=>textValue(s.name,80,true)&&has(studyTypes,s.kind)&&validId(s.map)&&
+    ['endMap','object','story','line'].every(k=>optPlan(s,k,v=>v===''||validId(v)))&&
+    ['goal','criteria','art','sound','save','transition','observed'].every(k=>optPlan(s,k,v=>textValue(v,1500))))))return '제작 실험의 이름·구간·검증 기준을 확인하세요.';
+  if(!optPlan(w,'releases',rels=>rows(rels,0,60)&&rels.every(r=>has(releaseStages,r.stage)&&textValue(r.name,80,true)&&integer(r.rev,0,1e9)&&/^[a-f0-9]{64}$/.test(r.digest)&&
+    ['changes','issues','retrospect','nextPlan','artifact'].every(k=>optPlan(r,k,v=>textValue(v,2500)))&&
+    optPlan(r,'buildId',v=>v===''||/^[a-f0-9]{48}$/.test(v))&&optPlan(r,'reviewDate',planDay)&&optPlan(r,'store',v=>planTextObject(v,storeFields,2500))&&
+    optPlan(r,'screenshots',v=>planIds(v,60))&&optPlan(r,'screenshotFiles',v=>rows(v,0,60)&&v.every(a=>r.screenshots?.includes(a.id)&&textValue(a.name,120,true)&&soundRef(a.ref)&&!!a.ref))&&optPlan(r,'evidence',v=>rows(v,0,24)&&v.every(e=>integer(e.rev,0,1e9)&&integer(e.when,0,Number.MAX_SAFE_INTEGER)&&
+      ['checks','play'].includes(e.kind)&&typeof e.passed==='boolean'&&(e.map===''||validId(e.map))&&textValue(e.target,100)&&textValue(e.note,1000)&&textValue(e.environment,100)))&&optPlan(r,'checks',v=>!!v&&typeof v==='object'&&!Array.isArray(v)&&Object.keys(v).every(k=>{
+      const c=v[k];return has(milestoneChecks,k)&&!!c&&['pending','pass','fail'].includes(c.state)&&textValue(c.env,100)&&textValue(c.note,1500);
+    })))))return '출시 버전과 검수 근거의 형식을 확인하세요.';
+  for(const r of w.runs){
+    if(!['map','study','task','saveSlot','object','story','line'].every(k=>optPlan(r,k,v=>v===''||validId(v)))||
+      !optPlan(r,'environment',v=>textValue(v,100))||!optPlan(r,'lastMap',validId)||!optPlan(r,'frames',v=>integer(v,0,1e9))||
+      !['frameAvgMs','frameP95Ms','loadMs','memoryBytes'].every(k=>optPlan(r,k,v=>num(v,0,Number.MAX_SAFE_INTEGER)))||
+      !optPlan(r,'testDigest',v=>/^[a-f0-9]{64}$/.test(v))||
+      !optPlan(r,'details',v=>planTextObject(v,observationFields,700)))return '플레이 관찰 기록의 장면·기기·버전을 확인하세요.';
+  }
+  return '';
+}
+
 function workProblem(d) {
-  if (d.mix && !['music','voice','fx'].every(k => num(d.mix[k],0,100))) return '오디오 믹서 음량을 확인하세요.';
+  if (d.mix && !['music','voice','fx'].every(k => num(d.mix[k],0,100)&&[undefined,'once','loop'].includes(d.mix[k+'Mode']))) return '오디오 믹서 음량을 확인하세요.';
   const w = d.work;
   if (w === undefined) return '';
   if (!w || !textValue(w.brief,3000) || !textValue(w.milestone,120) ||
       !rows(w.tasks,0,240) || !rows(w.assets,0,400) || !rows(w.prefabs,0,160) || !rows(w.runs,0,60))
     return '제작 보드의 항목 수와 프로젝트 기획을 확인하세요.';
+  if(w.ruleProbe!==undefined&&!storedProgramProbe(w.ruleProbe))return '같은 입력으로 규칙 비교 / 검수 기록 형식을 확인하세요.';
+  if(w.presetBindings!==undefined && (!rows(w.presetBindings,0,1024)||w.presetBindings.some(v=>!['widget','character','object'].includes(v.kind)||!validId(v.preset)||!validId(v.target)||(v.owner!==''&&!validId(v.owner)))))return '프리셋의 연결 인스턴스를 확인하세요.';
+  if(w.artGuide && (!imageRef(w.artGuide.image)||!textValue(w.artGuide.notes,1500)||!textValue(w.artGuide.mapId,60)))return '기준 장면의 이미지와 스타일을 확인하세요.';
   if(w.presets!==undefined && (!rows(w.presets,0,64) || w.presets.some(p=>!validStudioPreset(d,p))))return '저장한 프리셋의 구성이나 이름을 확인하세요.';
   if (w.tasks.some(t => !textValue(t.title,100,true) || !textValue(t.owner,60) || !textValue(t.criteria,1500) ||
       !has(WORK_STATES,t.state) || !has(WORK_KINDS,t.kind) || (!has(WORK_TARGETS,t.tool) && t.tool!=='') ||
@@ -1329,7 +1475,7 @@ function workProblem(d) {
       !Number.isSafeInteger(r.when) || !integer(r.rev,0,1e9) || !/^[0-9a-f]{64}$/.test(r.digest) ||
       (r.ticks!==undefined && !integer(r.ticks,0,1e9)) || (r.inputs!==undefined && !integer(r.inputs,0,1e9)) ||
       !textValue(r.target,100) || !textValue(r.owner,60))) return '검수 기록 형식을 확인하세요.';
-  return '';
+  return planningProblem(w);
 }
 function prefabFields(o) {
   const copy={};
@@ -1380,7 +1526,14 @@ function newInputSpec(mode='text'){
 }
 function controlValue(spec,raw){
   const value=String(raw??'');
-  if(spec.mode==='text')return value.slice(0,spec.limit);
+  if(spec.mode==='text'){
+    const clipped=value.slice(0,spec.limit),v=spec.validation;
+    if(!v)return clipped;
+    if(clipped.trim().length<v.minLength)return null;
+    if(clipped&&v.format==='digits'&&!/^[0-9]+$/.test(clipped))return null;
+    if(clipped&&v.format==='word'&&!/^[A-Za-z0-9_가-힣-]+$/.test(clipped))return null;
+    return clipped;
+  }
   if(spec.mode==='toggle')return value==='true'||value==='false'?value:null;
   if(spec.mode==='choice')return spec.options.includes(value)?value:null;
   if(!/^[+-]?\d{1,9}$/.test(value))return null;
@@ -1394,7 +1547,8 @@ function validInputSpec(c){
     integer(c.min,-99999,99999) && integer(c.max,c.min+1,99999) && integer(c.step,1,c.max-c.min) &&
     Array.isArray(c.options) && c.options.length>=1 && c.options.length<=16 &&
     c.options.every(v=>textValue(v,60,true)) && new Set(c.options).size===c.options.length &&
-    controlValue(c,c.initial)===c.initial;
+    (!c.validation||(c.mode==='text'&&integer(c.validation.minLength,0,c.limit)&&['any','digits','word'].includes(c.validation.format)&&textValue(c.validation.message,100)))&&
+    ((c.mode==='text'&&c.initial===''&&!!c.validation)||controlValue(c,c.initial)===c.initial);
 }
 function controlKey(w,screenId){return w.control.key||screenId+'/'+w.id;}
 function readControl(w,screenId,values){return controlValue(w.control,values.get(controlKey(w,screenId))??w.control.initial)??w.control.initial;}
@@ -1410,7 +1564,7 @@ function controlText(text,values,defaults){
 const validShortcut=key=>typeof key==='string' && /^(?:Key[A-Z]|Digit[0-9]|Space|Enter|Arrow(?:Up|Down|Left|Right)|Minus|Equal)?$/.test(key);
 const stickDefaults=()=>({thumb:38,dead:14,knob:'#c5eef1',ring:'#c5eef1'});
 const validStick=s=>!!s && integer(s.thumb,15,75) && integer(s.dead,0,80) && color(s.knob) && color(s.ring);
-const PRESET_KINDS={rule:'전투 규칙',layout:'화면 디자인',widget:'UI 요소',shot:'대사 구도',tuning:'전투 수치',workspace:'제작실 배치',arena:'친선전 조작'};
+const PRESET_KINDS={eventRule:'이벤트 규칙',rule:'전투 규칙',layout:'화면 디자인',widget:'UI 요소',shot:'대사 구도',tuning:'전투 수치',workspace:'제작실 배치',arena:'친선전 조작',character:'캐릭터 세팅',object:'맵 오브젝트',asset:'프로젝트 에셋',controls:'조작 배치'};
 const studioPaintDefaults=()=>({surface:'#233847',entry:'#152b38',ink:'#eef4f6',line:'#57808a',accent:'#a0e7d4',radius:7,height:40});
 function validWorkspace(p){
   const t=p?.paint;
@@ -1426,9 +1580,13 @@ function presetWidget(doc,w){
   return copy;
 }
 function capturePreset(doc,kind,current){
-  if(kind==='layout')return {source:current.id,kind:current.kind,tint:current.tint,shade:current.shade,skin:current.skin,
+  if(kind==='layout')return {source:current.id,kind:current.kind,tint:current.tint,shade:current.shade,skin:current.skin,...(current.navigation?{navigation:structuredClone(current.navigation)}:{}),
     elements:current.elements.map(w=>presetWidget(doc,w))};
   if(kind==='widget')return presetWidget(doc,current);
+  if(kind==='controls')return {source:current.id,elements:current.elements.filter(isPlayableControl).map(w=>presetWidget(doc,w))};
+  if(kind==='character')return portableActorSettings(current);
+  if(kind==='object')return prefabFields(current);
+  if(kind==='asset')return {name:current.name,folder:current.folder,kind:current.kind,ref:current.ref};
   return structuredClone(current);
 }
 function resolvePresetLinks(w,source,target,doc,allowMissing){
@@ -1445,15 +1603,27 @@ function resolvePresetLinks(w,source,target,doc,allowMissing){
 function validStudioPreset(doc,p){
   if(!has(PRESET_KINDS,p.kind)||!textValue(p.name,60,true)||!p.data||typeof p.data!=='object')return false;
   const data=p.data;
+  if(p.kind==='eventRule')return validId(data.id)&&!eventProgramProblem([data],doc,true);
   if(p.kind==='tuning')return Object.entries(FIELDS).every(([k,[,min,max,step]])=>num(data[k],min,max)&&(step!==1||Number.isInteger(data[k])));
   if(p.kind==='rule')return (data.actor===''||validId(data.actor)) && !validateCombatRules([{...data,actor:''}],[]);
   if(p.kind==='shot')return validShot(data);
   if(p.kind==='workspace')return validWorkspace(data);
+  if(p.kind==='controls')return rows(data.elements,1,LIMIT.widgets)&&data.elements.every(isPlayableControl)&&
+    validStudioPreset(doc,{...p,kind:'layout',data:{...data,kind:'custom',tint:'#000000',skin:'',shade:0}});
+  if(p.kind==='object')return ['prop','enemy','platform'].includes(data.type)&&sceneObjectOK(doc,{width:100,height:100},{...data,x:50,y:0});
+  if(p.kind==='asset')return ['image','audio'].includes(data.kind)&&textValue(data.name,120,true)&&textValue(data.folder,60)&&/^asset:[0-9a-f]{64}$/.test(data.ref);
+  if(p.kind==='character'){
+    if(!data || ['id','name','region','summary','roadmap','__proto__','prototype','constructor'].some(k=>Object.hasOwn(data,k)))return false;
+    const check=seed(), actor=check.characters[0];
+    check.characters=[{...actor,...data}];
+    return !problem(check);
+  }
   if(p.kind==='arena')return validArenaControls(data);
   const layout=p.kind==='layout';
   if(layout && (!validId(data.source)||!has(SCREEN_TYPES,data.kind)||!color(data.tint)||!num(data.shade,0,100)||
     !imageRef(data.skin)||!rows(data.elements,0,LIMIT.widgets)))return false;
   if(!layout && !validId(p.origin))return false;
+  if(layout && data.navigation && (typeof data.navigation!=='object'||!Object.values(data.navigation).every(v=>v===''||v==='$field'||validId(v))))return false;
   const elements=layout?data.elements:[data];
   if(layout && data.kind==='dialogue' && elements.filter(w=>w.type==='dialogue'&&w.visible).length!==1)return false;
   const keys=elements.map(w=>w?.shortcut).filter(Boolean);
@@ -1463,7 +1633,7 @@ function validStudioPreset(doc,p){
     return resolvePresetLinks(copy,'','',doc,true) && validScreenWidget(doc,copy);
   });
 }
-const paintFields=['color','background','opacity','fontSize','align','radius','borderWidth','borderColor','pressedColor','imageFit','image','shape','points'];
+const paintFields=['color','background','opacity','fontSize','align','radius','borderWidth','borderColor','pressedColor','imageFit','image','shape','points','fontFamily'];
 function itemSkinFrom(w){
   return {color:w.color,fill:w.background,press:w.pressedColor,edge:w.borderColor,width:w.borderWidth,radius:w.radius,size:w.fontSize};
 }
@@ -1483,6 +1653,14 @@ function applyUIPreset(doc,p,layout,target,styleOnly=false){
   if(p.kind==='layout'){
     if(layout.kind!==data.kind)throw Error('같은 종류의 화면을 선택하세요. 이 프리셋으로 새 화면을 만들 수도 있어요.');
     for(const w of data.elements)resolvePresetLinks(w,data.source,layout.id,doc,false);
+    if(data.navigation){
+      const nav={...data.navigation};
+      for(const k of ['back','resume','next']){
+        if(nav[k]===data.source)nav[k]=layout.id;
+        if(nav[k]&&nav[k]!=='$field'&&!named(doc.layouts,nav[k]))throw Error('화면 프리셋의 '+k+' 경로를 다시 연결하세요.');
+      }
+      layout.navigation=nav;
+    }else delete layout.navigation;
     Object.assign(layout,{tint:data.tint,shade:data.shade,skin:data.skin,elements:data.elements});
     return layout.elements[0]?.id||'';
   }
@@ -1490,6 +1668,7 @@ function applyUIPreset(doc,p,layout,target,styleOnly=false){
   if(data.type==='dialogue'&&layout.elements.some(w=>w.type==='dialogue'))throw Error('이 화면에는 이미 대화 상자가 있어요.');
   resolvePresetLinks(data,p.origin,layout.id,doc,false);
   if(data.shortcut&&layout.elements.some(w=>w.shortcut===data.shortcut))delete data.shortcut;
+  if(data.gesture?.pad>=0&&layout.elements.some(w=>w.gesture?.pad===data.gesture.pad))data.gesture.pad=-1;
   data.id=uid();layout.elements.push(data);return data.id;
 }
 
@@ -1521,4 +1700,218 @@ function validArenaControls(list){
       integer(s.height,28,96)&&integer(s.span,0,100)&&(!ARENA_PADS.includes(s.id)||
       (num(s.x,0,95)&&num(s.y,0,85)&&num(s.w,5,100-s.x+.001)&&num(s.h,15,100-s.y+.001)));
   });
+}
+
+// A fixed reference viewport keeps edge margins proportional across tablet orientations.
+const screenAliases={home:'홈',inventory:'인벤토리',settings:'설정'};
+const buttonGestures={press:'누를 때',release:'뗄 때',hold:'길게 누르기',double:'두 번 연속 누르기'};
+const controllerButtons=['A / 아래','B / 오른쪽','X / 왼쪽','Y / 위','왼쪽 범퍼','오른쪽 범퍼','왼쪽 트리거','오른쪽 트리거','보기','메뉴','왼쪽 스틱','오른쪽 스틱','방향 위','방향 아래','방향 왼쪽','방향 오른쪽'];
+function validWidgetDesign(w){
+  const a=w.anchor,s=w.states,g=w.gesture;
+  return (w.editorGroup===undefined||textValue(w.editorGroup,50))&&(!a||(['free','left','center','right'].includes(a.horizontal)&&
+    ['free','top','center','bottom'].includes(a.vertical)&&num(a.dx,-1600,1600)&&num(a.dy,-1600,1600)))&&
+    (!w.fontFamily||['system','serif','mono'].includes(w.fontFamily))&&
+    (!s||(w.type==='button'&&color(s.selected)&&color(s.disabled)&&signalKey(s.flag,true)&&textValue(s.selectedMark,12)&&textValue(s.disabledMark,12)))&&
+    (!g||(w.type==='button'&&has(buttonGestures,g.phase)&&integer(g.ms,80,2000)&&typeof g.cancelOutside==='boolean'&&integer(g.pad,-1,15)));
+}
+function widgetRect(w,width,height){
+  let x=w.x,y=w.y;
+  const a=w.anchor;if(!a||width<=0||height<=0)return {x,y,w:w.w,h:w.h};
+  const scale=Math.min(width/800,height/450);
+  const offset=(axis,delta,size,extent,old)=>{
+    if(axis==='free')return old;
+    const d=delta*scale*100/extent;
+    return clamp(axis==='center'?(100-size)/2+d:['right','bottom'].includes(axis)?100-size-d:d,0,100-size);
+  };
+  x=offset(a.horizontal,a.dx,w.w,width,x);y=offset(a.vertical,a.dy,w.h,height,y);
+  return {x,y,w:w.w,h:w.h};
+}
+function setWidgetRect(w,rect,width,height){
+  Object.assign(w,rect);if(!w.anchor||width<=0||height<=0)return;
+  const scale=Math.min(width/800,height/450);
+  for(const [key,axis,pos,size,extent] of [['dx',w.anchor.horizontal,w.x,w.w,width],['dy',w.anchor.vertical,w.y,w.h,height]]){
+    if(axis==='free')continue;
+    const offset=axis==='center'?pos-(100-size)/2:['right','bottom'].includes(axis)?100-size-pos:pos;
+    w.anchor[key]=clamp(Math.round(offset*extent/scale)/100,-1600,1600);
+  }
+}
+function validScreenRoutes(doc){
+  const f=doc.frontScreens||{},exists=id=>!id||id==='$field'||!!named(doc.layouts,id);
+  if(!exists(f.entry)||Object.keys(screenAliases).some(k=>f[k]&&!named(doc.layouts,f[k])))return false;
+  return doc.layouts.every(l=>!l.navigation||(['back','resume','next'].every(k=>exists(l.navigation[k]))&&!(f.loading===l.id&&l.navigation.next===l.id)));
+}
+function screenEdges(doc,l){
+  const edges=[];
+  for(const w of l.elements.filter(w=>w.type==='button')){
+    const b=boundMenuButton(doc,w);
+    for(const step of [b,...b.steps])if(step.action==='open'||['back','resume','beginGame','confirmActor'].includes(step.action)){
+      const route=step.action==='open'?step.target:l.navigation?.[({beginGame:'next',confirmActor:'next'})[step.action]||step.action];
+      edges.push({id:w.id,label:w.text||INPUTS[w.action],action:step.action,target:route||'',flag:step.flag||w.showFlag||w.enableFlag||''});
+    }
+  }
+  return edges;
+}
+
+function portableActorSettings(actor){
+  const {id,name,region,summary,roadmap,...settings}=actor;
+  return structuredClone(settings);
+}
+// Only media fields take part: a player's text may legitimately look like an asset URL.
+function visitStudioMedia(preset,visitor){
+  function visit(obj,path){
+    if(!obj||typeof obj!=='object')return;
+    for(const [key,value] of Object.entries(obj)){
+      if(value&&typeof value==='object'){visit(value,path+'/'+(Array.isArray(obj)?value.id||key:key));continue;}
+      if(typeof value!=='string'||!/^asset:[0-9a-f]{64}$/.test(value))continue;
+      const kind=key==='ref'&&preset.kind==='asset'?preset.data.kind:
+        ['sound','voice','music'].includes(key)?'audio':['image','sprite','portrait','backdrop','skin','fx'].includes(key)?'image':'';
+      if(kind)visitor(obj,key,kind,path+'/'+key);
+    }
+  }
+  visit(preset.data,'');
+}
+function presetFileRefs(preset){
+  const refs=new Map();
+  visitStudioMedia(preset,(obj,key,kind)=>{const ref=obj[key];refs.set(ref,{ref,kind});});
+  return [...refs.values()];
+}
+function presetExternalTargets(doc,p){
+  const groups=new Map();
+  function add(collection,obj,key){
+    if(!obj[key])return;
+    const value=obj[key], k=collection+'/'+value;
+    if(!groups.has(k))groups.set(k,{collection,value,exists:!!named(doc[collection]||[],value),set:[]});
+    groups.get(k).set.push(id=>{obj[key]=id;});
+  }
+  if(p.kind==='rule'||p.kind==='eventRule')add('characters',p.data,'actor');
+  if(p.kind==='eventRule'){
+    add('scenes',p.data,'map');
+    for(const a of p.data.actions||[])if(['cancel','reset'].includes(a.kind)&&a.key!==p.data.id)add('eventRules',a,'key');
+  }
+  if(['layout','widget','controls'].includes(p.kind)){
+    const widgets=p.kind==='widget'?[p.data]:p.data.elements, source=p.kind==='widget'?p.origin:p.data.source;
+    for(const [key,id] of Object.entries(p.data.navigation||{}))if(id&&id!=='$field'&&id!==source)add('layouts',p.data.navigation,key);
+    for(const widget of widgets)for(const step of [widget,...widget.steps]){
+      const type={open:'layouts',gotoMap:'scenes',startStory:'stories',selectActor:'characters'}[step.action];
+      if(type && !(step.action==='open'&&step.target===source))add(type,step,'target');
+    }
+  }
+  return [...groups.values()];
+}
+function bindingTarget(d,link){
+  if(link.kind==='character')return named(d.characters,link.target);
+  const owner=named(link.kind==='object'?d.scenes:d.layouts,link.owner);
+  return owner&&named(link.kind==='object'?owner.objects:owner.elements,link.target);
+}
+function bindToPreset(d,p,owner,target){
+  const links=(d.work||=emptyWork()).presetBindings||=[];
+  const existing=links.find(v=>v.kind===p.kind&&v.owner===owner&&v.target===target);
+  if(existing){existing.preset=p.id;return;}
+  if(links.length>=1024)throw Error('연결 인스턴스 공간이 부족해요.');
+  links.push({id:uid(),kind:p.kind,preset:p.id,owner,target});
+}
+function linkedPresetValue(d,p,link,allowMissing=false){
+  const value=structuredClone(p.data);
+  if(p.kind==='widget'){
+    if(!resolvePresetLinks(value,p.origin,link.owner,d,allowMissing))throw Error('연결된 화면의 버튼 목적지를 확인하세요.');
+    value.id=link.target;
+  }
+  return value;
+}
+function updatePresetInstances(d,before,after){
+  const links=d.work?.presetBindings||[],updates=[];
+  for(const link of links.filter(l=>l.preset===before.id)){
+    const target=bindingTarget(d,link);
+    if(!target)continue;
+    const prior=linkedPresetValue(d,before,link,true), next=linkedPresetValue(d,after,link);
+    const current=before.kind==='character'?portableActorSettings(target):before.kind==='object'?prefabFields(target):presetWidget(d,target);
+    const merged=inheritPrefab(prior,next,current);
+    if(before.kind==='object'&&next.type!==prior.type)throw Error('종류가 다른 개체로 바꾸려면 새 프리셋을 만드세요.');
+    if(before.kind==='widget'){
+      const layout=named(d.layouts,link.owner);
+      if(!validScreenWidget(d,merged) || (merged.shortcut && layout.elements.some(w=>w.id!==link.target&&w.shortcut===merged.shortcut)))
+        throw Error(layout.name+'의 연결 버튼 단축키 또는 목적지를 확인하세요.');
+    }
+    updates.push({target,prior,merged});
+  }
+  for(const {target,prior,merged} of updates){
+    for(const k of Object.keys(prior))if(!Object.hasOwn(merged,k))delete target[k];
+    Object.assign(target,merged);
+  }
+  if(d.work?.presetBindings)d.work.presetBindings=links.filter(l=>bindingTarget(d,l));
+}
+
+const STAGE_CUES={show:'레이어 등장',hide:'레이어 퇴장',move:'레이어 위치',camera:'배경 카메라 이동',sound:'효과음',flag:'게임 상태 설정'};
+const defaultStageTrack=()=>({rate:0,autoTick:0,skipTo:'',completeOnSkip:false,cues:[]});
+function validStageTrack(line,story){
+  const t=line.stageTrack;
+  if(t===undefined)return true;
+  if(!t||!integer(t.rate,0,120)||!integer(t.autoTick,0,3600)||typeof t.completeOnSkip!=='boolean'||
+    !(t.skipTo===''||story.nodes.some(n=>n?.id===t.skipTo))||!rows(t.cues,0,40))return false;
+  return t.cues.every(c=>{
+    if(!integer(c.at,0,3600)||!has(STAGE_CUES,c.kind))return false;
+    if(c.kind==='sound')return soundRef(c.sound);
+    if(c.kind==='flag')return signalKey(c.key,true)&&typeof c.on==='boolean';
+    if(c.kind!=='camera' && !line.shot?.layers.some(l=>l.id===c.target && l.kind!=='choices'))return false;
+    return !['camera','move'].includes(c.kind)||(num(c.dx,-100,100)&&num(c.dy,-100,100));
+  });
+}
+function stageText(line,tick){
+  if(!line.stageTrack?.rate)return line.text;
+  return Array.from(line.text||'').slice(0,Math.floor(tick*line.stageTrack.rate/60)).join('');
+}
+function stageLayers(line,tick){
+  const changes=new Map();let camera=null;
+  for(const cue of (line.stageTrack?.cues||[]).slice().sort((a,b)=>a.at-b.at)){
+    if(cue.at>tick)break;
+    if(cue.kind==='camera'){camera=cue;continue;}
+    if(!['show','hide','move'].includes(cue.kind))continue;
+    const state=changes.get(cue.target)||{};
+    if(cue.kind==='move'){state.dx=cue.dx;state.dy=cue.dy;}else state.visible=cue.kind==='show';
+    changes.set(cue.target,state);
+  }
+  return {changes,camera};
+}
+const clipPaintDefaults=()=>({pivotX:50,pivotY:100,scale:100,repeat:'state'});
+function validClipPaint(s){
+  return !s || (num(s.pivotX,0,100)&&num(s.pivotY,0,100)&&num(s.scale,10,300)&&['state','loop','once'].includes(s.repeat));
+}
+function prefabImpact(doc,template,source){
+  const next=prefabFields(source), prior=template.object;
+  function paths(a,b,path='',out=[]){
+    if(JSON.stringify(a)===JSON.stringify(b))return out;
+    if((a&&typeof a==='object'&&!Array.isArray(a))||(b&&typeof b==='object'&&!Array.isArray(b))){
+      for(const key of new Set([...Object.keys(a||{}),...Object.keys(b||{})]))paths(a?.[key],b?.[key],path?path+'.'+key:key,out);
+    }else out.push(path);
+    return out;
+  }
+  return doc.scenes.flatMap(m=>m.objects.filter(o=>o.prefab===template.id).map(o=>{
+    const value=prefabFields(o),merged=o===source?next:inheritPrefab(prior,next,value);
+    return {mapId:m.id,objectId:o.id,changed:paths(value,merged),overrides:paths(next,merged),source:o===source};
+  }));
+}
+
+const defaultCameraFrame=()=>({zoom:1,left:0,right:100,bottom:0,top:100,fadeTicks:0,fadeColor:'#000000'});
+function validCameraFrame(f){
+  return !!f&&num(f.zoom,1,3)&&num(f.left,0,100)&&num(f.right,f.left,100)&&num(f.bottom,0,100)&&num(f.top,f.bottom,100)&&
+    (f.fadeTicks===undefined||integer(f.fadeTicks,0,240))&&(f.fadeColor===undefined||color(f.fadeColor));
+}
+function cameraFrame(map){
+  const f=map.camera?.frame||defaultCameraFrame(),size=100/f.zoom;
+  const w=Math.max(0,map.width-size),h=Math.max(0,(map.height||100)-size);
+  return {zoom:f.zoom,left:w*f.left/100,right:w*f.right/100,bottom:h*f.bottom/100,top:h*f.top/100};
+}
+
+const isPlayableControl=w=>w&&['button','input','joystick'].includes(w.type);
+function controlPresetElements(doc,p,layout){
+  if(!validStudioPreset(doc,p))throw Error('조작 배치의 요소를 확인하세요.');
+  const keep=layout.elements.filter(w=>!isPlayableControl(w));
+  if(keep.length+p.data.elements.length>LIMIT.widgets)throw Error('화면 요소 공간이 부족해요.');
+  const insert=layout.elements.findIndex(isPlayableControl),ids=new Set(keep.map(w=>w.id));
+  const controls=structuredClone(p.data.elements);
+  for(const w of controls){
+    resolvePresetLinks(w,p.data.source,layout.id,doc,false);
+    if(ids.has(w.id))w.id=uid();ids.add(w.id);
+  }
+  keep.splice(insert<0?keep.length:insert,0,...controls);return keep;
 }

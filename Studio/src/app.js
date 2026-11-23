@@ -18,7 +18,7 @@ let past = [],
   future = [],
   lastGroup = null;
 const expandedSections = new Map();
-const draftKey = 'dreamwalker-team-draft-v1';
+const draftKey = inspectionId?'dreamwalker-verification-draft-v1:'+inspectionId:'dreamwalker-team-draft-v1';
 let draftTimer,
   dirtyCheckTimer,
   publishedText = '';
@@ -26,7 +26,9 @@ function persistDraft() {
   clearTimeout(draftTimer);
   if (!dirty || !project || !record) return;
   try {
-    localStorage.setItem(draftKey, JSON.stringify({ rev: record.rev, project }));
+    const now=Date.now();
+    if(inspectionId)flushWorkspaceDraft().catch(err=>note(err.message));
+    localStorage.setItem(draftKey, JSON.stringify({when:now, rev: record.rev, project}));
   } catch {
     note('기기 초안을 저장할 공간이 부족해요. 백업을 내보내세요.');
   }
@@ -42,6 +44,10 @@ function note(text) {
   $('#note').textContent = text;
 }
 async function api(path, body) {
+  if(inspectionId){
+    const local=await inspectionRequest(path,body);
+    if(local!==undefined)return local;
+  }
   const response = await fetch(
     '/api/' + path,
     body === undefined
@@ -63,7 +69,7 @@ function mark(grouped = false) {
     clearTimeout(dirtyCheckTimer);
     dirtyCheckTimer = setTimeout(() => mark(), 180);
   }
-  $('#status').textContent = dirty ? '편집 중 · 저장 전' : '공유 버전 v' + record.rev;
+  $('#status').textContent = inspectionId ? '검수 사본 · v'+record.rev+(dirty?' · 저장 전':'') : dirty ? '편집 중 · 저장 전' : '공유 버전 v' + record.rev;
   $('#undo').disabled = !past.length;
   $('#redo').disabled = !future.length;
   clearTimeout(draftTimer);
@@ -153,6 +159,10 @@ function draw() {
   const hasInspector=!!$('#content .inspector');
   $('#inspector-switch').hidden=!hasInspector;
   if (!hasInspector) $('#editor').classList.remove('inspect-mode');
+  if(typeof showWorkReturn==='function')showWorkReturn();
+  if(tab==='quality'||tab==='versions')addInspectionWorkspace($('#content .canvas-panel')||$('#content'));
+  if(tab==='quality')addCapabilityMatrix($('#content .canvas-panel')||$('#content'));
+  if(tab==='versions')addRevisionComparison($('#content .canvas-panel')||$('#content'));
   for (const section of document.querySelectorAll('#content details')) {
     const key = tab + '|' + (section.dataset.persist || section.querySelector('summary').textContent);
     section.dataset.key = key;
@@ -231,7 +241,7 @@ async function exportProject() {
     assets = {};
   note('백업 파일을 만들고 있어요…');
   for (const hash of new Set([...imageRefs(snapshot),...soundRefs(snapshot)])) {
-    const r = await fetch('/api/assets/' + hash);
+    const r = await studioAssetRead('/api/assets/' + hash);
     if (!r.ok) throw Error('에셋을 가져오지 못해 백업을 중단했어요.');
     assets[hash] = await toDataUrl(await r.blob());
   }
@@ -263,7 +273,7 @@ async function importProject(file) {
       const blob = await (await fetch(data)).blob();
       const ref = await uploadAsset(blob);
       if (ref !== 'asset:' + hash) throw Error('백업 에셋의 내용이 원본과 달라요.');
-    } else if (!(await fetch('/api/assets/' + hash)).ok) throw Error('파일에 필요한 에셋이 빠져 있어요.');
+    } else if (!(await studioAssetRead('/api/assets/' + hash)).ok) throw Error('파일에 필요한 에셋이 빠져 있어요.');
   }
   if (baseProject !== project || base !== JSON.stringify(project))
     throw Error('가져오는 동안 초안이 변경됐어요. 다시 시도하세요.');
@@ -462,10 +472,12 @@ async function openEditor() {
     const requestedScreen=new URLSearchParams(location.search).get('screen');
     if(tab==='assistant'&&requestedScreen&&named(r.project.layouts||[],requestedScreen))layoutId=requestedScreen;
     loadRecord(r);
-    if (access.reviewRequired && !access.owner) $('#save').textContent = '소유자 검토 요청';
+    if(inspectionId)$('#save').textContent='검수 사본 저장';
+    else if (access.reviewRequired && !access.owner) $('#save').textContent = '소유자 검토 요청';
     if (location.pathname !== '/play')
       try {
-        const local = JSON.parse(localStorage.getItem(draftKey));
+        let local=JSON.parse(localStorage.getItem(draftKey));
+        if(inspectionId){const dbDraft=await inspectionGet('drafts',inspectionId);if((dbDraft?.when||0)>(local?.when||0))local=dbDraft;}
         if (local?.project) {
           const base = [r, ...r.history].find((v) => v.rev === local.rev),
             draft = migrateProject(local.project);
@@ -538,7 +550,7 @@ $('#save').onclick = async () => {
       sent = JSON.stringify(project),
       publication = JSON.parse(sent);
     await upgradeInlineArt(publication);
-    if (access.reviewRequired && !access.owner) {
+    if (!inspectionId && access.reviewRequired && !access.owner) {
       const label = prompt('검토할 변경 내용 한 줄', '');
       if (!label) return;
       await api('review', { rev, project: publication, label });
@@ -549,6 +561,7 @@ $('#save').onclick = async () => {
     if (JSON.stringify(project) === sent) {
       try {
         localStorage.removeItem(draftKey);
+        if(inspectionId)await inspectionWrite('drafts',inspectionId,null);
       } catch {}
       loadRecord(r);
     } else {
@@ -556,7 +569,7 @@ $('#save').onclick = async () => {
       publishedText = JSON.stringify(r.project);
       mark();
     }
-    note('공유 버전 v' + r.rev + ' 저장 완료');
+    note((inspectionId?'검수 사본 v':'공유 버전 v') + r.rev + ' 저장 완료');
   } catch (e) {
     note(e.message);
   } finally {

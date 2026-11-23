@@ -22,6 +22,11 @@ async function chatFixture(){
         const task=JSON.parse((await call('dreamwalker_read_request',{request_id:id})).content[0].text);
         window.modelTurns.push({text,screen:task.context.screen.id,work:task.context.work});
         const changes=[{op:'addWidget',screen:'',ref:'snowTest',values:Object.entries({kind:'text',text:'새 설산 안내',x:'12',y:'6',w:'42',h:'10'}).map(([key,value])=>({key,value}))}];
+        const target=task.context.work?.targets?.find(t=>t.op==='editMap');
+        if(target){
+          const patch=(key,value)=>({op:'editMap',screen:'',ref:target.ref,values:[{key,value:String(value)}]});
+          changes.push(patch('width',target.values.width===3200?3199:target.values.width+1),patch('name','선택 해제 검수'));
+        }
         const response=await call('dreamwalker_submit_reply',{request_id:id,message:'현재 작업을 읽고 설산 안내를 제안했어요.',changes});
         if(response.isError)throw Error(response.content[0].text);ok({});
       }else if(m.method==='sampling/createMessage'){
@@ -62,8 +67,14 @@ export async function testGptWorkbenchBrowser(page,origin,hostBrowser){
     const turns=await h.evaluate(()=>window.modelTurns);assert.equal(turns.length,1);assert.equal(turns[0].work.area,'scene');assert.equal(turns[0].work.title,'GPT 검수용 설산');
     const id=turns[0].screen;
     assert.equal(await page.evaluate(id=>named(project.layouts,id).elements.some(w=>w.text==='새 설산 안내'),id),false);
-    await apply.click();assert.equal(await page.evaluate(id=>named(project.layouts,id).elements.some(w=>w.text==='새 설산 안내'),id),true);
+    const width=await page.evaluate(()=>activeMap().width);
+    await dock.getByRole('checkbox',{name:'변경 항목 3 · 맵',exact:true}).uncheck();
+    await dock.getByText(/맵 너비 · .*→/).waitFor();
+    await apply.click();assert.equal(await page.getByLabel('맵 이름',{exact:true}).inputValue(),'GPT 검수용 설산');
+    assert.equal(await page.evaluate(()=>activeMap().width),width===3200?3199:width+1);
+    assert.equal(await page.evaluate(id=>named(project.layouts,id).elements.some(w=>w.text==='새 설산 안내'),id),true);
     await page.locator('#undo').click();assert.equal(await page.evaluate(id=>named(project.layouts,id).elements.some(w=>w.text==='새 설산 안내'),id),false);
+    assert.equal(await page.evaluate(()=>activeMap().width),width);
     await ui.getByRole('button',{name:'답변 확인',exact:true}).click();
     await ui.getByText('현재 작업을 읽고 설산 안내를 제안했어요.',{exact:true}).waitFor();
     await ui.getByRole('button',{name:'이 대화 연결 해제',exact:true}).click();

@@ -16,7 +16,7 @@ for (const [path, name, type] of [
   files[path] = [type, read('src/' + name)];
 }
 for (const name of [
-  'app',
+  'app','planning','rule-machine','arena-simulation','inspection-store','inspection-game','inspection-lab','capabilities',
   'file-wire', 'device-files', 'file-import', 'desk', 'asset-desk', 'scene-tools',
   'production', 'combat-editor',
   'network-test',
@@ -50,9 +50,9 @@ const native = JSON.parse(read('templates/unity.json'));
 const web = {
   'Web/index.html': read('templates/web-index.html'),
   'Web/boot.js': read('templates/web-boot.js'),
-  'Web/model.js': read('src/model.js'),
+  'Web/model.js': read('src/model.js')+'\n'+read('src/rule-machine.js'),
   'Web/simulation.js': read('src/simulation.js'),
-  'Web/game.js': read('src/game.js'),
+  'Web/game.js': read('src/inspection-game.js')+'\n'+read('src/game.js'),
   'Web/game.css': read('src/style.css'),
   'Web/dialogue.js': read('src/shot-view.js')+'\n'+read('src/stories.js').split('function previewStory(')[0],
   'Web/view.js': read('src/view.js').split('function pointerDrag(')[0],
@@ -69,7 +69,7 @@ fs.writeFileSync(
     'const SOURCE_BASE=' +
     JSON.stringify(sourceBase) +
     ';\n' +
-    ['model','design-plan','gpt-service','personal-gpt-service','gpt-workbench-service','gpt-mcp', 'github-runner', 'android-service', 'link-test-service', 'file-relay-service', 'arena-simulation', 'arena-service', 'server']
+    ['model','rule-machine','design-plan','gpt-service','personal-gpt-service','gpt-workbench-service','gpt-mcp', 'github-runner', 'android-service', 'link-test-service', 'file-relay-service', 'arena-simulation', 'arena-service', 'server']
       .map((n) => read('src/' + n + '.js'))
       .join('\n'),
 );

@@ -6,7 +6,7 @@ namespace Dreamwalker.Demo
     [Serializable] public class StudioRuleEffect { public string kind; public int amount; }
     [Serializable] public class StudioCombatRule
     {
-        public string id, name, actor, @event;
+        public string id, name, actor, @event, appliesTo;
         public bool enabled;
         public int every, hpBelow, cooldown;
         public StudioRuleEffect[] effects;
@@ -31,7 +31,7 @@ namespace Dreamwalker.Demo
             if (hp <= 0 || rules == null) return 0;
             foreach (var rule in rules)
             {
-                if (rule == null || !rule.enabled || rule.@event != moment || rule.every < 1 ||
+                if (rule == null || !rule.enabled || rule.appliesTo == "arena" || rule.@event != moment || rule.every < 1 ||
                     (!string.IsNullOrEmpty(rule.actor) && rule.actor != actor) || hp * 100 > maximum * rule.hpBelow) continue;
                 var counter = counters.Find(value => value.id == rule.id);
                 if (counter == null) { counter = new StudioRuleCounter { id = rule.id }; counters.Add(counter); }

@@ -43,10 +43,52 @@ internal sealed partial class StudioScreenView
     private bool MaskGameKey(string code)
     {
         if(!world.Running || world.Project==null || world.Map==null)return false;
-        if(editingField!=null || openChoices!=null || (usedFrame==Time.frameCount && usedKeys.Contains(code)))return true;
+        if(world.Project.authoredKeysOnly || editingField!=null || openChoices!=null || (usedFrame==Time.frameCount && usedKeys.Contains(code)))return true;
         if(ActiveShot!=null || Layout?.elements==null)return false;
         foreach(var w in Layout.elements)if(w.shortcut==code && world.Visible(w) && world.Enabled(w))return true;
         return false;
+    }
+    private readonly StudioInputGestureClock gestureClock=new StudioInputGestureClock();
+    private readonly Dictionary<int,StudioWidget> fingerWidgets=new Dictionary<int,StudioWidget>();
+    private readonly HashSet<string> allowedMoves=new HashSet<string>();
+    private readonly HashSet<int> liveFingers=new HashSet<int>();
+    private readonly List<int> lostFingers=new List<int>();
+    private static long InputMs=>(long)(Time.unscaledTimeAsDouble*1000);
+    private static bool Movement(StudioWidget w)=>w.action=="left"||w.action=="right";
+    private void GestureDown(string key,string group,StudioWidget w){
+        var layout=Layout;
+        gestureClock.Down(key,layout.id+"/"+w.id+"/"+group,w.gesture,InputMs,()=>{
+            if(Layout!=layout||!world.Visible(w)||!world.Enabled(w))return;
+            if(Movement(w)){if(!world.AllowProgramInput(w.action))return;allowedMoves.Add(key);}
+            pressedId=w.id;pressUntil=Time.unscaledTime+.18f;world.Activate(w,!Movement(w));
+        });
+    }
+    private static bool PadPressed(int index){
+#if ENABLE_INPUT_SYSTEM
+        var p=Gamepad.current;if(p==null)return false;
+        switch(index){case 0:return p.buttonSouth.isPressed;case 1:return p.buttonEast.isPressed;case 2:return p.buttonWest.isPressed;case 3:return p.buttonNorth.isPressed;
+            case 4:return p.leftShoulder.isPressed;case 5:return p.rightShoulder.isPressed;case 6:return p.leftTrigger.isPressed;case 7:return p.rightTrigger.isPressed;
+            case 8:return p.selectButton.isPressed;case 9:return p.startButton.isPressed;case 10:return p.leftStickButton.isPressed;case 11:return p.rightStickButton.isPressed;
+            case 12:return p.dpad.up.isPressed;case 13:return p.dpad.down.isPressed;case 14:return p.dpad.left.isPressed;case 15:return p.dpad.right.isPressed;default:return false;}
+#else
+        return index>=0 && index<16 && UnityEngine.Input.GetKey((KeyCode)((int)KeyCode.JoystickButton0+index));
+#endif
+    }
+    private readonly bool[] lastPad=new bool[16];
+    private void PollButton(string key,bool held,bool began,StudioWidget w,ref float horizontal){
+        if(began)GestureDown(key,key,w);
+        if(!held){gestureClock.End(key,InputMs);allowedMoves.Remove(key);return;}
+        gestureClock.Tick(key,InputMs);
+        if(allowedMoves.Contains(key))horizontal+=w.action=="left"?-1:1;
+    }
+    private void FinishTouch(int finger,Vector2 pos,bool cancel){
+        pos.y=Screen.height-pos.y;
+        if(fingerWidgets.TryGetValue(finger,out var w)&&w.gesture.cancelOutside&&!Hit(w,Bounds(w),pos))cancel=true;
+        EndFinger(finger,cancel);
+    }
+    private void EndFinger(int finger,bool cancel){
+        fingerWidgets.Remove(finger);string key="touch"+finger;
+        gestureClock.End(key,InputMs,cancel);allowedMoves.Remove(key);
     }
     private bool DefaultDown(string code) => Physical(code) && !MaskGameKey(code);
     private void ReadScreenKeys(ref float horizontal)
@@ -54,13 +96,28 @@ internal sealed partial class StudioScreenView
 #if ENABLE_INPUT_SYSTEM
         if(Keyboard.current!=imeKeyboard){DetachIme();imeKeyboard=Keyboard.current;if(imeKeyboard!=null)imeKeyboard.onIMECompositionChange+=OnComposition;}
 #endif
-        if(editingField!=null || openChoices!=null || Layout==null)return;
+        if(editingField!=null||openChoices!=null||Layout==null){gestureClock.Clear();allowedMoves.Clear();return;}
         var start=Layout;
         if(ActiveShot==null)foreach(var w in start.elements){
-            if(string.IsNullOrEmpty(w.shortcut)||!world.Visible(w)||!world.Enabled(w))continue;
+            if(!world.Visible(w)||!world.Enabled(w))continue;
+            if(w.gesture!=null){
+                if(!string.IsNullOrEmpty(w.shortcut))PollButton(w.shortcut,Physical(w.shortcut,true),Physical(w.shortcut),w,ref horizontal);
+                if(start!=Layout)return;
+                int pad=w.gesture.pad;
+                if(pad>=0&&pad<16){bool held=PadPressed(pad);bool began=held&&!lastPad[pad];lastPad[pad]=held;PollButton("pad"+pad,held,began,w,ref horizontal);}
+                if(start!=Layout)return;
+                continue;
+            }
+            if(string.IsNullOrEmpty(w.shortcut))continue;
             bool movement=w.action=="left" || w.action=="right";
-            if(movement && Physical(w.shortcut,true))horizontal+=w.action=="left"?-1:1;
-            if(!Physical(w.shortcut))continue;
+            bool began=Physical(w.shortcut);
+            if(movement){
+                if(began && world.AllowProgramInput(w.action))allowedMoves.Add(w.shortcut);
+                if(!Physical(w.shortcut,true))allowedMoves.Remove(w.shortcut);
+                if(!allowedMoves.Contains(w.shortcut))continue;
+                horizontal+=w.action=="left"?-1:1;
+            }
+            if(!began)continue;
             if(usedFrame!=Time.frameCount){usedFrame=Time.frameCount;usedKeys.Clear();}usedKeys.Add(w.shortcut);
             world.Activate(w,!movement);
             if(start!=Layout)return;
@@ -90,9 +147,12 @@ internal sealed partial class StudioScreenView
         return !string.IsNullOrEmpty(UnityEngine.Input.compositionString);
 #endif
     }
-    private void FinishField()
+    private StudioWidget invalidField;
+    private void FinishField(bool keepInvalid=false)
     {
         var field=editingField;
+        if(field!=null && field.control.validation!=null && field.control.Value(draftText)==null){invalidField=field;if(keepInvalid)return;}
+        else invalidField=null;
         editingField=null;
         GUI.FocusControl(null);
         if(field!=null && fieldLayout==Layout)world.CommitField(field,draftText);
@@ -100,7 +160,7 @@ internal sealed partial class StudioScreenView
     private void PrepareFields()
     {
         if(fieldLayout!=Layout){
-            editingField=null;openChoices=null;rangeField=null;fieldLayout=Layout;
+            editingField=null;openChoices=null;rangeField=null;invalidField=null;fieldLayout=Layout;
         }
         if(editingField==null)return;
         var ev=Event.current;
@@ -108,7 +168,7 @@ internal sealed partial class StudioScreenView
         if(ev.type==EventType.MouseDown && !Bounds(editingField).Contains(ev.mousePosition))FinishField();
         else if(ev.type==EventType.KeyDown && (ev.keyCode==KeyCode.Return||ev.keyCode==KeyCode.KeypadEnter)){
             if(ImeActive())return;
-            FinishField();ev.Use();
+            FinishField(true);ev.Use();
         }
     }
     private void DrawField(StudioWidget w,Rect r,Color fill)
@@ -116,7 +176,7 @@ internal sealed partial class StudioScreenView
         var spec=w.control;
         var color=StudioWorld.Tint(w.color,Color.white);
         var accent=StudioWorld.Tint(w.pressedColor,color);
-        var style=Style(Mathf.Clamp(Mathf.RoundToInt(w.fontSize*Mathf.Min(Screen.width/800f,1.4f)),8,90),w.align,color);
+        var style=Style(Mathf.Clamp(Mathf.RoundToInt(w.fontSize*Mathf.Min(Screen.width/800f,1.4f)),8,90),w.align,color,w.fontFamily);
         float radius=Mathf.Min(r.width,r.height)*w.radius/100;
         GUI.DrawTexture(r,Texture2D.whiteTexture,ScaleMode.StretchToFill,true,0,fill,0,radius);
         if(w.borderWidth>0 || editingField==w)GUI.DrawTexture(r,Texture2D.whiteTexture,ScaleMode.StretchToFill,true,0,
@@ -153,11 +213,18 @@ internal sealed partial class StudioScreenView
             string before=editingField==w?draftText:current;
             string after=GUI.TextField(area,before,spec.mode=="text"?spec.limit:10,style);
             if(GUI.GetNameOfFocusedControl()==name){
+                if(after!=before)invalidField=null;
                 editingField=w;fieldLayout=Layout;draftText=after;
             }else if(editingField==w){var old=draftText;editingField=null;world.CommitField(w,old);}
             if(string.IsNullOrEmpty(after) && editingField!=w && !string.IsNullOrEmpty(spec.hint))GUI.Label(area,spec.hint,style);
         }
         GUI.enabled=wasEnabled;
+        if(invalidField==w){
+            string hint=string.IsNullOrEmpty(spec.validation?.message)?"입력 조건을 확인하세요.":spec.validation.message;
+            float height=Mathf.Clamp(style.lineHeight+6,22,55);
+            var help=new Rect(r.x,r.yMax+height<=Screen.height?r.yMax:Mathf.Max(0,r.y-height),r.width,height);
+            Fill(help,Color.black);GUI.Label(help,"! "+hint,style);
+        }
     }
     internal GUIStyle ItemStyle(StudioWidget w,GUIStyle fallback){
         var s=w.itemSkin;

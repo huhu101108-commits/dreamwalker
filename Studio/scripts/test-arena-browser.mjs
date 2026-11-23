@@ -3,6 +3,11 @@ import {execFile,spawnSync} from 'node:child_process';
 import {promisify} from 'node:util';
 import {fileURLToPath} from 'node:url';
 export async function testArenaBrowser(editor,guest,origin,otherOrigin) {
+  await editor.goto(origin+'/?tool=network');
+  await editor.getByText('친선전 두 좌석 재접속 검사',{exact:true}).click();
+  await editor.getByLabel('중복 전송 (%)',{exact:true}).fill('100');
+  await editor.getByRole('button',{name:'두 좌석 판정 재생',exact:true}).click();
+  await editor.locator('pre').filter({hasText:'두 좌석 판정 일치'}).waitFor();
   await editor.goto(origin+'/?tool=rules');
   await editor.getByRole('button',{name:'전투 규칙 · Unity',exact:true}).click();
   await editor.getByRole('button',{name:'+ 전투 규칙',exact:true}).click();
@@ -46,10 +51,21 @@ export async function testArenaBrowser(editor,guest,origin,otherOrigin) {
     await host.waitForFunction(()=>document.querySelector('#bars')?.children.length===2 && document.querySelector('#banner').textContent==='');
     const attack=host.getByRole('button',{name:'설화 일격',exact:true});
     assert.deepEqual(await attack.evaluate(node=>[node.style.left,node.style.width,getComputedStyle(node).backgroundColor]),['68%','30%','rgb(146, 69, 99)']);
+    let impaired=false,duplicateChecked=false;
+    await host.route('**/api/arena/input',async route=>{
+      const body=route.request().postDataJSON();
+      if(impaired||!(body.press&1))return route.continue();
+      impaired=true;
+      const committed=await (await route.fetch()).json();
+      const duplicate=await (await host.request.post(route.request().url(),{data:body})).json();
+      duplicateChecked=committed.players[committed.seat].seq===duplicate.players[duplicate.seat].seq;
+      await route.abort('failed');
+    });
     await attack.click();
     await host.getByText('승리',{exact:true}).waitFor();await guest.getByText('패배',{exact:true}).waitFor();
     await host.waitForFunction(()=>document.querySelector('#wallet')?.textContent.includes('10크레딧'));
     await host.locator('#sell').click();
+    assert(impaired&&duplicateChecked);assert.match(await host.locator('#bars').textContent(),/1회 적중/);
     await host.getByRole('button',{name:'판매 취소',exact:true}).waitFor();
     await guest.locator('#refresh').click();await guest.getByRole('button',{name:'구매',exact:true}).waitFor();
     await host.getByRole('button',{name:'판매 취소',exact:true}).click();

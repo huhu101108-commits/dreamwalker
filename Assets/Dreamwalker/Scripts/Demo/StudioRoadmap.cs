@@ -59,10 +59,10 @@ public class StudioRoadmap
                                          i + 1 < source.nodes.Length ? prefix + source.nodes[i + 1].id : end) }
                         : Array.ConvertAll(
                               line.choices,
-                              c => Choice(c.label, string.IsNullOrEmpty(c.to) ? end : prefix + c.to));
+                              c => new StudioChoice{label=c.label,to=string.IsNullOrEmpty(c.to)?end:prefix+c.to,flag=c.flag,on=c.on});
                 lines.Add(new StudioLine { id = prefix + line.id, text = line.text, speaker = line.speaker,
                                            speakerName = line.speakerName, side = line.side, portrait = line.portrait,
-                                           backdrop = line.backdrop, voice = line.voice, shot = line.shot, layout = line.layout, nextLabel = line.nextLabel, choices = answers });
+                                           backdrop = line.backdrop, voice = line.voice, shot = line.shot, stageTrack=line.stageTrack?.WithPrefix(prefix), layout = line.layout, nextLabel = line.nextLabel, choices = answers });
             }
         }
         lines.Add(new StudioLine { id = end, speaker = "", text = episode.title,

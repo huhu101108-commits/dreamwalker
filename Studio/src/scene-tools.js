@@ -90,6 +90,7 @@ function addSceneViewTools(parent,wrap,stage,map,offset,bottom) {
 }
 function sceneHierarchy(side,map,object) {
   const group=selectionFor(map), work=workData(), panel=el('details'), list=box('hierarchy-list');
+  objectPresetPanel(side,map,object);
   panel.open=true;panel.dataset.persist='scene-tree';
   panel.append(el('summary','씬 계층 · 다중 선택'),textField('개체 찾기',hierarchySearch,v=>{hierarchySearch=v;render();},80),list);
   function render(){
@@ -140,7 +141,13 @@ function sceneHierarchy(side,map,object) {
   const linked=named(work.prefabs,object.prefab);
   if(linked) {
     const count=project.scenes.reduce((n,m)=>n+m.objects.filter(o=>o.prefab===linked.id).length,0);
-    library.append(el('p',linked.name+' · 연결 개체 '+count+'개'),
+    const impact=el('details');impact.dataset.persist='prefab-impact';impact.append(el('summary','원본 반영 영향 · 개별 수정값'));
+    for(const change of prefabImpact(project,linked,object)){
+      const map=named(project.scenes,change.mapId),instance=named(map.objects,change.objectId);
+      const title=map.name+' / '+(instance.editorName||instance.label||OBJECTS[instance.type]);
+      impact.append(el('strong',title),el('p',change.source?'원본에 반영할 개체':'바뀔 속성 '+(change.changed.join(', ')||'없음')+' · 유지할 개별 속성 '+(change.overrides.join(', ')||'없음')));
+    }
+    library.append(el('p',linked.name+' · 연결 개체 '+count+'개'),impact,
       action('이 변경을 프리팹에 반영',()=>{changeWork(work,()=>publishPrefab(project,linked,object));note('연결된 개체의 공통 속성을 갱신했어요.');}),
       action('이 개체 연결 끊기',()=>edit(()=>{delete object.prefab;})));
   }

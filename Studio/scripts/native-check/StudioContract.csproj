@@ -3,9 +3,14 @@
   <ItemGroup>
     <Compile Include="Program.cs" />
     <Compile Include="OnlineMatch.cs" />
+    <Compile Include="PortableImport.cs" />
+    <Compile Include="../../../Assets/Dreamwalker/Editor/StudioPackagePlan.cs" />
     <Compile Include="../../../Assets/Dreamwalker/Scripts/Demo/StudioArenaProtocol.cs" />
     <Compile Include="../../../Assets/Dreamwalker/Scripts/Demo/StudioCombatRules.cs" />
     <Compile Include="../../../Assets/Dreamwalker/Scripts/Demo/StudioCombatClock.cs" />
+    <Compile Include="../../../Assets/Dreamwalker/Scripts/Demo/StudioEventMachine.cs" />
+    <Compile Include="RuleReplay.cs" />
+    <None Include="rule-replay.json" CopyToOutputDirectory="PreserveNewest" />
     <Compile Include="../../../Assets/Dreamwalker/Scripts/Demo/StudioContent.cs" />
     <Compile Include="../../../Assets/Dreamwalker/Scripts/Demo/StudioRoadmap.cs" />
     <Compile Include="../../../Assets/Dreamwalker/Scripts/Demo/StudioScreenFlow.cs" />

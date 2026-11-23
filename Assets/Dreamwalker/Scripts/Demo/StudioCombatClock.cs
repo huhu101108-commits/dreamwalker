@@ -2,6 +2,20 @@ using System;
 namespace Dreamwalker.Demo
 {
 // Positions are game-space metres. One horizontal map unit is 1/3.5 m, one vertical unit is 0.16 m.
+[Serializable] public class StudioStrike
+{
+    public string shape;
+    public int startup,active,recovery,comboFrom,comboTo,buffer,cancelFrom,cancelTo,invFrom,invTo,repeat;
+    public float x,y,w,h;
+    public bool Combo(int tick)=>comboFrom>0&&tick>=comboFrom&&tick<=comboTo;
+    public bool Cancel(int tick)=>cancelFrom>0&&tick>=cancelFrom&&tick<=cancelTo;
+    public bool Guard(int tick)=>invFrom>0&&tick>=invFrom&&tick<=invTo;
+    public bool Touches(float px,float py,float ex,float ey,int face,float width,float height)
+    {
+        float ew=width>0?width:.7f,eh=height>0?height:1.6f;
+        return Math.Abs((ex-px)*face-x)<=(w+ew)/2 && Math.Abs(ey-py+eh/2-y)<=(h+eh)/2;
+    }
+}
 public static class StudioCombatClock
 {
     public static bool SweepTouches(float playerX, float playerY, float targetX, float targetY, int facing,

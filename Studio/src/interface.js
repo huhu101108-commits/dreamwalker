@@ -82,6 +82,7 @@ function drawInterface() {
     s.id = id;
     if (copy) {
       s.name = l.name.slice(0, 45) + ' 사본';
+      for(const key of ['next','back','resume'])if(s.navigation?.[key]===l.id)s.navigation[key]=id;
       for (const w of s.elements)
         for (const act of [w, ...w.steps]) if (act.action === 'open' && act.target === l.id) act.target = id;
     }
@@ -92,6 +93,7 @@ function drawInterface() {
     });
   };
   drawScreenShortcuts(a, l);
+  screenNavigationEditor(a,l);a.append(screenMultiTouchPanel(l));
   a.append(arenaDesignPanel());
   a.append(
     row(
@@ -115,6 +117,10 @@ function drawInterface() {
       }),
       selectField('새 화면 종류', screenKind, SCREEN_TYPES, (v) => (screenKind = v)),
       action('＋ 새 화면', () => add(false)),
+      action('빈 화면 만들기',()=>{
+        if(project.layouts.length>=LIMIT.layouts)throw Error('화면 공간이 부족해요.');
+        const s=newScreen(uid(),'빈 화면','custom');s.elements=[];edit(()=>{project.layouts.push(s);layoutId=s.id;elementId='';});
+      }),
       action('화면 복제', () => add(true)),
     ),
   );
@@ -136,7 +142,7 @@ function drawInterface() {
   const backdrop = box('ui-backdrop');
   styleScreen(backdrop, l);
   canvas.append(backdrop);
-  const sample = { character: c, map: m, hp: Math.round(c.health * 0.72), enemies: 3 },
+  const sample = { previewState:sampleState,character: c, map: m, hp: Math.round(c.health * 0.72), enemies: 3 },
     nodes = new Map();
   function applyGeometry(node, v) {
     Object.assign(node.style, { left: v.x + '%', top: v.y + '%', width: v.w + '%', height: v.h + '%' });
@@ -159,15 +165,10 @@ function drawInterface() {
     nodes.set(v.id, n);
     pointerDrag(
       n,
-      (e) => ({
-        rect: canvas.getBoundingClientRect(),
-        x: v.x,
-        y: v.y,
-        w: v.w,
-        h: v.h,
-        resize: e.target === handle,
-        value: { x: v.x, y: v.y, w: v.w, h: v.h },
-      }),
+      e => {
+        const rect=canvas.getBoundingClientRect(),value=widgetRect(v,rect.width,rect.height);
+        return {rect,...value,value,resize:e.target===handle};
+      },
       (dx, dy, p) => {
         if(v.editorLocked)return;
         const snap=delta=>Math.round(Math.round(delta/screenSnap)*screenSnap*10)/10;
@@ -187,11 +188,25 @@ function drawInterface() {
           draw();
           return;
         }
-        edit(() => Object.assign(v, p.value));
+        edit(() => setWidgetRect(v,p.value,p.rect.width,p.rect.height));
       },
     );
   }
   screenBench(canvas,l,w,a);
+  function previewSize(){
+    sample.previewState=sampleState;
+    for(const item of l.elements){
+      const node=nodes.get(item.id);setWidgetGeometry(node,item,canvas.clientWidth,canvas.clientHeight);
+      node.style.fontSize='clamp(8px,'+(item.fontSize*sampleTextScale/8)+'cqw,'+(item.fontSize*1.4*sampleTextScale)+'px)';
+      if(item.type==='button'){
+        const handle=node.querySelector('.resize-handle');updateWidget(node,boundMenuButton(project,item),sample);if(handle)node.append(handle);
+        if(sampleState==='pressed')node.style.backgroundColor=item.pressedColor;
+        else if(!item.states)node.style.backgroundColor=item.background+Math.round(item.opacity*2.55).toString(16).padStart(2,'0');
+      }
+    }
+  }
+  screenDeviceToolbar(a.querySelector('.screen-workbench'),canvas,previewSize);
+  designerObserver?.disconnect();designerObserver=new ResizeObserver(previewSize);designerObserver.observe(canvas);
   drawInterfacePresets(a,b,l,w);
   drawMenuBuilder(l,w,a);
   const allowed = { ...WIDGETS };
@@ -276,7 +291,7 @@ function drawInterface() {
   const update = () => {
     const n = nodes.get(w.id);
     if (!n) return;
-    applyGeometry(n, w);
+    setWidgetGeometry(n,w,canvas.clientWidth,canvas.clientHeight);
     n.style.color = w.color;
     n.style.backgroundColor =
       w.background +
@@ -292,7 +307,7 @@ function drawInterface() {
     ['h', '높이 (%)', 100 - w.y],
   ]) {
     const input = bindNumber(label, w, key, ['w', 'h'].includes(key) ? 3 : 0, Math.round(max*10)/10, 0.1, update);
-    input.querySelector('input').disabled=!!w.editorLocked;
+    input.querySelector('input').disabled=!!w.editorLocked || (!!w.anchor && ((key==='x'&&w.anchor.horizontal!=='free')||(key==='y'&&w.anchor.vertical!=='free')));
     input.querySelector('input').addEventListener('blur', () => {
       const n = g.querySelectorAll('input');
       if (n.length === 4) {
@@ -305,6 +320,7 @@ function drawInterface() {
     g.append(input);
   }
   b.append(g);
+  widgetDesignFields(b,w,l,canvas);
   if(w.type==='input')inputInspector(w,b);
   if(['dialogue','inventory'].includes(w.type))itemSkinInspector(w,b);
   if(w.type==='joystick')stickInspector(w,b);
@@ -407,6 +423,7 @@ function drawInterface() {
             x: Math.min(w.x + 2, 100 - w.w),
             y: Math.min(w.y + 2, 100 - w.h),
           };
+          delete next.shortcut;if(next.gesture)next.gesture.pad=-1;
           edit(() => {
             l.elements.push(next);
             elementId = next.id;

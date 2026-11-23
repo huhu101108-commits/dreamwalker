@@ -6,7 +6,7 @@ function writePreset(kind,name,read,origin,existing){
   if(!existing&&list.length>=64)throw Error('프리셋은 64개까지 보관할 수 있어요.');
   const value={id:existing?.id||uid(),kind,name:clean,data:capturePreset(project,kind,read()),...(kind==='widget'?{origin}: {})};
   if(!validStudioPreset(project,value))throw Error('현재 설정의 범위와 연결을 확인한 뒤 저장하세요.');
-  if(existing)Object.assign(existing,value);
+  if(existing){updatePresetInstances(project,existing,value);Object.assign(existing,value);}
   else ((project.work||=emptyWork()).presets||=[]).push(value);
   selectedPresets.set(kind,value.id);presetNames.delete(kind);
 }
@@ -35,9 +35,15 @@ function presetPanel(kind,read,apply,options={}){
       change(()=>{chosen.name=next;});
     })));
     const update=action('현재 설정으로 업데이트',()=>change(()=>writePreset(kind,chosen.name,read,options.origin,chosen)));
-    update.disabled=!read;manage.append(row(update,action('프리셋 삭제',()=>change(()=>{project.work.presets=project.work.presets.filter(p=>p.id!==chosen.id);}), 'quiet')));
+    update.disabled=!read;manage.append(row(update,action('프리셋 복제',()=>change(()=>{
+      const duplicate=portablePresetCopy(chosen,project.work.presets);project.work.presets.push(duplicate);selectedPresets.set(kind,duplicate.id);
+    })),action('프리셋 삭제',()=>change(()=>{
+      project.work.presets=project.work.presets.filter(p=>p.id!==chosen.id);
+      if(project.work.presetBindings)project.work.presetBindings=project.work.presetBindings.filter(l=>l.preset!==chosen.id);
+    }), 'quiet')));
     block.append(manage);
   }
+  block.append(portableTransferPanel(kind,chosen,redraw));
   return block;
 }
 function drawInterfacePresets(main,inspector,layout,w){
@@ -51,8 +57,14 @@ function drawInterfacePresets(main,inspector,layout,w){
     const id=applyUIPreset({...project,layouts:[...project.layouts,l]},p,l);
     edit(()=>{project.layouts.push(l);layoutId=l.id;elementId=id;});
   }]]}));
+  main.append(presetPanel('controls',layout.elements.some(isPlayableControl)?()=>layout:null,p=>{
+    if(!confirm('이 화면의 버튼·입력창·조이스틱 배치를 바꿀까요?'))return;
+    const entries=controlPresetElements(project,p,layout);
+    edit(()=>{layout.elements=entries;elementId=entries.find(isPlayableControl)?.id||'';});
+  },{applyTitle:'이 화면의 조작 배치 적용'}));
+  if(w)addPresetLinkStatus(inspector,'widget',layout.id,w.id);
   inspector.append(presetPanel('widget',w?()=>w:null,p=>edit(()=>use(p,layout)),{
-    origin:layout.id,applyTitle:'이 화면에 요소 추가',extra:w?[['선택 요소에 모양만 적용',p=>edit(()=>use(p,layout,true))]]:[]}));
+    origin:layout.id,applyTitle:'이 화면에 요소 추가',extra:[['연결된 요소로 추가',p=>edit(()=>{if((project.work?.presetBindings?.length||0)>=1024)throw Error('연결 인스턴스 공간이 부족해요.');use(p,layout);bindToPreset(project,p,layout.id,elementId);})],...(w?[['선택 요소에 모양만 적용',p=>edit(()=>use(p,layout,true))]]:[])]}));
 }
 function inputInspector(w,parent){
   const c=w.control,fields=box('control-grid');
@@ -209,4 +221,144 @@ function arenaDesignPanel(){
   card.append(presetPanel('arena',()=>project.arenaControls||[],p=>edit(()=>{project.arenaControls=structuredClone(p.data);}),{applyTitle:'친선전 조작 세트 적용'}),
     el('small','저장 · 게임 반영 후 전투 규칙 · Unity에서 게시하면 친선전 웹과 Unity에 적용돼요.'));
   return card;
+}
+
+function addPresetLinkStatus(parent,kind,owner,target){
+  const link=project.work?.presetBindings?.find(l=>l.kind===kind&&l.owner===owner&&l.target===target);
+  const p=link&&named(project.work.presets||[],link.preset);
+  if(!p)return;
+  parent.append(row(el('span','연결 원본 · '+p.name),action('독립 사본으로 전환',()=>edit(()=>{
+    project.work.presetBindings=project.work.presetBindings.filter(l=>l.id!==link.id);
+  }))));
+}
+function characterPresetPanel(parent,c){
+  function apply(p,link){
+    const data=structuredClone(p.data);
+    edit(()=>{
+      if(link)bindToPreset(project,p,'',c.id);
+      else if(project.work?.presetBindings)project.work.presetBindings=project.work.presetBindings.filter(l=>l.kind!=='character'||l.target!==c.id);
+      for(const k of Object.keys(portableActorSettings(c)))if(!Object.hasOwn(data,k))delete c[k];
+      Object.assign(c,data);selectedSlot=0;
+    });
+  }
+  parent.append(presetPanel('character',()=>c,p=>apply(p,false),{applyTitle:'선택 캐릭터에 세팅 복사',extra:[['원본과 연결해 적용',p=>apply(p,true)]]}));
+  addPresetLinkStatus(parent,'character','',c.id);
+}
+function objectPresetPanel(parent,map,object){
+  const capture=object&&['enemy','platform','prop'].includes(object.type)?()=>object:null;
+  function place(p,linked){
+    if(map.objects.length>=LIMIT.objects)throw Error('맵의 개체 한도를 확인하세요.');
+    const copy={...structuredClone(p.data),id:uid(),x:clamp(object?.x??50,1,map.width-1),y:clamp(object?.y??0,0,map.height-18)};
+    edit(()=>{if(linked)bindToPreset(project,p,map.id,copy.id);map.objects.push(copy);mapObject=copy.id;mapTool='';});
+  }
+  parent.append(presetPanel('object',capture,p=>place(p,false),{applyTitle:'이 맵에 독립 사본 배치',extra:[['연결 인스턴스로 배치',p=>place(p,true)]]}));
+  if(object)addPresetLinkStatus(parent,'object',map.id,object.id);
+}
+function assetPresetPanel(parent,item){
+  parent.append(presetPanel('asset',item?()=>item:null,p=>{
+    const work=workData();
+    if(work.assets.length>=400)throw Error('에셋 한도에 도달했어요.');
+    const asset={...structuredClone(p.data),id:uid()};
+    changeWork(work,()=>{work.assets.push(asset);assetSelection=asset.id;});
+  },{applyTitle:'이 프로젝트의 에셋 목록에 추가'}));
+}
+function portablePresetCopy(p,list){
+  if(list.length>=64)throw Error('프리셋 보관함이 가득 찼어요.');
+  let name=p.name,number=2;
+  while(list.some(v=>v.kind===p.kind&&v.name===name)){name=p.name.slice(0,50)+' ('+number+')';number++;}
+  return {...structuredClone(p),id:uid(),name};
+}
+async function makePortableBundle(p){
+  const snapshot=structuredClone(p),assets={};
+  for(const {ref} of presetFileRefs(snapshot)){
+    const response=await (typeof studioAssetRead==='function'?studioAssetRead:fetch)('/api/assets/'+ref.slice(6));
+    if(!response.ok)throw Error('가져올 수 없는 에셋 · '+ref.slice(6,18));
+    assets[ref.slice(6)]=await toDataUrl(await response.blob());
+  }
+  return {format:'dreamwalker-preset',version:1,preset:snapshot,assets};
+}
+async function inspectPortableBundle(bundle,doc,kind){
+  const p=bundle?.preset;
+  if(bundle?.format!=='dreamwalker-preset'||bundle.version!==1||!p||p.kind!==kind||
+      !bundle.assets||typeof bundle.assets!=='object'||Array.isArray(bundle.assets)||!validStudioPreset(doc,p))
+    throw Error('이 종류의 드림워커 프리셋 파일을 선택하세요.');
+  const refs=presetFileRefs(p),blobs=new Map(),missing=[];
+  for(const {ref,kind:type} of refs){
+    const hash=ref.slice(6),url=bundle.assets[hash];
+    if(url===undefined){
+      if(!(await (typeof studioAssetRead==='function'?studioAssetRead:fetch)('/api/assets/'+hash,{method:'HEAD'})).ok)missing.push({ref,kind:type});
+      continue;
+    }
+    if(typeof url!=='string'||url.length>(type==='audio'?10700000:2800000)||
+       !(type==='audio'?/^data:audio\/(wav|ogg|mpeg);base64,[A-Za-z0-9+/]+=*$/:/^data:image\/(png|jpeg);base64,[A-Za-z0-9+/]+=*$/).test(url))
+      throw Error('프리셋 에셋 형식 오류 · '+hash.slice(0,12));
+    const blob=await (await fetch(url)).blob(),bytes=await blob.arrayBuffer();
+    const actual=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),n=>n.toString(16).padStart(2,'0')).join('');
+    if(actual!==hash)throw Error('원본과 다른 에셋 · '+hash.slice(0,12));
+    blobs.set(ref,blob);
+  }
+  return {preset:structuredClone(p),blobs,missing};
+}
+function replacePresetMedia(p,old,next){
+  visitStudioMedia(p,(obj,key)=>{if(obj[key]===old)obj[key]=next;});
+}
+function portableTransferPanel(kind,chosen,redraw){
+  const panel=el('details'),preview=box('preset-import-preview');
+  panel.dataset.persist='transfer-'+kind;
+  panel.append(el('summary','다른 프로젝트와 프리셋 주고받기'));
+  if(chosen)panel.append(action('에셋 포함 프리셋 파일 저장',async()=>{
+    const bundle=await makePortableBundle(chosen);download(bundle,'Dreamwalker-Preset-'+chosen.id+'.json');
+  }));
+  panel.append(filePicker(PRESET_KINDS[kind]+' 프리셋 파일 선택',false,async([file],active)=>{
+    if(file.size>128*1024*1024)throw Error('프리셋 파일은 128MB 이하로 나눠 주세요.');
+    const doc=project;
+    const parsed=await inspectPortableBundle(JSON.parse(await file.text()),doc,kind);
+    if(!active()||project!==doc)throw Error('대상이 바뀌었어요. 파일을 다시 선택하세요.');
+    render(parsed,false);
+  }),preview);
+  if(chosen && presetExternalTargets(project,chosen).some(g=>!g.exists)){
+    panel.append(action('빠진 연결 고치기',()=>render({preset:structuredClone(chosen),blobs:new Map(),missing:[]},true)));
+  }
+  function render(parsed,repair){
+    preview.replaceChildren(el('strong',parsed.preset.name));
+    const targets=presetExternalTargets(project,parsed.preset),choices=[],swaps=[];
+    for(const t of targets){
+      const opts=project[t.collection]||[];
+      const control=selectField('대상 연결 · '+t.value,t.exists?t.value:'',{'':'연결할 항목 선택',...optionMap(opts)},()=>{});
+      preview.append(control);choices.push(control.querySelector('select'));
+    }
+    for(const item of parsed.missing){
+      const available=(project.work?.assets||[]).filter(v=>v.kind===item.kind);
+      const pick=selectField('빠진 에셋 · '+item.ref.slice(6,18),'',{'':'대체할 에셋 선택',...Object.fromEntries(available.map(v=>[v.ref,v.name]))},()=>{});
+      preview.append(pick);const field=pick.querySelector('select');swaps.push([item.ref,field]);
+      preview.append(filePicker('빠진 에셋 파일로 교체',false,async([file],alive)=>{
+        let blob;
+        if(item.kind==='image')blob=await convertArtwork(file);
+        else {
+          const mime={wav:'audio/wav',mp3:'audio/mpeg',ogg:'audio/ogg'}[file.name.split('.').pop().toLowerCase()];
+          if(!mime||file.size>8000000)throw Error('8MB 이하 WAV·MP3·OGG 파일을 선택하세요.');
+          blob=file.slice(0,file.size,mime);
+        }
+        const ref=await uploadAsset(blob);
+        if(!alive())throw Error('다른 작업으로 이동했어요. 다시 선택하세요.');
+        field.add(new Option(file.name,ref));field.value=ref;
+      }));
+    }
+    preview.append(el('small','첨부 에셋 '+parsed.blobs.size+'개 · 프로젝트 연결 '+targets.length+'개'),
+      action(repair?'연결 수정 저장':'이 프로젝트에 프리셋 가져오기',async()=>{
+        const p=structuredClone(parsed.preset),snapshot=project,base=JSON.stringify(project);
+        const refs=presetExternalTargets(snapshot,p);
+        refs.forEach((r,i)=>{const id=choices[i].value;if(!named(snapshot[r.collection]||[],id))throw Error('연결할 제작 항목을 선택하세요.');r.set.forEach(apply=>apply(id));});
+        for(const [old,field] of swaps){if(!field.value)throw Error('빠진 에셋을 교체하세요.');replacePresetMedia(p,old,field.value);}
+        if(!validStudioPreset(snapshot,p))throw Error('수정한 연결을 확인하세요.');
+        for(const [ref,blob] of parsed.blobs)if(await uploadAsset(blob)!==ref)throw Error('프리셋 에셋 저장을 확인하세요.');
+        if(project!==snapshot||JSON.stringify(project)!==base||!preview.isConnected)throw Error('초안이 바뀌었어요. 다시 가져오세요.');
+        edit(()=>{
+          const entries=((project.work||=emptyWork()).presets||=[]);
+          if(repair){updatePresetInstances(project,chosen,p);Object.assign(chosen,p);}
+          else{const copy=portablePresetCopy(p,entries);entries.push(copy);selectedPresets.set(kind,copy.id);}
+        },false);persistDraft();redraw();
+      }));
+  }
+  return panel;
 }

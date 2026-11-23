@@ -15,11 +15,13 @@ label{display:grid;gap:.25rem}textarea{resize:vertical;min-height:4.3rem;border-
 <header><h1>드림워커 제작 GPT</h1><button type="button" id="link" disabled>이 대화 연결</button></header>
 <p id="link-status" class="muted">연결하면 스튜디오의 작업 GPT에서 보낸 질문을 이 대화의 모델이 처리해요. 연결은 최대 두 시간이에요.</p>
 <label>편집할 화면<select id="screens" disabled></select></label>
+<label>GPT 작업 대상<select id="work-target" disabled></select></label>
+<label id="work-detail-label" hidden><span>세부 대상</span><select id="work-detail" disabled></select></label>
 <div id="scene" role="img" aria-label="화면 요소 배치 미리보기"></div>
 <section id="review" hidden><h2>변경안 검토</h2><ul id="notes"></ul><label id="show-label">미리볼 화면<select id="show"></select></label>
 <a id="editor-link" href="https://dreamwalker-snowfield-studio.congenialcockatoo.chatgpt.site/?tool=assistant" target="_blank" rel="noopener noreferrer">스튜디오 초안에서 적용</a></section>
 <div id="messages" role="log" aria-live="polite"></div>
-<div class="compose" role="form" aria-label="제작 GPT에 질문"><label>GPT에 요청할 내용<textarea id="prompt" maxlength="3500" placeholder="이 화면에서 백설의 체력이 잘 보이게 해 줘."></textarea></label>
+<div class="compose" role="form" aria-label="제작 GPT에 질문"><label>GPT에 요청할 내용<textarea id="prompt" maxlength="3500" placeholder="선택한 작업에 대한 질문이나 변경 요청"></textarea></label>
 <div class="actions"><button type="button" id="send" class="primary" disabled>GPT에 보내기</button><button type="button" id="refresh">답변 확인</button></div></div>
 <details><summary>연결 점검</summary><button id="check" type="button" disabled>실제 모델로 연결 시험</button><output id="check-status"></output></details>
 <output id="status" role="status">제작 화면을 읽고 있어요.</output><div class="actions" id="waiting" hidden><button type="button" id="resume">이 대화로 전달</button><button type="button" id="cancel">대기 중인 질문 취소</button></div>

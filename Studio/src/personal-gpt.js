@@ -18,14 +18,14 @@ async function receivePersonalGpt(job) {
   if(!job?.answer || job.state!=='done'||!validDesignReply(job.answer))return;
   const screen=named(project.layouts,job.screen);
   if(!screen)return;
-  const thread=gptThread(job.screen);
+  const thread=gptThread(gptThreadKey(job.screen,job.work));
   if(thread.received===job.id)return;
-  const stamp=designStamp(project,screen), matches=await gptFingerprint(stamp)===job.stamp;
+  const stamp=designStamp(project,screen,job.work), matches=await gptFingerprint(stamp)===job.stamp;
   if(thread.received===job.id)return;
   if(!thread.items.some(m=>m.ticket===job.id&&m.role==='user'))thread.items.push({role:'user',text:job.prompt,ticket:job.id});
   const message={role:'assistant',text:job.answer.message,changes:job.answer.changes,ticket:job.id};
   thread.items.push(message);thread.items=thread.items.slice(-30);thread.received=job.id;
-  thread.proposal=message.changes.length?{message,stamp:matches?stamp:null}:null;
+  thread.proposal=message.changes.length?{message,stamp:matches?stamp:null,work:job.work}:null;
 }
 async function refreshStudioGpt(force=false) {
   if(checkingGpt)return checkingGpt;
@@ -59,12 +59,14 @@ function gptSettingsCard(p){
   const pref=p.prefs, card=el('details');card.className='gpt-account';card.open=gptSettingsOpen;
   card.ontoggle=()=>{if(card.isConnected)gptSettingsOpen=card.open;};card.append(el('summary','내 GPT 설정'));
   const all={chatgpt:personalGptModes.chatgpt,codex:personalGptModes.codex};
-  if(p.apiModels.length||pref.mode==='api')all.api=personalGptModes.api;
+  if(p.apiModels.length||pref.mode==='api'||(p.apiStatus&&p.apiStatus.state!=='disconnected'))all.api=personalGptModes.api;
   const save=(diff)=>ownerGptSubmit('settings',{mode:pref.mode,revision:pref.revision,...diff});
   const mode=selectField('사용 방식',pref.mode,all,v=>save({mode:v}).catch(e=>note(e.message)));card.append(mode);
+  if(pref.mode!=='api'&&p.apiStatus&&p.apiStatus.state!=='disconnected'&&(p.apiStatus.state==='expired'||!p.apiModels.length))card.append(action('API 계정 모델 목록 조회',()=>ownerGptSubmit('refresh-models',{})));
   if(pref.mode==='chatgpt'){
     const dest=el('input');dest.type='url';dest.placeholder='https://chatgpt.com/g/g-…';dest.value=pref.destination;
     card.append(el('p','ChatGPT에서 Dreamwalker Studio를 선택해 “드림워커 제작 GPT 열어 줘”라고 하면 대화 안에 제작 패널이 열려요. 모델은 그 대화 상단에서 고를 수 있어요.'));
+    if(p.chatStatus?.until)card.append(el('small',(p.chatStatus.state==='expired'?'대화 연결 만료':p.chatStatus.state==='inactive'?'대화 패널 응답 대기':'대화 연결 기한')+' · '+new Date(p.chatStatus.until).toLocaleString('ko-KR')));
     if(p.lastChatCheck)card.append(el('small','최근 ChatGPT 응답 확인 · '+new Date(p.lastChatCheck).toLocaleString('ko-KR')));
     if(p.chatLink)card.append(el('output','현재 대화가 스튜디오에 연결됐어요.'),action('ChatGPT 대화 연결 해제',()=>ownerGptSubmit('disconnect-chat',{id:p.chatLink.id})));
     else card.append(el('p','제작 패널에서 이 대화 연결을 한 번 누르고 열어 두면, 이후 질문과 답변은 스튜디오 안에서 주고받아요.'));
@@ -83,7 +85,14 @@ function gptSettingsCard(p){
     if(gptPairInfo && gptPairInfo.expires>Date.now())setup.append(el('output',gptPairInfo.code));
     if(p.device)setup.append(action('PC 연결 해제',async()=>{gptPairInfo=null;await ownerGptSubmit('unpair',{});}));
     card.append(setup);
-  } else card.append(el('p','스튜디오 소유자가 연결한 OpenAI API 프로젝트에 사용량이 청구돼요.'));
+    if(p.device?.seen)card.append(el('small','PC 모델 목록 · 마지막 연결 '+new Date(p.device.seen).toLocaleString('ko-KR')));
+  } else {
+    card.append(el('p','응답 생성은 사이트에 설정한 API 프로젝트 사용량에 포함돼요. 모델 목록 조회는 응답을 생성하지 않아요.'));
+    if(p.apiStatus?.state==='verified')card.append(el('small','API 계정 목록 조회 완료 · '+new Date(p.apiStatus.checked).toLocaleString('ko-KR')+' · 구조화된 답변 지원은 첫 요청에서 확인해요.'));
+    else card.append(el('small',p.apiStatus?.state==='expired'?'모델 목록 확인 기한이 지났어요.':'기본 모델 후보를 표시하고 있어요. 이 API 프로젝트의 목록을 확인하세요.'));
+    card.append(action('API 계정 모델 목록 조회',()=>ownerGptSubmit('refresh-models',{})));
+    if(!p.apiModels.length)card.append(el('p','목록에 스튜디오에서 지원하는 대화 모델이 없어요.'));
+  }
   const models=isCodex?p.device?.models||[]:p.apiModels;
   if(!models.length)return card;
   const choice=isCodex?pref.codex:pref.api;
@@ -98,9 +107,11 @@ function gptSettingsCard(p){
   }));
   return card;
 }
-function gptWorkCard(p,screen) {
+function gptWorkCard(p,screen,work) {
   const job=p.job,card=box('gpt-delivery');
   if(!job)return null;
+  if(gptThreadKey(screen.id,work)!==gptThreadKey(job.screen,job.work)&&job.work?.scope&&named(project.layouts,job.screen))
+    card.append(action('요청 대상으로 이동 · '+job.work.title,()=>reopenGptJob(job)));
   if(job.screen===screen.id)card.append(el('p','최근 요청 · '+job.prompt));
   if(job.screen!==screen.id){
     card.append(el('p','최근 요청 화면 · '+(named(project.layouts,job.screen)?.name||'삭제된 화면')));
@@ -135,7 +146,7 @@ function gptWorkCard(p,screen) {
   else if(job.state==='failed')card.append(el('p',job.error));
   card.append(row(action('답변 확인',()=>refreshStudioGpt(true)),action('최근 요청 지우기',async()=>{
     await ownerGptSubmit('clear',{id:job.id});
-    const thread=designThreads.get(job.screen);
+    const thread=designThreads.get(gptThreadKey(job.screen,job.work));
     if(thread){thread.items=thread.items.filter(m=>m.ticket!==job.id);if(thread.proposal?.message.ticket===job.id)thread.proposal=null;}
     repaintStudioGpt();note('최근 요청을 지웠어요.');
   },'quiet')));

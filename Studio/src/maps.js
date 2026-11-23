@@ -235,6 +235,7 @@ function drawMaps() {
   const o = named(s.objects, mapObject) || s.objects[0];
   mapObject = o.id;
   sceneHierarchy(b,s,o);
+  b.append(action('이 개체 위치에서 검수 플레이',()=>playInspectionFrom(project,{mapId:s.id,objectId:o.id})));
   const attrs = box('control-grid', bindText('맵 이름', s, 'name'), bindSelect('시간대', s, 'theme', THEMES));
   attrs.append(
     ...[
@@ -322,6 +323,7 @@ function drawMaps() {
     bindNumber('배경 시차 강도', s.camera, 'parallax', 0, 1, 0.01),
     bindNumber('바람에 흔들리는 배경 폭 (%)', s.camera, 'drift', 0, 5, 0.1),
   );
+  cameraFrameEditor(cameraPanel,s);
   a.append(heading('맵 설정'), attrs, cameraPanel, links);
   b.append(
     heading('개체 속성'),
@@ -470,4 +472,18 @@ function drawMaps() {
         ),
       ),
     );
+}
+
+function cameraFrameEditor(panel,map){
+  const frame={...defaultCameraFrame(),...map.camera.frame},grid=box('control-grid');
+  const props=[['zoom','카메라 확대 배율',1,3,.1],['left','추적 경계 왼쪽 (%)',0,100,1],['right','추적 경계 오른쪽 (%)',0,100,1],['bottom','추적 경계 아래 (%)',0,100,1],['top','추적 경계 위 (%)',0,100,1]];
+  const fields=props.map(([k,title,min,max,step])=>{const n=el('input');Object.assign(n,{type:'number',value:frame[k],min,max,step});grid.append(titled(title,n));return n;});
+  const ticks=el('input'),paint=el('input');
+  Object.assign(ticks,{type:'number',min:0,max:240,step:1,value:frame.fadeTicks});Object.assign(paint,{type:'color',value:frame.fadeColor});
+  grid.append(titled('장면 등장 전환 틱 (0은 즉시)',ticks),titled('장면 전환 색',paint));
+  panel.append(grid,action('카메라 경계와 시야 적용',()=>{
+    const next={...Object.fromEntries(props.map(([key],i)=>[key,fields[i].valueAsNumber])),fadeTicks:ticks.valueAsNumber,fadeColor:paint.value};
+    if(fields.some(n=>!n.validity.valid)||!validCameraFrame(next))throw Error('카메라 경계와 전환 시간 범위를 확인하세요.');
+    edit(()=>{map.camera.frame=next;});
+  }));
 }

@@ -22,6 +22,7 @@
   }
   function buttons(){
     const localJob=view?.job,waiting=localJob?.state==='waiting'&&localJob.screen===view.screen.id;
+    by('work-target').disabled=by('work-detail').disabled=!ready||busy;
     by('screens').disabled=!ready||busy;by('send').disabled=!ready||!view||busy||view.busy||!by('prompt').value.trim()||!(host.canMessage()||host.canSample());
     by('check').disabled=!ready||busy||!(host.canMessage()||host.canSample());
     by('link').disabled=!ready||linkRequest||!(host.canMessage()||host.canSample());
@@ -36,6 +37,12 @@
     view=data;const screen=data.screen,j=data.job;
     if(old && old!==screen.id)by('prompt').value=drafts.get(screen.id)||'';
     choice(by('screens'),data.screens,screen.id);
+    if(data.picker){
+      choice(by('work-target'),data.picker.options,data.picker.target);
+      by('work-detail-label').hidden=!data.picker.details.length;
+      by('work-detail-label').querySelector('span').textContent=data.picker.label;
+      choice(by('work-detail'),data.picker.details,data.picker.detail);
+    }
     if(j?.screen===screen.id && j.prompt)remember(screen.id,j.id,'user',j.prompt);
     if(j?.screen===screen.id && j.answer)remember(screen.id,j.id,'assistant',j.answer.message);
     const log=by('messages');log.replaceChildren();
@@ -61,8 +68,8 @@
     else status('이 대화에서 선택한 모델로 질문할 수 있어요.');
     buttons();watchAnswer();host.size(document.documentElement.scrollHeight);
   }
-  async function refresh(screenId=view?.screen.id){
-    const seq=++viewRequest,r=await host.tool('dreamwalker_workbench_view',screenId?{screen_id:screenId}:{});
+  async function refresh(screenId=view?.screen.id,target=view?.picker?.target||'screen',detail=view?.picker?.detail||''){
+    const seq=++viewRequest,r=await host.tool('dreamwalker_workbench_view',screenId?{screen_id:screenId,target,detail}:{});
     if(seq===viewRequest)render(r._meta?.workspace);
   }
   function watchAnswer(){
@@ -124,7 +131,7 @@
     busy=true;buttons();const selected=view.screen.id,prompt=by('prompt').value.trim(),id=Array.from(crypto.getRandomValues(new Uint8Array(16)),v=>v.toString(16).padStart(2,'0')).join('');
     try{
       const history=room(selected).slice(-10).map(({role,text})=>({role,text:text.slice(0,3500)}));
-      const result=await host.tool('dreamwalker_workbench_ask',{request_id:id,revision:view.revision,screen_id:selected,prompt,history});
+      const result=await host.tool('dreamwalker_workbench_ask',{request_id:id,revision:view.revision,screen_id:selected,prompt,history,target:view.picker?.target||'screen',detail:view.picker?.detail||''});
       if(result._meta?.task?.id!==id)throw Error('같은 요청의 제작 정보를 다시 확인하세요.');
       remember(selected,id,'user',prompt);by('prompt').value='';drafts.delete(selected);
       await deliver(result._meta.task);await refresh(selected);
@@ -148,7 +155,9 @@
       await deliver(task);by('check-status').textContent='시험 요청을 보냈어요. 응답이 오면 스튜디오의 내 GPT 설정에 확인 시각이 표시돼요.';
     }catch(e){by('check-status').textContent=e.message;}finally{busy=false;buttons();}
   };
-  by('screens').onchange=()=>refresh(by('screens').value).catch(e=>status(e.message));
+  by('screens').onchange=()=>refresh(by('screens').value,'screen','').catch(e=>status(e.message));
+  by('work-target').onchange=()=>refresh(view.screen.id,by('work-target').value,'').catch(e=>status(e.message));
+  by('work-detail').onchange=()=>refresh(view.screen.id,by('work-target').value,by('work-detail').value).catch(e=>status(e.message));
   by('prompt').oninput=()=>buttons();
   by('prompt').onkeydown=e=>{if(e.key==='Enter'&&!e.isComposing&&(e.ctrlKey||e.metaKey)){e.preventDefault();by('send').click();}};by('refresh').onclick=()=>refresh().catch(e=>status(e.message));
   document.addEventListener('visibilitychange',()=>{if(!document.hidden&&ready)refresh().catch(e=>status(e.message));else watchAnswer();});

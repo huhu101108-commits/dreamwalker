@@ -1,3 +1,29 @@
+// Routes independent physical controls to one authored button. Time is monotonic milliseconds.
+class ScreenInputClock {
+  constructor(){this.active=new Map();this.taps=new Map();}
+  down(token,group,gesture,now,fire){
+    if(this.active.has(token))return;
+    const entry={group,gesture,now,fire,fired:false};this.active.set(token,entry);
+    if(gesture.phase==='press')this.emit(entry);
+    if(gesture.phase==='double'){
+      const old=this.taps.get(group);
+      if(old!==undefined&&now-old<=gesture.ms){this.taps.delete(group);this.emit(entry);}
+
+    }
+  }
+  emit(e){if(!e.fired){e.fired=true;e.fire();}}
+  up(token,now,cancel=false){
+    const e=this.active.get(token);if(!e)return;
+    this.active.delete(token);
+    if(cancel){this.taps.delete(e.group);return;}
+    if(e.gesture.phase==='double'&&!e.fired&&now-e.now<=e.gesture.ms)this.taps.set(e.group,now);
+    if(e.gesture.phase==='release'||(e.gesture.phase==='hold'&&now-e.now>=e.gesture.ms))this.emit(e);
+  }
+  tick(now){for(const e of this.active.values())if(e.gesture.phase==='hold'&&now-e.now>=e.gesture.ms)this.emit(e);
+    for(const [group,t] of this.taps)if(now-t>2000)this.taps.delete(group);}
+  reset(){this.active.clear();this.taps.clear();}
+}
+
 function launchGame(mapId, screenId = '', inspection = false) {
   const run = new FieldRun(structuredClone(project), mapId),
     modal = $('#game'),
@@ -5,8 +31,12 @@ function launchGame(mapId, screenId = '', inspection = false) {
     layer = $('#overlay'),
     actors = $('#actors');
   const audioBus=gameAudio(run.world,modal);
+  const sceneFade=el('div');sceneFade.setAttribute('aria-hidden','true');
+  sceneFade.style.cssText='position:absolute;inset:0;pointer-events:none;z-index:9';stage.append(sceneFade);
   const sample=inspection ? {ticks:0,inputs:0} : null;
   modal.inspectionSample=sample;
+  const options=inspection && typeof inspection==='object'?inspection:null;
+  const metrics=sample && typeof measuredPlay==='function'?measuredPlay(sample):null;
   const countTouch=e=>{if(stage.contains(e.target) || $('#controls').contains(e.target)) sample.inputs++;};
   if(sample) modal.addEventListener('pointerdown',countTouch,true);
   const saveKey =
@@ -17,7 +47,10 @@ function launchGame(mapId, screenId = '', inspection = false) {
     lastSaved = '',
     savedAt = 0;
   try {
-    if(inspection) {
+    if(options && typeof GAME_DATA!=='undefined' && window.parent!==window){
+      let value=GAME_DATA.checkpoint;
+      saveStore={getItem:()=>value,setItem:(_,text)=>{value=text;parent.postMessage({dreamwalker:'progress',value:text},'*');}};
+    }else if(inspection) {
       const temporary=new Map();
       saveStore={getItem:k=>temporary.get(k),setItem:(k,v)=>temporary.set(k,v)};
     } else saveStore=window.localStorage;
@@ -63,7 +96,8 @@ function launchGame(mapId, screenId = '', inspection = false) {
     return false;
   }
   if (!inspection && !screenId && (location.pathname === '/play' || typeof GAME_DATA !== 'undefined')) continueProgress();
-  if(!inspection) run.startPresentation(screenId);
+  if(options){if(!options.resume || !continueProgress())beginInspectionAt(run,{...options,screenId});}
+  else if(!inspection)run.startPresentation(screenId);
   let frame,
     last = performance.now(),
     acc = 0,
@@ -156,15 +190,64 @@ function launchGame(mapId, screenId = '', inspection = false) {
     KeyB: 'skill4',
     KeyM: 'menu',
   };
+  const gestures=new ScreenInputClock(),movements=new Map(),padHeld=new Map();
+  let stickSign=0,stickAllowed=true;
+  function setStick(value){
+    const sign=Math.sign(value);
+    if(sign!==stickSign){stickSign=sign;stickAllowed=!sign||!run.dispatchProgram?.('input',sign<0?'left':'right')?.consumed;}
+    run.stickAxis=run.paused||!stickAllowed?0:value;
+  }
+  let bindingScreen=null,padsAvailable=true;
+  const direction=k=>k==='left'||k==='right';
+  function holdDirection(token,key){if(direction(key)){movements.set(token,key);run.keys.add(key);}}
+  function releaseDirection(token){const key=movements.get(token);movements.delete(token);if(key&&![...movements.values()].includes(key))run.keys.delete(key);}
+  function releaseControl(token,cancel=false){gestures.up(token,performance.now(),cancel);releaseDirection(token);}
+  function clearControls(){gestures.reset();movements.clear();run.keys.clear();}
+  function startWidget(token,source,w){
+    if(gestures.active.has(token))return;
+    const id=run.screen.id;
+    gestures.down(token,id+'/'+w.id+'/'+source,w.gesture,performance.now(),()=>{
+      if(run.screen.id!==id || !w.visible)return;
+      if(sample)sample.inputs++;
+      if(run.activate(w)!==false&&run.screen.id===id)holdDirection(token,w.action);render();
+    });
+  }
+  function pollPads(){
+    if(!padsAvailable||!navigator.getGamepads)return;
+    let controllers;try{controllers=navigator.getGamepads();}catch{padsAvailable=false;return;}
+    const seen=new Set(),typing=modal.querySelector(':focus')?.matches('input,textarea,select,[contenteditable=true]');
+    for(const pad of controllers){if(!pad||pad.mapping!=='standard')continue;
+      pad.buttons.forEach((button,i)=>{
+        const token='pad/'+pad.index+'/'+i;
+        if(!button.pressed)return;seen.add(token);if(padHeld.has(token))return;
+        padHeld.set(token,true);if(typing)return;
+        const entry=widgets.find(({w,n})=>w.gesture?.pad===i&&w.type==='button'&&!n.disabled);
+        if(entry)startWidget(token,'pad'+i,entry.w);
+      });
+    }
+    for(const token of padHeld.keys())if(!seen.has(token)){padHeld.delete(token);releaseControl(token,typing||!controllers[Number(token.split('/')[1])]);}
+  }
   function bindAction(b, key, target, widget = null) {
     const go = () => (widget ? run.activate(widget) : run.press(key, target));
+    if(widget?.gesture){
+      b.onpointerdown=e=>{
+        if(e.button!==0)return;e.preventDefault();b.setPointerCapture(e.pointerId);
+        startWidget('pointer/'+e.pointerId,e.pointerType,widget);
+      };
+      const outside=e=>!b.contains(document.elementFromPoint(e.clientX,e.clientY));
+      b.onpointermove=e=>{if(widget.gesture.cancelOutside&&gestures.active.has('pointer/'+e.pointerId)&&outside(e))releaseControl('pointer/'+e.pointerId,true);};
+      b.onpointerup=e=>releaseControl('pointer/'+e.pointerId,widget.gesture.cancelOutside&&outside(e));
+      b.onpointercancel=b.onlostpointercapture=e=>releaseControl('pointer/'+e.pointerId,true);
+      b.onclick=e=>{if(e.detail===0&&(!e.pointerType||e.pointerType==='')){go();if(direction(key)&&![...movements.values()].includes(key))run.keys.delete(key);render();}};
+      return;
+    }
     if (key === 'left' || key === 'right') {
       b.onpointerdown = (e) => {
         e.preventDefault();
         b.setPointerCapture(e.pointerId);
-        go();
+        if(go()!==false)holdDirection('pointer/'+e.pointerId,key);
       };
-      b.onpointerup = b.onpointercancel = b.onlostpointercapture = () => run.keys.delete(key);
+      b.onpointerup=b.onpointercancel=b.onlostpointercapture=e=>releaseDirection('pointer/'+e.pointerId);
     } else {
       const immediate = key === 'jump' || key === 'attack' || skillSlot(key) >= 0;
       if (immediate) b.onpointerdown = e => {
@@ -189,6 +272,7 @@ function launchGame(mapId, screenId = '', inspection = false) {
     for (const release of releaseSticks) release();
     releaseSticks = [];
     paintStage(stage, run.map);
+    for(const field of [actors,hitCanvas]){field.style.transformOrigin='0% 82%';field.style.transform='scale('+run.viewport.frame.zoom+')';}
     if (run.dialogue?.node.backdrop && !run.customScreen) cssImage(stage, imageUrl(run.dialogue.node.backdrop));
     if (run.presentation?.role === 'loading' && loadingRequest !== run.presentation) {
       const p = loadingRequest = run.presentation;
@@ -233,6 +317,7 @@ function launchGame(mapId, screenId = '', inspection = false) {
     widgets = [];
     exitOverlay.hidden = !(run.customScreen || run.menu || run.dialogue);
     const screen = run.screen;
+    if(bindingScreen!==screen){clearControls();bindingScreen=screen;}
     const elements = [...screen.elements];
     stickToggle.hidden = run.paused || elements.some(w => w.type === 'joystick' && w.visible);
     stickToggle.setAttribute('aria-pressed', String(extraStick));
@@ -261,8 +346,9 @@ function launchGame(mapId, screenId = '', inspection = false) {
         (w) => w.visible && (!w.showFlag || run.flags.has(w.showFlag) === w.showValue),
       )) {
         const n = newWidgetView(w,true);
+        setWidgetGeometry(n,w,layer.clientWidth,layer.clientHeight);
         if(w.type==='input')connectInput(n,w,run,run.screen.id,render);
-        if (w.type === 'joystick') releaseSticks.push(bindJoystick(n, value => { run.stickAxis = run.paused ? 0 : value; },w.stick));
+        if (w.type === 'joystick') releaseSticks.push(bindJoystick(n,setStick,w.stick));
         if (w.type === 'button') {
           bindAction(n, w.action, w.target, w);
           const i = skillSlot(w.action);
@@ -311,11 +397,16 @@ function launchGame(mapId, screenId = '', inspection = false) {
   let backgroundStamp = '';
   let hudStamp = '';
   function render() {
+    const fade=run.map.camera?.frame;
+    const alpha=fade?.fadeTicks && !run.presentation ? 1-run.sceneAge/fade.fadeTicks : 0;
+    sceneFade.hidden=!(alpha>0);
+    if(!sceneFade.hidden){sceneFade.style.opacity=String(alpha);sceneFade.style.backgroundColor=fade.fadeColor||'#000000';}
     if (serial !== run.serial) {
       rebuild();
       hudStamp = '';
     }
     if (!hitCanvas.hidden) paintCombatOverlay(hitCanvas, run);
+    if(run.dialogue && !run.customScreen && !run.presentation && typeof paintDialogueTime==='function')paintDialogueTime(layer,run.dialogue,audioBus);
     if(!coveredByShot) paintField();
     paintHUD();
   }
@@ -343,7 +434,7 @@ function launchGame(mapId, screenId = '', inspection = false) {
         stage.style.backgroundSize = '';
         stage.style.backgroundPosition = '';
       }
-      stage.style.setProperty('--ground-y', Math.min(101, 82 + bottom) + '%');
+      stage.style.setProperty('--ground-y', Math.min(101,82+bottom*run.viewport.frame.zoom)+'%');
     }
     grid.query(camera - 6, bottom - 20, camera + 106, bottom + 88, visibleSet);
     for (const o of movable) visibleSet.add(o);
@@ -372,7 +463,7 @@ function launchGame(mapId, screenId = '', inspection = false) {
         n.classList.toggle('windup', o.state === 'windup');
         n.style.opacity = 0.5 + (0.5 * o.hp) / o.maxHp;
       } else if (o.type === 'spawn') {
-        n.style.transform = 'translate(-50%,-100%) scaleX(' + run.hero.face + ')';
+
         const pose =
           run.sequence?.action ||
           (run.stroke
@@ -384,10 +475,14 @@ function launchGame(mapId, screenId = '', inspection = false) {
                 : 'idle');
         const clip = run.character.clips?.[pose],
           token = run.sequence || run.stroke || pose;
-        if (!clipState || clipState.token !== token || clipState.node !== n)
-          clipState = { token, node: n, start: run.clock, heard: false, url: null };
+        if (!clipState || clipState.token !== token || clipState.node !== n){
+          audioBus.endFx();clipState={token,node:n,start:run.clock,heard:false,url:null};
+        }
         const t = Math.max(0, Math.round(60 * (run.clock - clipState.start)));
         const f = poseAt(clip, t, pose === 'idle' || pose === 'run');
+        const p=clip?.paint||clipPaintDefaults();
+        n.style.transformOrigin=p.pivotX+'% '+p.pivotY+'%';
+        n.style.transform='translate(-'+p.pivotX+'%,-'+p.pivotY+'%) scale('+run.hero.face*p.scale/100+','+p.scale/100+')';
         const url = f ? imageUrl(f.image) : characterUrl(run.character);
         if (clipState.url !== url) {
           n.style.backgroundImage = '';
@@ -415,7 +510,7 @@ function launchGame(mapId, screenId = '', inspection = false) {
       }
   }
   function paintHUD() {
-    const state = { inputs:run.inputValues, inputDefaults:run.inputDefaults, character: run.character, hp: run.hero.hp, map: run.map, enemies: run.enemiesLeft, loading: run.loadingFraction };
+    const state = { flags:run.flags,inputs:run.inputValues, inputDefaults:run.inputDefaults, character: run.character, hp: run.hero.hp, map: run.map, enemies: run.enemiesLeft, loading: run.loadingFraction };
     const stamp = state.hp + '|' + state.enemies + '|' + run.progressVersion + '|' + Math.round(100 * state.loading);
     if (hudStamp !== stamp) {
       for (const { w, n } of widgets)
@@ -445,6 +540,8 @@ function launchGame(mapId, screenId = '', inspection = false) {
   }
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   function loop(ts) {
+    pollPads();gestures.tick(ts);
+    if(metrics)metrics.record(ts,run.map.id,!document.hidden,performance.memory?.usedJSHeapSize);
     drawnFrames++;
     if (ts - last > 25) slowFrames++;
     frameTime += ts - last;
@@ -467,19 +564,20 @@ function launchGame(mapId, screenId = '', inspection = false) {
       if(sample && !document.hidden) {
         sample.ticks++;
         if(sample.ticks%30===1 && typeof GAME_DATA!=='undefined' && window.parent!==window)
-          window.parent.postMessage({dreamwalker:'inspection',...sample},'*');
+          window.parent.postMessage({dreamwalker:'inspection',...(metrics?.capture()||sample)},'*');
       }
       acc -= 1 / 60;
     }
     render();
     frame = requestAnimationFrame(loop);
   }
-  const shortcutHeld=new Map();
   const down = (e) => {
     if(e.isComposing||e.altKey||e.ctrlKey||e.metaKey||e.target?.closest?.('input,textarea,select,[contenteditable=true]'))return;
     const custom=widgets.find(({w,n})=>w.type==='button'&&!n.disabled&&w.shortcut===e.code);
-    if(custom){e.preventDefault();if(e.repeat)return;run.activate(custom.w);
-      if(['left','right'].includes(custom.w.action))shortcutHeld.set(e.code,custom.w.action);render();return;}
+    if(custom){e.preventDefault();if(e.repeat)return;
+      if(custom.w.gesture)startWidget('key/'+e.code,e.code,custom.w);
+      else{if(run.activate(custom.w)!==false)holdDirection('key/'+e.code,custom.w.action);render();}return;}
+    if(run.world.authoredKeysOnly)return;
     if(sample && !e.repeat && (codes[e.code] || ['Enter','Space','Escape'].includes(e.code))) sample.inputs++;
     if (e.repeat) return;
     if (e.code === 'Escape' && (run.customScreen || run.menu)) {
@@ -497,13 +595,13 @@ function launchGame(mapId, screenId = '', inspection = false) {
     }
     if (codes[e.code]) {
       e.preventDefault();
-      run.press(codes[e.code]);
+      if(run.press(codes[e.code])!==false)holdDirection('key/'+e.code,codes[e.code]);
       render();
     }
   };
-  const up = (e) => {run.keys.delete(shortcutHeld.get(e.code)||codes[e.code]);shortcutHeld.delete(e.code);},
+  const up=e=>releaseControl('key/'+e.code),
     blur = () => {
-      shortcutHeld.clear();run.keys.clear();
+      clearControls();
       for (const release of releaseSticks) release();
       saveProgress();
     };
@@ -516,21 +614,28 @@ function launchGame(mapId, screenId = '', inspection = false) {
   };
   $('#stop').onclick = () => modal.close();
   $('#controls').hidden = true;
-  modal.showModal();
+  const sizeObserver=new ResizeObserver(()=>{for(const {w,n} of widgets)if(w.anchor)setWidgetGeometry(n,w,layer.clientWidth,layer.clientHeight);});
+  sizeObserver.observe(layer);modal.showModal();
   render();
   frame = requestAnimationFrame(loop);
+  const focusField=e=>{if(e.target.matches('input,textarea,select,[contenteditable=true]')){clearControls();for(const release of releaseSticks)release();}};
+  modal.addEventListener('focusin',focusField);
   window.addEventListener('keydown', down);
   window.addEventListener('keyup', up);
   window.addEventListener('blur', blur);
+  const storeOnHide=()=>{if(document.hidden){saveProgress();metrics?.record(performance.now(),run.map.id,false);}};
+  const storeOnExit=()=>saveProgress();window.addEventListener('pagehide',storeOnExit);document.addEventListener('visibilitychange',storeOnHide);
   modal.onclose = () => {
-    cancelAnimationFrame(frame);
+    window.removeEventListener('pagehide',storeOnExit);document.removeEventListener('visibilitychange',storeOnHide);
+    metrics?.capture();sizeObserver.disconnect();cancelAnimationFrame(frame);
     if(sample) modal.removeEventListener('pointerdown',countTouch,true);
-    audioBus.close();
+    clearControls();padHeld.clear();audioBus.close();sceneFade.remove();
     for (const release of releaseSticks) release();
     saveProgress();
     diagnostics.remove();
     hitCanvas.remove();
     extra.forEach((n) => n.remove());
+    modal.removeEventListener('focusin',focusField);
     window.removeEventListener('keydown', down);
     window.removeEventListener('keyup', up);
     window.removeEventListener('blur', blur);

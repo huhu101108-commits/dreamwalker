@@ -6,7 +6,8 @@ const DESIGN_INSTRUCTIONS=[
   'screen edits name,tint,shade. addWidget requires kind; editWidget targets an existing widget. Supported widget kinds: '+Object.keys(WIDGETS).join(', ')+'. Widget properties: text,x,y,w,h,color,background,opacity,fontSize,align,shape,radius,borderColor,borderWidth,pressedColor,visible,action,target,functionId. Use existing actions only: '+Object.keys(INPUTS).join(', ')+'. Use empty target for an action without a target.',
   'Input widgets can set controlMode (text,number,toggle,range,choice), valueKey, hint, initial, limit, min, max, step, options (newline-separated), signal. Format a linked text label using {입력:name}. Button shortcut uses KeyA through KeyZ, Digit0 through Digit9, Space, Enter or arrow codes. hotspot is true or false. A joystick can set thumb and dead as percentages, knob and ring as colors.',
   'submenu creates a child screen AND a button in its parent; specify name, contents (empty,inventory,quests). Child has a return button. newFunction creates a reusable menu function with name,action,target. addStep ref=function id adds action,target,flag,flagState. bindFunction ref=button id assigns functionId, including @alias. Existing buttons can share functions. Prefer creating new functions to changing functions shared by other screens unless requested. Do not hide a required return button. Do not move an editorLocked widget.',
-  'When selectedScreen.work is provided, use those current editor details to answer questions about that map, character, dialogue or combat rule. A proposed operation can change only the selected screen or its new menus. Explain other edits as advice.',
+  'The selectedScreen.work.targets array lists additional author-selected editable project records. Choose a listed op and exact ref, use screen="" and only fields shown for that target or declared below. When the target has a numeric slot, include slot in values with its exact integer as a string. Do not edit any other record. Use one change per independently reviewable modification and propose only requested edits.',
+  'Editable target operations and keys: '+Object.entries(DESIGN_TARGETS).map(([op,s])=>op+'('+Object.keys(s.fields).join(',')+')').join(' ') +'. Preserve IDs, use existing referenced IDs, keep units and types. Never include raw asset bytes, credentials, account preferences, new executable code or unrequested project content.',
   'For an unsupported system, explain the work remaining, with an empty changes array if the screen editor cannot express it.'
 ].join('\n');
 function gptContext(input){
@@ -28,6 +29,24 @@ function gptContext(input){
     if(!work||!has(GPT_AREAS,work.area)||!textValue(work.title,80,true)||!Array.isArray(work.fields)||work.fields.length>12||
        work.fields.some(f=>!f||!GPT_CONTEXT_FIELDS.includes(f.name)||!textValue(f.value,420)))err(400,'작업 중인 편집 대상을 확인하세요.');
     result.work={area:work.area,title:work.title,fields:work.fields.map(({name,value})=>({name,value}))};
+    if(work.scope!==undefined){
+      const scope=checkedWorkScope(work.area,work.scope);
+      if(!scope||!Array.isArray(work.targets)||work.targets.length>18)err(400,'편집 대상 목록을 확인하세요.');
+      const refs={editMap:scope.map,editObject:scope.object,editLine:scope.line,editChoice:scope.line,editActor:scope.actor,
+        editSkill:scope.actor,editCombatRule:scope.rule,editRuleEffect:scope.rule,editEventRule:scope.eventRule};
+      const targets=work.targets.map(t=>{
+        if(!t||!has(DESIGN_TARGETS,t.op)||!validId(t.ref)||t.ref!==refs[t.op]||!t.values||typeof t.values!=='object'||Array.isArray(t.values)||
+          (t.slot!==undefined&&!integer(t.slot,0,11))||(t.op==='editSkill'&&t.slot!==scope.skill))err(400,'선택된 편집 항목을 확인하세요.');
+        const values={};
+        for(const [key,kind] of Object.entries(DESIGN_TARGETS[t.op].fields)){
+          const v=t.values[key];if(v===undefined)continue;
+          if(kind==='text'?!textValue(v,1200):kind==='number'?!Number.isFinite(v):typeof v!=='boolean')err(400,'편집 항목 속성을 확인하세요.');
+          values[key]=v;
+        }
+        return {op:t.op,ref:t.ref,...(t.slot===undefined?{}:{slot:t.slot}),values};
+      });
+      result.work.scope=scope;result.work.targets=targets;
+    }
   }
   return result;
 }
@@ -38,6 +57,7 @@ async function studioGpt(req,env,b,sessionKey,editor,owner){
   const choice=personal?.prefs.api||{model:STUDIO_GPT_MODEL,effort:STUDIO_GPT_EFFORT};
   if(req.method==='GET')return json({configured,...choice,...(owner?{personal}:{})});
   if(!configured)err(503,'사이트 소유자가 OpenAI 연결을 설정하면 대화를 시작할 수 있어요.');
+  if(owner && personal.prefs.mode==='api'&&personal.apiStatus?.state==='verified'&&!personal.apiModels.some(m=>m.id===choice.model))err(409,'조회한 목록에서 모델을 다시 선택하세요.');
   if(owner && personal.prefs.mode!=='api')err(409,'스튜디오 API를 사용하려면 내 GPT 설정에서 직접 선택하세요.');
   if(!req.headers.get('content-type')?.startsWith('application/json'))err(415,'JSON 요청이 필요해요.');
   const body=JSON.parse(new TextDecoder().decode(await limitedFileBody(req,196608)));
@@ -51,7 +71,7 @@ async function studioGpt(req,env,b,sessionKey,editor,owner){
   try{
     const upstream=await fetch('https://api.openai.com/v1/responses',{method:'POST',
       headers:{Authorization:'Bearer '+env.OPENAI_API_KEY,'Content-Type':'application/json'},
-      signal:AbortSignal.timeout(240000),body:JSON.stringify({model:choice.model,reasoning:{effort:choice.effort},store:false,max_output_tokens:16000,
+      signal:AbortSignal.timeout(240000),body:JSON.stringify({model:choice.model,...(choice.effort?{reasoning:{effort:choice.effort}}:{}),store:false,max_output_tokens:16000,
         instructions:DESIGN_INSTRUCTIONS,input:[...body.history.map(m=>({role:m.role,content:m.text})),
           {role:'user',content:JSON.stringify({selectedScreen:context,request:body.prompt})}],
         text:{format:{type:'json_schema',name:'dreamwalker_screen_proposal',strict:true,schema:designFormat}}})});

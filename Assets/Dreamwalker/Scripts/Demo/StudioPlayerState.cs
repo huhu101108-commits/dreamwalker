@@ -41,6 +41,7 @@ public class StudioPlayerSave
     public StudioEquipEntry[] gear, kills, inputs;
     public int combatTick;
     public StudioActorRules[] combatStates;
+    public StudioProgramBucket eventState;
 }
 public sealed partial class StudioWorld
 {
@@ -55,6 +56,9 @@ public sealed partial class StudioWorld
         return formValues.TryGetValue(key,out string value) ? w.control.Value(value) ?? w.control.initial : w.control.initial;
     }
     internal string FieldText(string text) {
+        if(!string.IsNullOrEmpty(text)&&eventMachine!=null&&text.Contains("{변수:"))
+            text=System.Text.RegularExpressions.Regex.Replace(text,@"\{변수:(?:(save|session|map):)?([a-zA-Z0-9_가-힣-]{1,50})\}", m=>
+                eventMachine.Value(m.Groups[1].Success?m.Groups[1].Value:"save",m.Groups[2].Value).ToString(System.Globalization.CultureInfo.InvariantCulture));
         if (string.IsNullOrEmpty(text) || !text.Contains("{입력:")) return text;
         return System.Text.RegularExpressions.Regex.Replace(text,@"\{입력:([a-zA-Z0-9_가-힣-]{1,50})\}",
             m => formValues.TryGetValue(m.Groups[1].Value,out string value) || formDefaults.TryGetValue(m.Groups[1].Value,out value) ? value : "");
@@ -101,12 +105,13 @@ public sealed partial class StudioWorld
         }
         if (line != speakingLine)
         {
+            if(line==null){stageSound?.Stop();pendingStageSound=null;}
             voicePlayer?.Stop();
             speakingLine = line;
             voiceStarted = false;
         }
-        StartTrack(ref musicPlayer, music, ref musicStarted, true, Project.mix?.music ?? 65);
-        StartTrack(ref voicePlayer, line?.voice, ref voiceStarted, false, Project.mix?.voice ?? 100);
+        StartTrack(ref musicPlayer, music, ref musicStarted, Project.mix?.musicMode!="once", Project.mix?.music ?? 65);
+        StartTrack(ref voicePlayer, line?.voice, ref voiceStarted, Project.mix?.voiceMode=="loop", Project.mix?.voice ?? 100);
     }
     private void StartTrack(ref AudioSource player, string reference, ref bool started, bool loop, float volume)
     {
@@ -120,9 +125,15 @@ public sealed partial class StudioWorld
         player.Play();
         started = true;
     }
+    private void PlayAuthoredFx(ref AudioSource channel,AudioClip clip){
+        SoundChannel(ref channel);
+        float volume=Mathf.Clamp01((Project.mix?.fx??85)/100f);
+        if(Project.mix?.fxMode=="loop"){channel.clip=clip;channel.loop=true;channel.volume=volume;channel.Play();}
+        else{channel.loop=false;channel.volume=1;channel.PlayOneShot(clip,volume);}
+    }
     private void ReleaseSound()
     {
-        foreach (var player in new[]{musicPlayer, voicePlayer, cuePlayer})
+        foreach (var player in new[]{musicPlayer,voicePlayer,cuePlayer,stageSound})
             if (player != null) { player.Stop(); Destroy(player); }
         foreach (var clip in tones.Values) Destroy(clip);
         tones.Clear();
@@ -134,6 +145,7 @@ public sealed partial class StudioWorld
                                                      v => v.id == id);
 
     private int combatTick;
+    private StudioEventMachine eventMachine;
     private List<StudioActorRules> combatStates = new List<StudioActorRules>();
     private readonly Dictionary<string,string> kills = new Dictionary<string,string>();
     private StudioActorRules RuleState()
@@ -142,15 +154,16 @@ public sealed partial class StudioWorld
         if (state == null) { state = new StudioActorRules { actor = Actor.id }; combatStates.Add(state); }
         return state;
     }
-    private int CombatEvent(string moment)
+    private int CombatEvent(string moment,string key="")
     {
         int hp = Health;
         int damage = RuleState().Apply(Project.combatRules, moment, combatTick, ref hp, Actor.health);
         Health = hp;
-        return damage;
+        return damage+(DispatchProgram(moment,key)?.damage??0);
     }
     private void ReceiveDamage(int amount)
     {
+        if(slash.IsAttacking && (slash.StudioStrike?.Guard(slash.StudioTick)??false))return;
         Health = Math.Max(0, Health - RuleState().Absorb(amount));
         CombatEvent("hurt");
     }
@@ -163,6 +176,7 @@ public sealed partial class StudioWorld
         kills.Clear();
         combatStates.Clear();
         combatTick = 0;
+        eventMachine=Project.eventRules!=null&&Project.eventRules.Length>0?new StudioEventMachine(Project.eventRules):null;
         mapsDone.Clear();
         storiesDone.Clear();
         rewards.Clear();
@@ -206,6 +220,7 @@ public sealed partial class StudioWorld
             version = 1,
             hp = Health,
             combatTick = combatTick,
+            eventState = eventMachine?.Saved,
             combatStates = combatStates.ToArray(),
             kills = new List<KeyValuePair<string,string>>(kills).ConvertAll(p => new StudioEquipEntry { key=p.Key, id=p.Value }).ToArray(),
             x = (body.position.x - OriginX) / UnitX,
@@ -281,6 +296,7 @@ public sealed partial class StudioWorld
             if (fields.TryGetValue(key,out string raw) && w.control.Value(raw)!=null) formValues[key]=w.control.Value(raw);
         }
         combatTick = Math.Max(0, saved.combatTick);
+        eventMachine?.Restore(saved.eventState,combatTick);
         foreach (var state in saved.combatStates ?? Array.Empty<StudioActorRules>())
             if (state != null && state.counters != null && Project.Character(state.actor) != null) combatStates.Add(state);
         foreach (var entry in saved.kills ?? Array.Empty<StudioEquipEntry>())
@@ -425,6 +441,7 @@ public sealed partial class StudioWorld
         }
         return sprite;
     }
+    private StudioClipPaint lastPaint;
     private void PaintMotion()
     {
         if (Actor?.motionClips == null || bodyImage == null)
@@ -437,6 +454,7 @@ public sealed partial class StudioWorld
         int epoch = pose == "attack" ? slash.StudioSequence : motionEpoch;
         if (pose != lastPose || lastEpoch != epoch)
         {
+            if(cuePlayer!=null&&cuePlayer.loop)cuePlayer.Stop();
             lastPose = pose;
             lastEpoch = epoch;
             poseStart = clock;
@@ -452,7 +470,8 @@ public sealed partial class StudioWorld
             int duration = 0;
             foreach (var frame in clip.frames)
                 duration += Mathf.Max(1, frame.ticks);
-            int at = pose == "idle" || pose == "run" ? t % duration : Math.Min(t, duration - 1);
+            bool repeat=clip.paint?.repeat=="loop" || (clip.paint?.repeat!="once" && (pose=="idle" || pose=="run"));
+            int at=repeat?t%duration:Math.Min(t,duration-1);
             foreach (var frame in clip.frames)
             {
                 if (at < frame.ticks)
@@ -463,21 +482,26 @@ public sealed partial class StudioWorld
                 at -= frame.ticks;
             }
         }
-        if (reference != lastSpriteRef)
+        var paint=clip?.paint;
+        float scale=(paint?.scale??100)/100f;
+        if (reference != lastSpriteRef || lastPaint!=paint)
         {
             var sprite = GraphicsFor(reference);
             if (sprite != null)
             {
                 bodyImage.sprite = sprite;
-                Fit(bodyImage, new Vector2(1.65f, 2.3f), true);
+                Fit(bodyImage,new Vector2(1.65f,2.3f)*scale,true);
+                lastPaint=paint;
                 lastSpriteRef = reference;
             }
         }
+        bodyImage.transform.localPosition=new Vector3((.5f-(paint?.pivotX??50)/100f)*1.65f*scale*motor.Facing,
+            ((paint?.pivotY??100)/100f-.5f)*2.3f*scale,0);
         if (clip != null && !playedCue && t >= clip.cueTick)
         {
             playedCue = true;
             if (sound != null)
-                SoundChannel(ref cuePlayer).PlayOneShot(sound, Mathf.Clamp01((Project.mix?.fx ?? 85) / 100f));
+                PlayAuthoredFx(ref cuePlayer,sound);
             else if (string.IsNullOrEmpty(clip.sound))
                 PlayCue(clip.cue);
             var sprite = GraphicsFor(clip.fx);

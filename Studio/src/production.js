@@ -26,6 +26,8 @@ function drawProduction() {
     actor.clips ||= {};
     return (actor.clips[motionKey] ||= clip);
   };
+  if(motionKey==='attack' && typeof drawStrikeTimeline==='function')drawStrikeTimeline(main,actor);
+  const phases=actor.strike?[actor.strike.startup,actor.strike.active,actor.strike.recovery]:attackPhases(project.tuning);
   const preview = box('motion-preview');
   const figure = el('img'),
     effect = el('img'),
@@ -39,7 +41,7 @@ function drawProduction() {
   if (motionKey === 'attack')
     duration = Math.max(
       duration,
-      attackPhases(project.tuning).reduce((a, b) => a + b),
+      phases.reduce((a, b) => a + b),
     );
   Object.assign(scrub, {
     type: 'range',
@@ -55,9 +57,11 @@ function drawProduction() {
       url = imageUrl(f?.image) || characterUrl(actor);
     if (url && figure.getAttribute('src') !== url) figure.src = url;
     figure.hidden = !url;
+    const p=clip.paint||clipPaintDefaults();
+    Object.assign(figure.style,{position:'absolute',left:'50%',top:'84%',width:'25%',height:'65%',objectFit:'contain',objectPosition:'center bottom',transformOrigin:p.pivotX+'% '+p.pivotY+'%',transform:'translate(-'+p.pivotX+'%,-'+p.pivotY+'%) scale('+p.scale/100+')'});
     effect.hidden = !clip.fx || t < clip.cueTick || t >= clip.cueTick + 7;
     if (!effect.hidden) effect.src = imageUrl(clip.fx);
-    const [prep, active] = attackPhases(project.tuning);
+    const [prep, active] = phases;
     caption.textContent =
       t +
       ' / ' +
@@ -65,13 +69,16 @@ function drawProduction() {
       '틱' +
       (motionKey === 'attack' ? ' · ' + (t < prep ? '준비' : t < prep + active ? '공격 판정' : '회복') : '');
   };
-  scrub.oninput = paint;
+  scrub.oninput = ()=>{stop();paint();};
+  let running=false,token=0;
+  const stop=()=>{running=false;token++;motionPreviewSound?.pause();play.textContent='▶ 재생';};
   const play = action('▶ 재생', () => {
-    const start = performance.now();
-    let heard = false;
-    play.disabled = true;
+    if(running){stop();return;}
+    if(previewTick>=duration-1)previewTick=0;
+    const start=performance.now()-previewTick/0.06,current=++token;
+    let heard=previewTick>clip.cueTick;running=true;play.textContent='일시정지';
     function next(ts) {
-      if (!preview.isConnected) return;
+      if (!preview.isConnected || !running || current!==token)return;
       const t = Math.min(duration - 1, Math.floor((ts - start) * 0.06));
       scrub.value = t;
       paint();
@@ -85,11 +92,16 @@ function drawProduction() {
         heard = true;
       }
       if (t < duration - 1) requestAnimationFrame(next);
-      else play.disabled = false;
+      else stop();
     }
     requestAnimationFrame(next);
   });
-  main.append(preview, titled('프레임 탐색', scrub), row(play, caption));
+  const tickBy=amount=>{stop();scrub.value=clamp(Number(scrub.value)+amount,0,duration-1);paint();};
+  main.append(preview,titled('프레임 탐색',scrub),row(play,action('이전 한 틱',()=>tickBy(-1)),action('다음 한 틱',()=>tickBy(1)),caption));
+  const look={...clipPaintDefaults(),...clip.paint};
+  function poseSetting(key,v){edit(()=>{ensure().paint={...look,...clip.paint,[key]:v};},false);paint();}
+  side.append(heading('프레임 기준점'),selectField('프레임 반복 방식',look.repeat,{state:'상태 기본값',loop:'반복',once:'마지막 프레임 유지'},v=>poseSetting('repeat',v)),
+    ...[['pivotX','피벗 가로 (%)',0,100],['pivotY','발 기준 높이 (%)',0,100],['scale','그림 크기 (%)',10,300]].map(([k,title,min,max])=>numberField(title,look[k],min,max,1,v=>poseSetting(k,v))));
   paint();
   main.append(filePicker('프레임 여러 장 가져오기 · 파일명 순서', true, async (files, active) => {
     files.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ko', { numeric: true }));

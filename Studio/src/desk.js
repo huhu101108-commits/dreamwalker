@@ -1,5 +1,10 @@
 let selectedTask='', taskFilter='', playReceipt=null;
-const workData = () => project.work || emptyWork();
+const pendingWork=new WeakMap();
+function workData(){
+  if(project.work)return project.work;
+  if(!pendingWork.has(project))pendingWork.set(project,emptyWork());
+  return pendingWork.get(project);
+}
 function changeWork(work,operation,redraw=true,group) {
   edit(()=>{ project.work ||= work; operation(); },redraw,group);
 }
@@ -8,13 +13,15 @@ function deskText(label,work,obj,key,max,multi=false) {
   return textField(label,obj[key],value=>changeWork(work,()=>{obj[key]=value;},false,group),max,multi);
 }
 function goTool(tool,id='') {
+  if(tool==='eventRules'){if(id)selectedEventRule=id;tool='rules';id='';}
   if (!document.querySelector('#tabs [data-tab="'+tool+'"]')) return;
+  if(id&&tool==='rules')selectedCombatRule=id;
   if (id && tool==='scene') { sceneId=id; mapPage=mapFloor=0; mapTool=mapObject=''; }
   if (id && tool==='characters') actorId=id;
   if (id && tool==='stories') { storyId=id; lineId=''; }
   if (id && tool==='interface') { layoutId=id; elementId=''; }
   tab=tool;
-  if (location.pathname==='/') history.replaceState(null,'','?tool='+tool);
+  if(location.pathname==='/'){const url=new URL(location.href);url.searchParams.set('tool',tool);for(const k of ['screen','map','element','story','line'])url.searchParams.delete(k);history.replaceState(null,'',url);}
   $('#editor').classList.remove('rail-open','inspect-mode');
   $('#tool-menu').setAttribute('aria-expanded','false');
   $('#inspector-switch').setAttribute('aria-pressed','false');
@@ -35,6 +42,7 @@ function drawDesk() {
     changeWork(work,()=>{work.tasks.push(item);selectedTask=item.id;taskFilter='';});
   },'accent'));
   main.append(top,deskText('마일스톤',work,work,'milestone',120),deskText('이번 버전의 목표와 범위',work,work,'brief',3000,true));
+  drawDesignPlan(work,main);drawStudies(work,main);drawWorkEstimate(work,main,side);main.append(releasePanel(work));
   const board=box('kanban'), search=textField('작업 찾기',taskFilter,v=>{taskFilter=v;cards();},90);
   main.append(search,board);
   function cards() {
@@ -65,27 +73,23 @@ function drawDesk() {
     deskText('담당자',work,task,'owner',60),
     selectField('제작 단계',task.state,WORK_STATES,v=>changeWork(work,()=>{task.state=v;})),
     deskText('완료 기준',work,task,'criteria',1500,true),
-    selectField('대상 도구',task.tool,{'':'프로젝트 전체',scene:'씬',characters:'캐릭터',stories:'대사',interface:'UI 화면'},v=>changeWork(work,()=>{task.tool=v;task.target='';})));
+    selectField('대상 도구',task.tool,targetToolNames,v=>changeWork(work,()=>{task.tool=v;task.target='';})));
   if(task.tool) {
-    const targets=project[WORK_TARGETS[task.tool]];
-    side.append(selectField('제작 대상',task.target,{'':'도구 전체',...optionMap(targets)},v=>changeWork(work,()=>{task.target=v;})),
-      action('제작 대상 열기',()=>goTool(task.tool,named(targets,task.target)?.id)));
+    const targets=project[WORK_TARGETS[task.tool]]||[], options={'':'도구 전체',...optionMap(targets)};
+    if(task.target&&!named(targets,task.target))options[task.target]='사라진 대상 · 다시 연결';
+    side.append(selectField('제작 대상',task.target,options,v=>changeWork(work,()=>{task.target=v;})),
+      action('제작 대상 열기',()=>workTaskTarget(work,task)));
   }
-  side.append(action('플레이 검수 열기',()=>goTool('quality')),
-    action('작업 카드 삭제',()=>{if(confirm('이 작업 카드를 삭제할까요?')) changeWork(work,()=>{work.tasks=work.tasks.filter(t=>t!==task);});},'danger'));
+  workTaskSchedule(work,task,side);if(task.kind==='bug')taskBugPanel(work,task,side);
+  for(const r of work.runs.filter(r=>r.task===task.id||r.id===task.run).slice(0,10))side.append(el('p',(r.passed?'통과':'수정 필요')+' · v'+r.rev+' · '+r.note));
+  side.append(action('플레이 검수 열기',()=>{linkedTask=task.id;if(task.tool==='scene'&&named(project.scenes,task.target))sceneId=task.target;goTool('quality');}),
+    action('작업 카드 삭제',()=>{if(confirm('이 작업 카드를 삭제할까요?')) changeWork(work,()=>{work.tasks=work.tasks.filter(t=>t!==task);for(const t of work.tasks)if(t.needs?.includes(task.id))t.needs=t.needs.filter(id=>id!==task.id);});},'danger'));
   for(const field of [main,side]) field.addEventListener('change',cards);
-}
-async function contentDigest(doc) {
-  const content=packNativeWorld(doc);
-  content.sourceFiles=doc.sourceFiles;
-  const canonical=(k,v)=>v && typeof v==='object' && !Array.isArray(v)
-    ? Object.fromEntries(Object.keys(v).sort().map(key=>[key,v[key]])) : v;
-  const bytes=new TextEncoder().encode(JSON.stringify(content,canonical));
-  return fileHex(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)));
 }
 function appendInspection(work,result) {
   changeWork(work,()=>{
-    work.runs.unshift({id:uid(),when:Date.now(),...result});
+    const run={id:uid(),when:Date.now(),...result};work.runs.unshift(run);
+    for(const release of work.releases||[])archiveReleaseEvidence(release,run);
     work.runs.splice(60);
   });
 }
@@ -115,15 +119,14 @@ async function inspectCandidate(doc) {
 }
 function drawQuality() {
   const [main,side]=panels(),work=workData(), map=activeMap();
-  const result=el('output'), input=el('textarea'), name=el('input');
+  const result=el('output'), input=el('textarea'), name=el('input'), observation=observationInputs();
   input.rows=3; input.maxLength=1800; name.maxLength=60;
   const saveManual=passed=>async()=>{
     const digest=await contentDigest(project);
     if(!playReceipt || playReceipt.digest!==digest) throw Error('이 초안을 검수 플레이한 뒤 결과를 기록하세요.');
     if(!input.value.trim()) throw Error('관찰한 결과를 입력하세요.');
-    const scene=named(project.scenes,playReceipt.map);
     const receipt=playReceipt;playReceipt=null;
-    appendInspection(work,{kind:'play',passed,digest,rev:receipt.rev,draft:receipt.draft,target:scene?.name||'',owner:name.value.trim(),note:input.value.trim(),...receipt.sample});
+    appendInspection(work,manualWorkResult(receipt,observation.read(),name.value.trim(),input.value.trim(),passed,observation.environment()));
   };
   const auto=action('씬·화면 자동 검사',async()=>{
     auto.disabled=true;
@@ -147,24 +150,19 @@ function drawQuality() {
       detail.append(el('summary',(r.passed?'통과':'수정 필요')+' · '+r.target+' · '+(r.kind==='checks'?'자동 검사':'플레이 검수')),
         el('p',(r.digest===current?'현재 게임 내용':'이전 게임 내용')+' · '+(r.draft?'초안 · 기준 ':'')+'v'+r.rev+' · '+new Date(r.when).toLocaleString('ko-KR')+(r.owner?' · '+r.owner:'')),el('pre',r.note));
       if(r.kind==='play' && r.ticks!==undefined) detail.append(el('p','실행 '+(r.ticks/60).toFixed(1)+'초 · 조작 '+r.inputs+'회'));
+      inspectResultInfo(detail,r);
       if(!r.passed) detail.append(action('버그 카드 만들기',()=>{
         if(work.tasks.some(t=>t.run===r.id)) return note('이 결과의 버그 카드가 이미 있어요.');
         if(work.tasks.length>=240) throw Error('카드 한도에 도달했어요.');
-        const t={...newTask((r.target+' 검수 수정').slice(0,100),'bug'),criteria:r.note.slice(0,1500),run:r.id};
+        const t=bugFromRun(r);
         changeWork(work,()=>{work.tasks.push(t);selectedTask=t.id;},false);goTool('desk');
       }));
       history.append(detail);
     }
   }).catch(error=>{result.textContent=error.message;});
   side.append(heading('플레이 검수'),selectField('검수할 맵',map.id,optionMap(project.scenes),id=>{sceneId=id;draw();}),
-    action('이 맵 검수 플레이',async()=>{
-      const digest=await contentDigest(project), draft=dirty, rev=record.rev;
-      playReceipt=null;
-      const modal=await playProject(map.id,'',true);
-      if(!modal?.open) return;
-      modal.addEventListener('close',()=>{playReceipt={digest,map:map.id,draft,rev,sample:modal.inspectionSample || {}};if(tab==='quality') draw();},{once:true});
-    }),el('p',playReceipt?'플레이한 초안의 결과를 입력하세요.':'맵을 플레이하고 편집기로 돌아와 결과를 기록하세요.'),
-    titled('검수자',name),titled('재현 순서와 관찰 결과',input),row(action('통과 기록',saveManual(true)),action('수정 필요 기록',saveManual(false))));
-  addBuildPanel(side);
+    action('이 맵 검수 플레이',()=>playWorkReview({mapId:map.id,slot:linkedTask?'task-'+linkedTask:'map-'+map.id,resume:false},{task:linkedTask})),el('p',playReceipt?'플레이한 초안의 결과를 입력하세요.':'맵을 플레이하고 편집기로 돌아와 결과를 기록하세요.'),
+    observation.area,titled('검수자',name),titled('재현 순서와 관찰 결과',input),row(action('통과 기록',saveManual(true)),action('수정 필요 기록',saveManual(false))));
+  main.append(releasePanel(work));addBuildPanel(side);
   side.append(action('팀 검토·버전 기록',()=>goTool('versions')));
 }

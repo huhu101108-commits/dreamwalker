@@ -14,8 +14,11 @@ internal sealed partial class StudioScreenView
     private readonly StudioWorld world;
     private readonly Dictionary<int, GUIStyle> textStyles = new Dictionary<int, GUIStyle>();
     private Font font;
+    private readonly Dictionary<string,Font> familyFonts=new Dictionary<string,Font>();
     private bool triedFont;
     private float mouseDirection;
+    private bool mouseAllowed,stickAllowed=true;
+    private int stickSign;
     private int stickOwner = -1;
     private bool sawStick;
     private Vector2 stickOffset;
@@ -41,13 +44,17 @@ internal sealed partial class StudioScreenView
 #endif
         if (Dreamwalker.Input.DreamwalkerInput.MaskKey == MaskGameKey) Dreamwalker.Input.DreamwalkerInput.MaskKey=null;
         foreach (var shape in shapes.Values) shape.Release();
-        shapes.Clear();
+        shapes.Clear();foreach(var f in familyFonts.Values)if(f!=null)UnityEngine.Object.Destroy(f);familyFonts.Clear();
         if (font != null)
             UnityEngine.Object.Destroy(font);
     }
     private StudioLayout Layout => world.CurrentLayout;
-    private static Rect Bounds(StudioWidget w) => new Rect(w.x * Screen.width / 100, w.y *Screen.height / 100,
-                                                           w.w *Screen.width / 100, w.h *Screen.height / 100);
+    private static Rect Bounds(StudioWidget w)
+    {
+        float x=w.x,y=w.y,scale=Mathf.Min(Screen.width/800f,Screen.height/450f);
+        if(w.anchor!=null){x=StudioAnchor.Resolve(w.anchor.horizontal,w.anchor.dx,Screen.width,w.w,x,scale);y=StudioAnchor.Resolve(w.anchor.vertical,w.anchor.dy,Screen.height,w.h,y,scale);}
+        return new Rect(x*Screen.width/100,y*Screen.height/100,w.w*Screen.width/100,w.h*Screen.height/100);
+    }
 
     private static Rect Ring(Rect rect)
     {
@@ -59,14 +66,27 @@ internal sealed partial class StudioScreenView
         stickOffset = Vector2.ClampMagnitude((pos - rect.center) / Mathf.Max(1, rect.width * .38f), 1);
         float x = stickOffset.x;
         float dead=(widget.stick!=null && widget.stick.thumb>=15 ? widget.stick.dead : 14) / 100f;
-        return Mathf.Abs(x) <= dead ? 0 : Mathf.Sign(x) * (Mathf.Abs(x) - dead) / (1-dead);
+        float value=Mathf.Abs(x)<=dead?0:Mathf.Sign(x)*(Mathf.Abs(x)-dead)/(1-dead);
+        int sign=Math.Sign(value);
+        if(sign!=stickSign){stickSign=sign;stickAllowed=sign==0||world.AllowProgramInput(sign<0?"left":"right");}
+        return stickAllowed?value:0;
     }
     private static bool Hit(StudioWidget w, Rect r, Vector2 pos) =>
         r.Contains(pos) && StudioOutline.Contains(w,(pos.x-r.x)/r.width,(pos.y-r.y)/r.height,r.width/r.height);
-    private void Touch(int finger, Vector2 position, bool began, ref float horizontal)
+    private void Touch(int finger, Vector2 position, bool began, ref float horizontal,bool authoredOnly=false)
     {
         if (ActiveShot != null || openChoices != null) return;
         position.y = Screen.height - position.y;
+        liveFingers.Add(finger);
+        if(fingerWidgets.TryGetValue(finger,out var captured)){
+            string token="touch"+finger;
+            if(!world.Enabled(captured)||!world.Visible(captured)||(captured.gesture.cancelOutside&&!Hit(captured,Bounds(captured),position)))gestureClock.End(token,InputMs,true);
+            else {
+                gestureClock.Tick(token,InputMs);
+                if(gestureClock.Active(token)&&allowedMoves.Contains(token))horizontal+=captured.action=="left"?-1:1;
+            }
+            return;
+        }
         if (finger == stickOwner && heldStick != null)
         {
             sawStick = true;
@@ -80,6 +100,11 @@ internal sealed partial class StudioScreenView
             var r = Bounds(w);
             if (!world.Visible(w) || !world.Enabled(w) || !r.Contains(position)) continue;
             if (w.type == "input") return;
+            if(w.type=="button"&&w.gesture!=null&&Hit(w,r,position)){
+                if(began){fingerWidgets[finger]=w;GestureDown("touch"+finger,authoredOnly?"mouse":"touch",w);if(allowedMoves.Contains("touch"+finger))horizontal+=w.action=="left"?-1:1;}
+                return;
+            }
+            if(authoredOnly){if(w.type=="button"&&Hit(w,r,position)||w.type=="joystick")return;continue;}
             if (w.type == "joystick" && began && stickOwner < 0 && !world.Paused)
             {
                 stickOwner = finger;
@@ -89,10 +114,12 @@ internal sealed partial class StudioScreenView
                 return;
             }
             if (w.type != "button" || !Hit(w,r,position)) continue;
-            if (w.action == "left")
-                horizontal--;
-            else if (w.action == "right")
-                horizontal++;
+            if(Movement(w)){
+                string key="touch"+finger;
+                if(began && world.AllowProgramInput(w.action))allowedMoves.Add(key);
+                if(!allowedMoves.Contains(key))return;
+                horizontal+=w.action=="left"?-1:1;
+            }
             if (began)
             {
                 pressedId = w.id;
@@ -108,23 +135,32 @@ internal sealed partial class StudioScreenView
         float horizontal = 0;
         sawStick = false;
         if (touchLayout != Layout || world.Paused) { stickOwner = -1; heldStick = null; stickOffset = Vector2.zero; }
-        touchLayout = Layout;
+        if(touchLayout!=Layout||!Application.isFocused){gestureClock.Clear();fingerWidgets.Clear();allowedMoves.Clear();}
+        touchLayout=Layout;liveFingers.Clear();
+        if(!Application.isFocused){motor.SetVirtualHorizontal(0);return;}
 #if ENABLE_INPUT_SYSTEM
         var screen = Touchscreen.current;
         if (screen != null)
             foreach (var touch in screen.touches)
                 if (touch.press.isPressed)
                     Touch(touch.touchId.ReadValue(), touch.position.ReadValue(), touch.press.wasPressedThisFrame, ref horizontal);
+                else if(touch.press.wasReleasedThisFrame)FinishTouch(touch.touchId.ReadValue(),touch.position.ReadValue(),touch.phase.ReadValue()==UnityEngine.InputSystem.TouchPhase.Canceled);
+        var mouse=Mouse.current;
+        if(!Application.isMobilePlatform&&mouse!=null){if(mouse.leftButton.isPressed)Touch(-2,mouse.position.ReadValue(),mouse.leftButton.wasPressedThisFrame,ref horizontal,true);else if(mouse.leftButton.wasReleasedThisFrame)FinishTouch(-2,mouse.position.ReadValue(),false);}
 #else
         for (int i = 0; i < UnityEngine.Input.touchCount; i++)
         {
             var touch = UnityEngine.Input.GetTouch(i);
             if (touch.phase != TouchPhase.Ended && touch.phase != TouchPhase.Canceled)
                 Touch(touch.fingerId, touch.position, touch.phase == TouchPhase.Began, ref horizontal);
+            else FinishTouch(touch.fingerId,touch.position,touch.phase==TouchPhase.Canceled);
         }
+        if(!Application.isMobilePlatform){if(UnityEngine.Input.GetMouseButton(0))Touch(-2,UnityEngine.Input.mousePosition,UnityEngine.Input.GetMouseButtonDown(0),ref horizontal,true);else if(UnityEngine.Input.GetMouseButtonUp(0))FinishTouch(-2,UnityEngine.Input.mousePosition,false);}
 #endif
+        lostFingers.Clear();foreach(var finger in fingerWidgets.Keys)if(!liveFingers.Contains(finger))lostFingers.Add(finger);
+        foreach(int finger in lostFingers)EndFinger(finger,true);
         ReadScreenKeys(ref horizontal);
-        if (!sawStick && stickOwner >= 0) { stickOwner = -1; heldStick = null; stickOffset = Vector2.zero; }
+        if (!sawStick && stickOwner >= 0) { stickOwner = -1; heldStick = null; stickOffset = Vector2.zero;stickSign=0;stickAllowed=true; }
         if (!Application.isMobilePlatform && Time.unscaledTime - mouseHeldAt < .06f)
             horizontal += mouseDirection;
         motor.SetVirtualHorizontal(world.Paused ? 0 : Mathf.Clamp(horizontal, -1, 1));
@@ -207,7 +243,7 @@ internal sealed partial class StudioScreenView
         GUI.color = StudioWorld.Tint(w.borderColor,Color.white); if (shape.edge != null) GUI.DrawTexture(r,shape.edge);
         GUI.color = prior;
     }
-    private GUIStyle Style(int size, string align, Color color)
+    private GUIStyle Style(int size, string align, Color color, string family=null)
     {
         if (!triedFont)
         {
@@ -219,12 +255,21 @@ internal sealed partial class StudioScreenView
         var anchor = align == "left"    ? TextAnchor.MiddleLeft
                      : align == "right" ? TextAnchor.MiddleRight
                                         : TextAnchor.MiddleCenter;
-        int key = size * 10 + (int)anchor;
+        bool alternate=family=="serif"||family=="mono";
+        int key=size*30+(int)anchor+(family=="serif"?10:family=="mono"?20:0);
+        Font face=font;
+        if(alternate){
+            if(!familyFonts.TryGetValue(family,out var other)){
+                other=Font.CreateDynamicFontFromOSFont(family=="serif"?new[]{"Noto Serif CJK KR","Batang","serif"}:new[]{"D2Coding","Consolas","monospace"},18);
+                familyFonts[family]=other;
+            }
+            if(other!=null)face=other;
+        }
         if (!textStyles.TryGetValue(key, out var style))
         {
             style = new GUIStyle(GUI.skin.label) { wordWrap = true, alignment = anchor, fontSize = size };
-            if (font != null)
-                style.font = font;
+            if (face != null)
+                style.font = face;
             style.padding = new RectOffset(5, 5, 2, 2);
             textStyles[key] = style;
         }
@@ -242,6 +287,8 @@ internal sealed partial class StudioScreenView
     {
         string value = w.type=="text" || w.type=="button" ? world.FieldText(w.text) : w.text;
         if (w.hotspot) return "";
+        string mark=!world.Enabled(w)?w.states?.disabledMark:world.Selected(w)?w.states?.selectedMark:null;
+        if(!string.IsNullOrEmpty(mark))value=mark+" "+(string.IsNullOrEmpty(value)?w.action:value);
         if (w.type == "hp")
             return (string.IsNullOrEmpty(value) ? world.Actor.name : value) + "   " + world.Health + " / " +
                    world.Actor.health;
@@ -334,7 +381,7 @@ internal sealed partial class StudioScreenView
                 rect.width -= width;
             }
         }
-        string text = (!string.IsNullOrEmpty(node.speakerName) ? node.speakerName : speaker != null ? speaker.name : "내레이션") + "\n" + node.text;
+        string text = (!string.IsNullOrEmpty(node.speakerName) ? node.speakerName : speaker != null ? speaker.name : "내레이션") + "\n" + world.StageText;
         float contentWidth = Mathf.Max(16, rect.width - 22),
               textHeight = style.CalcHeight(new GUIContent(text), contentWidth) + 8;
         float itemSize=w.itemSkin!=null && w.itemSkin.size>=8 ? Mathf.Clamp(w.itemSkin.size*Mathf.Min(Screen.width/800f,1.4f),8,90) : style.fontSize;
@@ -353,8 +400,9 @@ internal sealed partial class StudioScreenView
             {
                 var r = new Rect(0, textHeight + i * (buttonHeight + 4), contentWidth, buttonHeight);
                 if (w.itemSkin==null || w.itemSkin.size==0)Fill(r, new Color(.15f, .25f, .35f));
-                if (ItemButton(w,r,node.choices[i].label,style))
-                    clicked = i;
+                bool enabled=GUI.enabled;GUI.enabled=enabled&&world.StageChoiceAllowed(i);
+                if (ItemButton(w,r,node.choices[i].label,style))clicked=i;
+                GUI.enabled=enabled;
             }
         GUI.EndScrollView();
         if (clicked != -2)
@@ -389,7 +437,9 @@ internal sealed partial class StudioScreenView
                 if(GUIUtility.hotControl!=0 && area.Contains(Event.current.mousePosition))baseColor=StudioWorld.Tint(s.press,baseColor);
                 GUI.DrawTexture(area,Texture2D.whiteTexture,ScaleMode.StretchToFill,true,0,baseColor,0,Mathf.Min(area.width,area.height)*s.radius/100);
                 string text=line.choices.Length>0?line.choices[i].label:string.IsNullOrEmpty(line.nextLabel)?"다음":line.nextLabel;
+                bool enabled=GUI.enabled;GUI.enabled=enabled&&(line.choices.Length==0 || world.StageChoiceAllowed(i));
                 if(GUI.Button(area,text,Style(style.fontSize,layer.align,StudioWorld.Tint(s.color,Color.white))))answer=line.choices.Length>0?i:-1;
+                GUI.enabled=enabled;
             }
             return answer;
         }
@@ -406,7 +456,9 @@ internal sealed partial class StudioScreenView
             var area = new Rect((i % columns) * (cellWidth + gap), (i / columns) * (rowHeight + gap), cellWidth, rowHeight);
             GUI.DrawTexture(area, Texture2D.whiteTexture, ScaleMode.StretchToFill, true, 0, fill, 0, radius);
             string label = line.choices.Length > 0 ? line.choices[i].label : string.IsNullOrEmpty(line.nextLabel) ? "다음" : line.nextLabel;
+            bool enabled=GUI.enabled;GUI.enabled=enabled&&(line.choices.Length==0 || world.StageChoiceAllowed(i));
             if (GUI.Button(area, label, style)) chosen = line.choices.Length > 0 ? i : -1;
+            GUI.enabled=enabled;
         }
         GUI.EndScrollView();
         return chosen;
@@ -419,8 +471,9 @@ internal sealed partial class StudioScreenView
         int chosen = -2;
         foreach (var p in shot.layers)
         {
-            if (!p.visible || p.opacity <= 0) continue;
-            var r = new Rect(Screen.width*p.x/100, Screen.height*p.y/100, Screen.width*p.w/100, Screen.height*p.h/100);
+            if (!world.StageLayerVisible(p) || p.opacity <= 0)continue;
+            var offset=world.StageLayerOffset(p);
+            var r = new Rect(Screen.width*(p.x+offset.x)/100, Screen.height*(p.y+offset.y)/100, Screen.width*p.w/100, Screen.height*p.h/100);
             float opacity = p.opacity / 100, radius = Screen.width * p.radius / 800;
             var fill = StudioWorld.Tint(p.fill, Color.black);
             fill.a = p.fillOpacity / 100 * opacity;
@@ -445,7 +498,7 @@ internal sealed partial class StudioScreenView
                 chosen = DrawShotChoices(p,line,r,style,fill,radius);
                 continue;
             }
-            string text = p.kind == "text" ? line.text : p.kind == "caption" ? p.caption :
+            string text = p.kind == "text" ? world.StageText : p.kind == "caption" ? p.caption :
                 !string.IsNullOrEmpty(line.speakerName) ? line.speakerName : speaker?.name ?? "내레이션";
             var content = new GUIContent(text);
             float height = style.CalcHeight(content, r.width);
@@ -495,6 +548,7 @@ internal sealed partial class StudioScreenView
             var r = Bounds(w);
             var background = StudioWorld.Tint(w.background, Color.black);
             background.a = w.opacity / 100;
+            if(w.states!=null && !string.IsNullOrEmpty(w.states.disabled)){if(!world.Enabled(w))background=StudioWorld.Tint(w.states.disabled,background);else if(world.Selected(w))background=StudioWorld.Tint(w.states.selected,background);}
             if (w.type == "input" && w.control != null) { DrawField(w,r,background); continue; }
             if (w.type == "joystick")
             {
@@ -539,7 +593,7 @@ internal sealed partial class StudioScreenView
                 Fill(r, background);
             var style =
                 Style(Mathf.Clamp(Mathf.RoundToInt(w.fontSize * Mathf.Min(Screen.width / 800f, 1.4f)), 8, 90),
-                      w.align, StudioWorld.Tint(w.color, Color.white));
+                      w.align, StudioWorld.Tint(w.color, Color.white),w.fontFamily);
             if (w.type == "inventory" || w.type == "quests")
             {
                 world.DrawProgressWidget(w,r,style);
@@ -567,19 +621,18 @@ internal sealed partial class StudioScreenView
                      new Color(.12f, .5f, .56f));
             if (w.type == "button" && !world.Enabled(w))
             {
-                if(!w.hotspot)Fill(r, new Color(.1f, .12f, .15f, .5f));
+                if(!w.hotspot && w.states==null)Fill(r, new Color(.1f, .12f, .15f, .5f));
                 GUI.Label(r, Label(w), style);
                 continue;
             }
-            if (w.type == "button" && !Application.isMobilePlatform)
+            if (w.type == "button" && w.gesture==null && !Application.isMobilePlatform)
             {
                 if (w.action == "left" || w.action == "right")
                 {
                     if (GUI.RepeatButton(r, Label(w), style))
                     {
-                        if (mouseDirection == 0 || Time.unscaledTime - mouseHeldAt >= .06f)
-                            world.Activate(w, false);
-                        mouseDirection = w.action == "left" ? -1 : 1;
+                        if (Time.unscaledTime - mouseHeldAt >= .06f){mouseAllowed=world.AllowProgramInput(w.action);if(mouseAllowed)world.Activate(w,false);}
+                        mouseDirection=mouseAllowed?(w.action=="left"?-1:1):0;
                         mouseHeldAt = Time.unscaledTime;
                     }
                 }

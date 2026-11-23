@@ -125,7 +125,7 @@ function drawSource() {
     };
     a.append(row(el('strong', path), status), code);
   }
-  b.append(heading('파일 관리'));
+  b.append(outputPreflightPanel(),heading('파일 관리'));
   const name = el('input');
   name.placeholder = sourceFilter === 'Web/' ? 'Web/skills.js' : 'Assets/Scripts/MySkill.cs';
   name.setAttribute('aria-label', '파일 경로');
@@ -261,7 +261,7 @@ async function packWeb(d, mapId, base, screenId = '', checkpoint = null, inspect
     }),
   );
   for (const hash of new Set([...imageRefs(world),...soundRefs(world)])) {
-    const r = await fetch('/api/assets/' + hash);
+    const r = await (typeof studioAssetRead==='function'?studioAssetRead:fetch)('/api/assets/' + hash);
     if (!r.ok) throw Error('연결 이미지를 읽지 못했어요.');
     images['asset:' + hash] = await toDataUrl(await r.blob());
   }
@@ -302,8 +302,10 @@ async function packWeb(d, mapId, base, screenId = '', checkpoint = null, inspect
 async function playCustom(d, mapId, screenId = '', inspection = false) {
   const snapshot = structuredClone(d),
     modal = el('dialog');
+  const scoped=inspection && typeof inspection==='object',openedAt=performance.now();let firstFrameAt=null,closeTimer;
   modal.className = 'source-player';
-  const close = action('편집기로', () => modal.close()),
+  const requestExit=()=>{if(!frame.isConnected){modal.close();return;}frame.contentWindow.postMessage({dreamwalker:'request-exit'},'*');clearTimeout(closeTimer);closeTimer=setTimeout(()=>{if(modal.open)modal.close();},350);};
+  const close = action('편집기로', requestExit),
     bar = box('bar', el('strong', '웹 게임'), close),
     frame = el('iframe');
   frame.title = '편집한 게임 실행';
@@ -312,18 +314,22 @@ async function playCustom(d, mapId, screenId = '', inspection = false) {
   const state = el('p', '게임을 여는 중…');
   modal.append(bar, state);
   document.body.append(modal);
-  const key =
+  const key = scoped?inspection.slotKey:
     'dreamwalker-progress-v1:' + (location.pathname === '/play' ? 'game:' : 'preview:') + snapshot.startMap;
   let saved = null;
   try {
-    if(!inspection) saved = localStorage.getItem(key);
+    if(!inspection||scoped&&inspection.resume)saved=localStorage.getItem(key);
   } catch {}
   const fromChild = (e) => {
     if(e.source!==frame.contentWindow) return;
     if(inspection && (e.data?.dreamwalker==='inspection' || e.data?.dreamwalker==='close') &&
-        integer(e.data.ticks,0,1e9) && integer(e.data.inputs,0,1e9)) modal.inspectionSample={ticks:e.data.ticks,inputs:e.data.inputs};
+        integer(e.data.ticks,0,1e9) && integer(e.data.inputs,0,1e9)){
+      firstFrameAt??=performance.now();
+      const clean=typeof cleanInspectionSample==='function'?cleanInspectionSample(e.data,snapshot):{};
+      modal.inspectionSample={...clean,ticks:e.data.ticks,inputs:e.data.inputs,loadMs:Math.round(firstFrameAt-openedAt)};
+    }
     if (
-      !inspection &&
+      (!inspection||scoped) &&
       e.data?.dreamwalker === 'progress' &&
       typeof e.data.value === 'string' &&
       e.data.value.length <= 500000
@@ -336,8 +342,9 @@ async function playCustom(d, mapId, screenId = '', inspection = false) {
     if (e.source === frame.contentWindow && e.data?.dreamwalker === 'close') modal.close();
   };
   window.addEventListener('message', fromChild);
+  modal.addEventListener('cancel',e=>{e.preventDefault();requestExit();});
   modal.onclose = () => {
-    window.removeEventListener('message', fromChild);
+    clearTimeout(closeTimer);window.removeEventListener('message', fromChild);
     modal.remove();
     if (location.pathname === '/play') document.body.classList.remove('game-only');
   };
@@ -355,13 +362,16 @@ async function playCustom(d, mapId, screenId = '', inspection = false) {
   return modal;
 }
 function playProject(mapId, screenId = '', inspection = false) {
+  if(typeof inspectionId!=='undefined'&&inspectionId)return playInspectionFrom(project,{mapId,screenId,slot:'작업 중 플레이',resume:!screenId&&!inspection,fromStart:!screenId&&!inspection});
   return project.sourceFiles.some((f) => f.path.startsWith('Web/'))
     ? playCustom(project, mapId, screenId, inspection)
     : launchGame(mapId, screenId, inspection);
 }
 async function exportWebGame() {
-  const snapshot = structuredClone(project),
-    html = await packWeb(snapshot, snapshot.startMap, await getSourceBase());
+  const snapshot=structuredClone(project),base=await getSourceBase();
+  const issue=(await inspectOutput(snapshot,'offline',base)).find(s=>s.level==='error');
+  if(issue)throw Error(issue.title+' · 게임 소스의 출력별 지원 검사에서 수정 위치를 열 수 있어요.');
+  const html=await packWeb(snapshot,snapshot.startMap,base);
   const url = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' })),
     a = el('a');
   a.href = url;

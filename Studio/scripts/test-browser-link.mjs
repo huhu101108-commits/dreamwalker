@@ -13,6 +13,10 @@ import {testArenaBrowser} from './test-arena-browser.mjs';
 import {testPresetDesigner} from './test-preset-browser.mjs';
 import {testGptWorkbenchBrowser} from './test-gpt-workbench-browser.mjs';
 import {testPersonalGptBrowser} from './test-personal-gpt-browser.mjs';
+import { testSceneMediaBrowser } from './test-scene-media-browser.mjs';
+import { testRuleAuthoring } from './test-rule-authoring-browser.mjs';
+import { testScreenWorkflow } from './test-screen-workflow-browser.mjs';
+import { testPortablePipeline } from './test-portable-browser.mjs';
 import { testTouchAuthoring } from './test-touch-authoring.mjs';
 const { chromium } = createRequire(import.meta.url)('playwright-core');
 
@@ -88,6 +92,11 @@ try {
   await testPersonalGptBrowser(host,guest,'http://127.0.0.1:'+servers[0].address().port,'http://127.0.0.1:'+teammate.address().port);
   await testGptWorkbenchBrowser(host,'http://127.0.0.1:'+servers[0].address().port,guest.context().browser());
   await testPresetDesigner(host,'http://127.0.0.1:'+servers[0].address().port);
+  const origin='http://127.0.0.1:'+servers[0].address().port;
+  await testSceneMediaBrowser(host,origin);
+  await testRuleAuthoring(host,origin);
+  await testScreenWorkflow(host,origin);
+  await testPortablePipeline(host,origin);
   assert.deepEqual(errors, []);
 } finally {
   await Promise.allSettled(browsers.map(browser => browser.close()));

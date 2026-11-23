@@ -5,7 +5,7 @@ function drawShotEditor(main,side,story,line) {
   const header=row(heading('이 줄의 화면 구성'));
   panel.append(header);
   function useShot(shot) {
-    edit(()=>{line.shot=structuredClone(shot);shotSelected=line.shot.layers.find(p=>p.kind==='text')?.id || line.shot.layers[0].id;});
+    edit(()=>{line.shot=structuredClone(shot);if(line.stageTrack)line.stageTrack.cues=line.stageTrack.cues.filter(c=>!c.target||named(line.shot.layers,c.target));shotSelected=line.shot.layers.find(p=>p.kind==='text')?.id || line.shot.layers[0].id;});
   }
   function replaceLayout(shot) {
     if(!line.shot || confirm('이 줄의 화면 구도를 바꿀까요? 실행 취소로 복원할 수 있어요.')) useShot(shot);
@@ -145,7 +145,7 @@ function drawShotEditor(main,side,story,line) {
         assetField('레이어 이미지',target.image,v=>edit(()=>{target.image=v;}),target.kind==='backdrop'));
     }
     controls.append(details,row(action('앞으로 한 겹',()=>order(1)),action('뒤로 한 겹',()=>order(-1))));
-    if(active.kind!=='choices') controls.append(action('레이어 삭제',()=>edit(()=>{layers.splice(layers.indexOf(active),1);shotSelected='';}),'danger'));
+    if(active.kind!=='choices') controls.append(action('레이어 삭제',()=>edit(()=>{layers.splice(layers.indexOf(active),1);if(line.stageTrack)line.stageTrack.cues=line.stageTrack.cues.filter(c=>c.target!==active.id);shotSelected='';}),'danger'));
   }
   function paintDrag() {
     frame=0;if(!moving?.next) return;
@@ -183,7 +183,7 @@ function drawShotEditor(main,side,story,line) {
     action('좌우 분할 구도',()=>replaceLayout(newShot(line,'side'))),action('구도 복사',()=>{shotClipboard=structuredClone(line.shot);note('이 줄의 화면 구도를 복사했어요.');}),
     action('구도 붙여넣기',()=>{if(shotClipboard)replaceLayout(shotClipboard);else note('먼저 구도를 복사하세요.');})));
   if(previous?.shot)presets.append(action('이전 줄 구도 사용',()=>replaceLayout(previous.shot)));
-  presets.append(action('맵 기본 대화창 사용',()=>{if(confirm('이 줄의 전용 화면을 기본 대화창으로 바꿀까요?'))edit(()=>{delete line.shot;fullShot='';});}));
+  presets.append(action('맵 기본 대화창 사용',()=>{if(confirm('이 줄의 전용 화면을 기본 대화창으로 바꿀까요?'))edit(()=>{delete line.shot;if(line.stageTrack)line.stageTrack.cues=line.stageTrack.cues.filter(c=>['flag','sound'].includes(c.kind));fullShot='';});}));
   panel.append(presets);select(active.id);
   let textFrame=0;
   side.addEventListener('input',event=>{

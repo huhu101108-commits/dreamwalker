@@ -89,7 +89,7 @@ function heading(title, detail) {
 function imageUrl(ref) {
   if (!ref) return '';
   if (/^asset:[0-9a-f]{64}$/.test(ref))
-    return typeof GAME_DATA === 'undefined' ? '/api/assets/' + ref.slice(6) : GAME_DATA.images[ref] || '';
+    return typeof GAME_DATA === 'undefined' ? (typeof inspectionAssetUrls!=='undefined'&&inspectionAssetUrls.get(ref.slice(6))||'/api/assets/' + ref.slice(6)) : GAME_DATA.images[ref] || '';
   return imageRef(ref) ? ref : '';
 }
 function cssImage(n, url) {
@@ -206,6 +206,10 @@ function styleButton(n, w) {
   n.style.backgroundSize = w.imageFit === 'stretch' ? '100% 100%' : w.imageFit;
   cssImage(n, imageUrl(w.image));
 }
+function setWidgetGeometry(node,w,width,height){
+  const r=widgetRect(w,width,height);
+  Object.assign(node.style,{left:r.x+'%',top:r.y+'%',width:r.w+'%',height:r.h+'%'});
+}
 function newWidgetView(w,play=false) {
   const node = el(w.type === 'button' ? 'button' : 'div');
   if (node.tagName === 'BUTTON') node.type = 'button';
@@ -225,6 +229,7 @@ function newWidgetView(w,play=false) {
     justifyContent: { left: 'flex-start', center: 'center', right: 'flex-end' }[w.align],
     fontSize: 'clamp(8px,' + w.fontSize / 8 + 'cqw,' + w.fontSize * 1.4 + 'px)',
   });
+  if(w.fontFamily)node.style.fontFamily=({system:'system-ui, sans-serif',serif:'serif',mono:'monospace'})[w.fontFamily];
   if(w.itemSkin){
     node.classList.add('item-skin');const s=w.itemSkin;
     for(const key of ['color','fill','press','edge'])node.style.setProperty('--item-'+key,s[key]);
@@ -282,15 +287,18 @@ function connectInput(node,w,run,screenId,render){
   const stored=()=>readControl(w,screenId,run.inputValues);
   showInputValue(node,w,stored());field.disabled=!!(w.enableFlag&&run.flags.has(w.enableFlag)!==w.enableValue);
   field.onfocus=()=>{run.keys.clear();};
-  field.oninput=()=>{if(spec.mode==='range')node.querySelector('output').textContent=field.value;};
+  field.oninput=()=>{field.setCustomValidity('');field.removeAttribute('aria-invalid');if(spec.mode==='range')node.querySelector('output').textContent=field.value;};
   function commit(){
     const raw=spec.mode==='toggle'?String(field.checked):field.value;
-    run.commitInput(w,screenId,raw);showInputValue(node,w,stored());render();
+    if(spec.validation&&controlValue(spec,raw)===null){
+      field.setCustomValidity(spec.validation.message||'입력 조건을 확인하세요.');field.setAttribute('aria-invalid','true');field.reportValidity();return false;
+    }
+    run.commitInput(w,screenId,raw);showInputValue(node,w,stored());render();return true;
   }
   field.onchange=commit;
   field.onkeydown=e=>{
     if(e.key==='Enter'&&!e.isComposing&&(spec.mode==='text'||spec.mode==='number')){
-      e.preventDefault();commit();field.blur();
+      e.preventDefault();if(commit())field.blur();
     }
   };
 }
@@ -318,11 +326,19 @@ function updateWidget(n, w, state) {
   else if (w.type === 'inventory'){n.replaceChildren(el('button','보유 장비 · 장착 변경'));}
   else if (w.type === 'quests') n.textContent = '의뢰 목록 · 진행 상태';
   else if (w.type === 'text') n.textContent = state.inputs?controlText(w.text,state.inputs,state.inputDefaults):w.text;
-  else if (w.type === 'button') n.textContent = (state.inputs?controlText(w.text,state.inputs,state.inputDefaults):w.text) || getActionLabel(w.action, c);
+  else if (w.type === 'button'){
+    const s=w.states,disabled=n.disabled||state.previewState==='disabled',selected=state.previewState==='selected'||(s?.flag&&state.flags?.has(s.flag));
+    const mark=s?(disabled?s.disabledMark:selected?s.selectedMark:''):'';
+    n.textContent=(mark?mark+' ':'')+((state.inputs?controlText(w.text,state.inputs,state.inputDefaults):w.text)||getActionLabel(w.action,c));
+    if(s){
+      n.style.backgroundColor=disabled?s.disabled:selected?s.selected:w.background+Math.round(w.opacity*2.55).toString(16).padStart(2,'0');
+      if(s.flag)n.setAttribute('aria-pressed',String(!!selected));
+    }
+  }
 }
 const defaultMix = () => ({music:65,fx:85,voice:100});
 function gameAudio(world,host) {
-  const mix=world.mix || defaultMix(), tracks=new Map();
+  const mix=world.mix || defaultMix(), tracks=new Map();let speechToken;
   function tryPlay(track) {
     if(!document.hidden && !track.player.ended) track.player.play().catch(()=>{});
   }
@@ -331,17 +347,19 @@ function gameAudio(world,host) {
     if(t){ t.player.pause();t.player.removeAttribute('src');t.player.load();tracks.delete(kind); }
   }
   function track(kind,ref,token=ref) {
+    if(kind==='voice' && speechToken!==token){stop('stageFx');speechToken=token;}
     if (!ref) {stop(kind);return;}
     if(tracks.get(kind)?.token===token) return;
     stop(kind);
-    const player=new Audio(imageUrl(ref));player.loop=kind==='music';player.volume=(mix[kind]??100)/100;
+    const channel=kind==='stageFx'?'fx':kind,mode=mix[channel+'Mode'];
+    const player=new Audio(imageUrl(ref));player.loop=mode==='loop'||(mode!=='once'&&kind==='music');player.volume=(mix[channel]??100)/100;
     const t={player,token}; tracks.set(kind,t); tryPlay(t);
   }
   const resume=()=>{for(const t of tracks.values()) if(t.player.paused) tryPlay(t);};
   const visibility=()=>{if(document.hidden) for(const t of tracks.values()) t.player.pause();else resume();};
   host.addEventListener('pointerdown',resume,true);host.addEventListener('keydown',resume,true);
   document.addEventListener('visibilitychange',visibility);
-  return { track, fx(ref,cue){if(ref)track('fx',ref,{});else playCue(cue,mix.fx/100);},
+  return {track,endFx:()=>stop('fx'),fx(ref,cue,channel='fx'){if(ref)track(channel,ref,{});else playCue(cue,mix.fx/100);},
     close(){ for(const kind of [...tracks.keys()]) stop(kind); host.removeEventListener('pointerdown',resume,true);
       host.removeEventListener('keydown',resume,true);document.removeEventListener('visibilitychange',visibility); } };
 }
@@ -494,6 +512,7 @@ function moveIn(list, item, step) {
   [list[i], list[j]] = [list[j], list[i]];
 }
 async function uploadAsset(blob) {
+  if(typeof inspectionId!=='undefined'&&inspectionId)return inspectionAssetUpload(blob);
   const r = await fetch('/api/assets', {
     method: 'POST',
     headers: { 'Content-Type': blob.type },

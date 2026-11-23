@@ -19,7 +19,7 @@ function arenaFinish(s, winner, reason) {
   s.status='finished'; s.winner=winner; s.reason=reason;
 }
 function arenaEffect(s, p, event) {
-  const delta=combatEvent(s.profile.rules,p.memory,event,p.actor,s.tick,p.hp,p.maxHp);
+  const delta=combatEvent(s.profile.rules,p.memory,event,p.actor,s.tick,p.hp,p.maxHp,'arena');
   p.hp=Math.min(p.maxHp,p.hp+delta.heal);
   return delta.damage;
 }
@@ -48,7 +48,7 @@ function arenaTick(s) {
   // Both attacks see the same pre-damage frame, including a possible double knockout.
   const damage=s.players.map((f,i)=>{
     if (!hits[i]) return 0;
-    f.landed=true;
+    f.landed=true;f.hits=(f.hits||0)+1;
     return Math.max(1,Math.round(p.damage*f.attack/100))+arenaEffect(s,f,'hit');
   });
   for (const [i,f] of s.players.entries()) if (hits[1-i]) f.hp=Math.max(0,f.hp-absorbCombatDamage(f.memory,damage[1-i]));
@@ -84,5 +84,5 @@ function arenaSnapshot(row,s,seat,now) {
     remaining:Math.ceil((ARENA_LIMIT-s.tick)/60), countdown:s.status==='playing'?Math.max(0,s.start-now):0,
     release:row.release_id, revision:row.revision, winner:s.winner, reason:s.reason,
     players:s.players.map(f=>({actor:f.actor,name:f.name,x:f.x,y:f.y,face:f.face,hp:f.hp,maxHp:f.maxHp,
-      shield:f.memory.shield,attacking:f.strike>=0,dodging:f.dodge>s.tick,seq:f.seq}))};
+      hits:f.hits||0,shield:f.memory.shield,attacking:f.strike>=0,dodging:f.dodge>s.tick,seq:f.seq}))};
 }

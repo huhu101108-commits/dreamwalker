@@ -277,9 +277,10 @@ function drawNetwork() {
     serverSample,
     status,
   );
+  a.append(arenaTransportPanel());
   b.append(
     heading('입력 재생 검사'),
-    el('p', '같은 180틱의 이동·설풍보·기본 공격을 지연과 손실이 있는 순서로 다시 받아 최종 상태를 비교해요.'),
+    el('p', '필드 시뮬레이션의 180틱 이동·첫 스킬·기본 공격 입력을 지연 및 손실 뒤 재생하고 최종 상태를 비교해요.'),
     action('지연·손실 조합 실행', () => {
       const rows = [];
       for (const ms of [0, 40, 80, 120, 200])
@@ -308,4 +309,86 @@ function drawNetwork() {
     }),
     result,
   );
+}
+
+function arenaDeliveryPlan(inputs,options){
+  const {rtt,jitter,loss,replyLoss,duplicate,outageAt,outageMs,seed}=options;
+  const bounds=[[rtt,0,2000],[jitter,0,1000],[loss,0,100],[replyLoss,0,100],[duplicate,0,100],[outageAt,0,20000],[outageMs,0,10000],[seed,1,999999]];
+  if(!bounds.every(([v,min,max])=>integer(v,min,max))||!Array.isArray(inputs)||inputs.length<1||inputs.length>48||
+    inputs.some(v=>!v||!integer(v.at,0,20000)||!integer(v.seat,0,1)||!integer(v.axis,-1,1)||!integer(v.press,0,7)))throw Error('검수 입력과 통신 범위를 확인하세요.');
+  const ready=[0,0],seq=[0,0],events=[],stats={lost:0,unacked:0,duplicate:0,retry:0,disconnected:0};
+  let rng=seed;
+  const rnd=()=>{rng=(Math.imul(rng,1664525)+1013904223)>>>0;return rng/4294967296;};
+  const leg=()=>Math.max(0,Math.round(rtt/2+(rnd()*2-1)*jitter));
+  for(const input of [...inputs].sort((a,b)=>a.at-b.at)){
+    const seat=input.seat,cmd={seq:++seq[seat],axis:input.axis,press:input.press};
+    let sent=Math.max(input.at,ready[seat]),attempt=0;
+    while(true){
+      if(seat===1&&outageMs&&sent>=outageAt&&sent<outageAt+outageMs){++stats.disconnected;sent=outageAt+outageMs;}
+      const at=sent+leg(),back=leg(),retryAt=at+back+150;
+      // One deliberately impaired attempt per command, then reliable delivery drains the replay.
+      if(attempt===0&&rnd()*100<loss){++stats.lost;++stats.retry;++attempt;sent=retryAt;continue;}
+      events.push({at,seat,cmd});
+      if(rnd()*100<duplicate){events.push({at:at+Math.max(1,back),seat,cmd});++stats.duplicate;}
+      if(attempt===0&&rnd()*100<replyLoss){++stats.unacked;++stats.retry;++attempt;sent=retryAt;continue;}
+      ready[seat]=at+back;break;
+    }
+  }
+  if(outageMs)events.push({at:outageAt+outageMs,seat:1,resume:true});
+  events.sort((a,b)=>a.at-b.at);
+  return {events,stats};
+}
+function arenaResult(v){
+  return {release:v.release,revision:v.revision,tick:v.tick,status:v.status,winner:v.winner,reason:v.reason,
+    players:v.players.map(f=>({actor:f.actor,hp:f.hp,shield:f.shield,hits:f.hits||0,x:f.x,y:f.y,seq:f.seq}))};
+}
+function replayArenaDelivery(profile,actors,inputs,options,revision,release){
+  const plan=arenaDeliveryPlan(inputs,options),room=arenaStart(profile,actors[0],0);
+  arenaJoin(room,actors[1],0);
+  const row={code:'QA',release_id:release,revision},log=[];
+  for(const e of plan.events){
+    const at=room.start+e.at;arenaAdvance(room,at);
+    if(e.resume){log.push(e.at+'ms · 2P 재접속 · 서버 승인 '+room.players[1].seq);continue;}
+    const old=room.players[e.seat].seq;
+    arenaCommand(room,e.seat,e.cmd);
+    log.push(e.at+'ms · '+(e.seat+1)+'P #'+e.cmd.seq+' · '+(room.players[e.seat].seq>old?'수신':'기존 판정 유지'));
+  }
+  const end=room.start+90001;arenaAdvance(room,end);
+  const views=[0,1].map(i=>arenaResult(arenaSnapshot(row,room,i,end)));
+  return {views,stats:plan.stats,log,match:JSON.stringify(views[0])===JSON.stringify(views[1])};
+}
+function arenaTransportPanel(){
+  const panel=el('details');panel.append(el('summary','친선전 두 좌석 재접속 검사'));
+  let actors=[project.characters[0].id,project.characters[0].id];
+  const opts={rtt:120,jitter:12,loss:15,replyLoss:20,duplicate:40,outageAt:350,outageMs:400,seed:19};
+  const inputs=[{at:0,seat:0,axis:0,press:1},{at:420,seat:1,axis:0,press:1}],editor=box('arena-input-list'),report=el('pre');
+  const modes={0:'유지',1:'공격',2:'점프',3:'점프와 공격',4:'회피',5:'회피와 공격',6:'점프와 회피',7:'모두'};
+  function paint(){
+    editor.replaceChildren();
+    inputs.forEach((v,i)=>{
+      editor.append(row(numberField('입력 '+(i+1)+' 시점 (ms)',v.at,0,20000,1,n=>v.at=n),
+        selectField('입력 '+(i+1)+' 좌석',String(v.seat),{0:'1P',1:'2P'},n=>v.seat=Number(n)),
+        selectField('입력 '+(i+1)+' 이동',String(v.axis),{'-1':'왼쪽',0:'정지',1:'오른쪽'},n=>v.axis=Number(n)),
+        selectField('입력 '+(i+1)+' 동작',String(v.press),modes,n=>v.press=Number(n)),
+        action('입력 '+(i+1)+' 제거',()=>{inputs.splice(i,1);paint();})));
+    });
+  }
+  paint();
+  panel.append(el('p','선택한 캐릭터와 복제한 전투 수치를 서버의 60틱 친선전 판정기로 재생해요. 입력별 첫 전송에 손실·응답 유실을 적용하고 같은 번호로 다시 보내요.'),
+    row(...actors.map((id,i)=>selectField((i+1)+'P 검사 캐릭터',id,optionMap(project.characters),v=>actors[i]=v))),editor,
+    action('검수 입력 추가',()=>{if(inputs.length<48){inputs.push({at:Math.min(20000,(inputs.at(-1)?.at||0)+200),seat:0,axis:0,press:0});paint();}}));
+  const grid=box('control-grid');
+  for(const [key,label,min,max] of [['rtt','왕복 지연 (ms)',0,2000],['jitter','편도 지터 (ms)',0,1000],['loss','첫 전송 손실 (%)',0,100],
+    ['replyLoss','첫 응답 유실 (%)',0,100],['duplicate','중복 전송 (%)',0,100],['outageAt','2P 단절 시작 (ms)',0,20000],['outageMs','2P 단절 길이 (ms)',0,10000],['seed','재생 시드',1,999999]])
+    grid.append(numberField(label,opts[key],min,max,1,n=>opts[key]=n));
+  panel.append(grid,action('두 좌석 판정 재생',async()=>{
+    const draft=structuredClone(project),rev=record.rev,profile=combatProfile(draft),release=await contentDigest(draft);
+    const test=replayArenaDelivery(profile,actors,inputs,opts,rev,release),v=test.views[0],s=test.stats;
+    const summary='브라우저 모사 · 기준 v'+rev+' · '+release.slice(0,10)+' · 두 좌석 '+(test.match?'판정 일치':'판정 불일치')+
+      '\n'+v.tick+'틱 · '+(v.winner<0?'무승부':(v.winner+1)+'P 승리')+' · '+v.reason+
+      '\n요청 유실 '+s.lost+' · 응답 유실 '+s.unacked+' · 중복 '+s.duplicate+' · 재전송 '+s.retry+
+      '\n'+v.players.map((f,i)=>(i+1)+'P · '+f.actor+' · HP '+f.hp+' · 적중 '+f.hits+' · 마지막 입력 '+f.seq).join('\n');
+    report.textContent=summary+'\n'+test.log.join('\n');
+  }),report,el('small','조건을 바꿔 같은 입력을 재생할 수 있어요. 실제 기기 지연은 위의 두 기기 연결 검사에서 측정해요. 필드의 캐릭터별 스킬과 경쟁전 입력 예측·상태 보정은 별도 검증 항목이에요.'));
+  return panel;
 }

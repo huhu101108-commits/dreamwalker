@@ -1,0 +1,54 @@
+import assert from 'node:assert/strict';
+import vm from 'node:vm';
+import {readFile} from 'node:fs/promises';
+import {call,previewOwnerHeaders} from './worker-fixture.mjs';
+
+const env=vm.createContext({crypto,structuredClone,TextEncoder});
+for(const file of ['model','file-wire','desk','planning'])vm.runInContext(await readFile('src/'+file+'.js','utf8'),env);
+const m=vm.runInContext('({seed,emptyWork,problem,migrateProject,mergeProject,packNativeWorld,playableWorld,imageRefs,contentDigest,planHours,planningProblem,releaseEvidence,archiveReleaseEvidence,studySnapshot,dependencyProblem,planDay})',env);
+const doc=m.seed(),shared=m.migrateProject(structuredClone(doc));
+const hash=await m.contentDigest(doc), work=doc.work=m.emptyWork(), map=doc.scenes[0].id;
+const make=(id,more)=>({id,title:id,kind:'feature',state:'plan',owner:'담당',criteria:'',tool:'scene',target:map,...more});
+work.tasks=[make('system',{estimate:2.5,spent:3,begin:'2024-02-29',due:'2024-03-01',budget:45000,cost:41000}),
+  make('level',{workClass:'content',quantity:4,estimate:1.5,spent:3.5,needs:['system']}),
+  make('later',{priority:'later',estimate:5,spent:2})];
+work.design={question:'무슨 행동을 하는가',audience:'플레이테스트 참여자'};
+work.levels=[{id:map,goal:'구간 완주',difficulty:'의도한 난이도',combat:[],events:[]}];
+const study={id:'study',name:'재검수',kind:'prototype',map,endMap:map};
+work.studies=[study];
+assert.deepEqual({...m.planHours(work)},{system:2.5,content:6,actualSystem:5,actualContent:3.5,plannedCost:45000,actualCost:41000,candidate:5,candidateCost:0});
+assert.equal(m.planDay('2025-02-29'),false);assert.equal(m.problem(doc),'');
+work.tasks[0].needs=['level'];assert.match(m.problem(doc),/순환.*system.*level.*system/);
+work.tasks[0].needs=['deleted'];assert.match(m.problem(doc),/선행 작업/);delete work.tasks[0].needs;
+const other=structuredClone(doc),more=structuredClone(doc);
+other.work.design.platform='태블릿';more.work.design.fun='관찰';
+const merge=m.mergeProject(doc,other,more);assert.deepEqual(Array.from(merge.conflicts),[]);assert.equal(merge.project.work.design.fun,'관찰');
+const left=structuredClone(shared),right=structuredClone(shared);left.work={...m.emptyWork(),design:{audience:'왼쪽'},levels:[{id:map,goal:'왼쪽'}]};
+right.work={...m.emptyWork(),design:{fun:'오른쪽'},releases:[]};assert.equal(m.mergeProject(shared,left,right).conflicts.length,0);
+const release={id:'release',name:'검증',stage:'rc',rev:1,digest:hash,changes:'독립 검수',checks:{
+  package:{state:'pass',env:'',note:''},install:{state:'fail',env:'태블릿',note:'실패'}}};
+work.releases=[release];
+assert.equal(m.releaseEvidence(release).find(c=>c.key==='package').state,'evidence');
+release.checks.package.env='실기기';release.checks.package.note='파일 검수';assert.equal(m.releaseEvidence(release).find(c=>c.key==='package').state,'evidence');
+release.artifact='Candidate.apk';assert.equal(m.releaseEvidence(release).find(c=>c.key==='package').state,'pass');
+const run={id:'review',when:10,rev:1,digest:hash,kind:'play',passed:true,target:map,map,note:'첫 조작 관찰',owner:'검수자',task:'level',study:study.id,details:{stuck:'입구',misinput:'점프',device:'브라우저'}};
+work.runs=[run];
+m.archiveReleaseEvidence(release,{...run,testDigest:'e'.repeat(64)});assert(!release.evidence);
+m.archiveReleaseEvidence(release,run);m.archiveReleaseEvidence(release,run);assert.equal(release.evidence.length,1);
+assert.equal(m.problem(doc),'');assert.equal(await m.contentDigest(doc),hash);
+const original=structuredClone(doc),proto=m.studySnapshot(doc,study),slice=m.studySnapshot(doc,{...study,kind:'slice'});
+assert.notEqual(proto,doc);assert.equal(m.problem(proto),'');assert.equal(JSON.stringify(doc),JSON.stringify(original));
+assert.equal(proto.scenes[0].backdrop,'');assert.equal(JSON.stringify(slice),JSON.stringify(doc));
+assert(!('work' in m.playableWorld(doc)));assert(!('work' in m.packNativeWorld(doc)));
+const withShot=structuredClone(doc),ref='b'.repeat(64),archived=withShot.work.releases[0];
+archived.screenshots=['store-shot'];archived.screenshotFiles=[{id:'store-shot',name:'상점 화면',ref:'asset:'+ref}];
+assert.equal(m.problem(withShot),'');assert(m.imageRefs(withShot).includes(ref));assert(!m.imageRefs(m.playableWorld(withShot)).includes(ref));
+const token=await call('owner-session',{},previewOwnerHeaders),headers={...previewOwnerHeaders,cookie:token.headers.get('set-cookie').split(';')[0]};
+let response=await call('save',{rev:0,project:shared},headers);assert.equal(response.status,200,await response.text());
+response=await call('save',{rev:1,project:doc},headers);assert.equal(response.status,200,await response.text());
+const latest=await (await call('project',undefined,headers)).json();
+assert.equal(latest.project.work.releases[0].evidence[0].id,'review');assert.equal(m.problem(m.migrateProject(latest.history[0].project)),'');
+const stale=await call('save',{rev:1,project:shared},headers);assert.equal(stale.status,409);
+const cyclic=structuredClone(doc);cyclic.work.tasks[0].needs=['level'];
+const refused=await call('save',{rev:2,project:cyclic},headers);assert.equal(refused.status,400,await refused.text());
+console.log('PASS linked tasks, dependency cycles, actual and forecast costs, author-selected studies, level observations, release evidence and gates, scoped registration, old team revision and private editor export');

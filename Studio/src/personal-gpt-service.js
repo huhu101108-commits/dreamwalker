@@ -4,6 +4,27 @@ const GPT_DEVICE_ALIVE = 90000;
 const GPT_EFFORTS = ['none','minimal','low','medium','high','xhigh','max','ultra'];
 const apiGptModels = [{id:STUDIO_GPT_MODEL,name:'GPT-6.2 Astra',efforts:['low','medium','high','max'],defaultEffort:'max'},
   {id:'gpt-6.2-sol',name:'GPT-6.2 Sol',efforts:['low','medium','high'],defaultEffort:'medium'}];
+const GPT_CATALOG_AGE=15*60*1000;
+async function gptApiAvailability(env){
+  if(!env.OPENAI_API_KEY)return {state:'disconnected',models:[]};
+  const entry=(await get(env.BUCKET,accountGptKey(env,'model-list')))?.data;
+  if(!entry||entry.keyId!==await hash(env.OPENAI_API_KEY))return {state:'unverified',models:apiGptModels};
+  return {state:entry.until>Date.now()?'verified':'expired',models:entry.models,checked:entry.checked,until:entry.until};
+}
+async function refreshApiAvailability(env){
+  if(!env.OPENAI_API_KEY)err(409,'설정된 API 연결이 없어요.');
+  let response;
+  try{response=await fetch('https://api.openai.com/v1/models',{headers:{Authorization:'Bearer '+env.OPENAI_API_KEY},signal:AbortSignal.timeout(10000)});}
+  catch{err(502,'API 프로젝트의 모델 목록을 가져오지 못했어요.');}
+  if(!response.ok)err(response.status===401||response.status===403?403:502,'API 프로젝트의 모델 목록 조회 권한을 확인하세요.');
+  const data=await response.json();
+  if(!Array.isArray(data.data))err(502,'API의 모델 목록 형식을 확인하세요.');
+  const allowed=/^(?:gpt-(?:4o(?:-mini)?|4[.]1(?:-mini|-nano)?|[5-9](?:[.][0-9]+)?(?:-(?:mini|nano|pro|astra|sol|terra|luna|thinking|instant))?)|o[1-9](?:-mini|-pro)?)(?:-[0-9]{4}-[0-9]{2}-[0-9]{2})?$/;
+  const ids=[...new Set(data.data.map(v=>v?.id).filter(id=>typeof id==='string'&&allowed.test(id)))].sort().slice(0,128);
+  const models=ids.map(id=>apiGptModels.find(m=>m.id===id)||{id,name:id,efforts:[],defaultEffort:''});
+  const key=accountGptKey(env,'model-list'),old=await get(env.BUCKET,key),checked=Date.now();
+  if(!await put(env.BUCKET,key,{models,keyId:await hash(env.OPENAI_API_KEY),checked,until:checked+GPT_CATALOG_AGE},old))err(409,'다른 창이 모델 목록을 갱신했어요.');
+}
 function accountGptKey(env, part) {
   const owner=env.STUDIO_OWNER_EMAIL_SHA256;
   if (!/^[a-f0-9]{64}$/.test(owner||'')) err(503,'소유자 설정을 확인하세요.');
@@ -14,19 +35,21 @@ function gptOwnerPrefs(row) {
 }
 function gptDeviceView(row) {
   const d=row?.data;
-  return d?.hash ? {id:d.id,online:Date.now()-d.seen<GPT_DEVICE_ALIVE,models:d.models} : null;
+  return d?.hash ? {id:d.id,online:Date.now()-d.seen<GPT_DEVICE_ALIVE,models:d.models,seen:d.seen,aliveUntil:d.seen+GPT_DEVICE_ALIVE} : null;
 }
 function gptJobView(row) {
   const j=row?.data;
   if (!j || j.state==='cleared') return null;
   const {id,mode,state,prompt,screen,stamp,model,effort,answer,error,expires}=j;
   if (expires<=Date.now()) return null;
-  return {id,mode,state,prompt,screen,stamp,model,effort,answer,error,expires,...(j.relay?{delivery:j.delivery}:{})};
+  return {id,mode,state,prompt,screen,stamp,model,effort,answer,error,expires,...(j.work?{work:j.work}:{}),...(j.relay?{delivery:j.delivery}:{})};
 }
 async function personalGptState(env) {
   const [prefs,device,job,link,probe]=await Promise.all(['prefs','device','job','chat-link','chat-check'].map(k=>get(env.BUCKET,accountGptKey(env,k))));
-  return {prefs:gptOwnerPrefs(prefs),device:gptDeviceView(device),job:gptJobView(job),chatLink:liveChatLink(link),lastChatCheck:probe?.data?.at||null,
-    apiModels:env.OPENAI_API_KEY?apiGptModels:[]};
+  const catalog=await gptApiAvailability(env),live=liveChatLink(link),chat=link?.data;
+  return {prefs:gptOwnerPrefs(prefs),device:gptDeviceView(device),job:gptJobView(job),chatLink:live,lastChatCheck:probe?.data?.at||null,
+    chatStatus:chat?.until?{state:live?'connected':chat.until<=Date.now()?'expired':'inactive',until:chat.until,seen:chat.seen}:{state:'disconnected'},
+    apiStatus:{state:catalog.state,checked:catalog.checked,until:catalog.until},apiModels:catalog.models};
 }
 async function gptJson(req,limit) {
   if (!req.headers.get('content-type')?.startsWith('application/json')) err(415,'JSON 요청이 필요해요.');
@@ -55,7 +78,10 @@ async function saveGptPrefs(env,b) {
   const next={...prefs,mode:b.mode,revision:prefs.revision+1,destination:ownerGptDestination(b.destination??prefs.destination)};
   if (b.mode==='api') {
     if (!env.OPENAI_API_KEY) err(409,'스튜디오 API가 연결되어 있지 않아요.');
-    next.api=gptChoice(apiGptModels,b.choice||prefs.api);
+    const catalog=await gptApiAvailability(env);
+    if(catalog.state==='expired')err(409,'API 모델 목록을 갱신한 뒤 선택하세요.');
+    const initial=catalog.models.find(m=>m.id===prefs.api.model)||catalog.models[0];
+    next.api=gptChoice(catalog.models,b.choice||(initial?.id===prefs.api.model?prefs.api:{model:initial?.id,effort:initial?.defaultEffort}));
   }
   if (b.mode==='codex' && b.choice) {
     const d=gptDeviceView(await get(env.BUCKET,accountGptKey(env,'device')));
@@ -87,6 +113,7 @@ async function newPersonalGptJob(env,b,fromWorkbench=false) {
     choice=gptChoice(device.models,prefs.codex);
   }
   const j={id:b.id,mode:b.mode,...choice,device:b.mode==='codex'?device.id:'',screen:ctx.screen.id,
+    ...(ctx.work?.scope?{work:{area:ctx.work.area,scope:ctx.work.scope,title:ctx.work.title}}:{}),
     stamp:b.stamp,prompt:b.prompt.trim(),history:b.history.map(({role,text})=>({role,text})),context:ctx,
     ...(relay?{relay,delivery:'queued'}:{}),state:'waiting',expires:Date.now()+GPT_JOB_TTL};
   if (!await put(env.BUCKET,key,j,old)) err(409,'현재 요청이 바뀌었어요.');
@@ -112,7 +139,8 @@ async function ownerGptAction(req,env,op) {
   if (req.method!=='POST') err(405,'요청 방식을 확인하세요.');
   const b=await gptJson(req,['ask','import'].includes(op)?196608:8000);
   const bucket=env.BUCKET;
-  if(op==='disconnect-chat'){
+  if(op==='refresh-models'){await refreshApiAvailability(env);}
+  else if(op==='disconnect-chat'){
     const k=accountGptKey(env,'chat-link'),row=await get(bucket,k);
     if(row?.data.id!==b.id||!await put(bucket,k,{},row))err(409,'이미 바뀐 연결이에요.');
   }else if (op==='settings') await saveGptPrefs(env,b);

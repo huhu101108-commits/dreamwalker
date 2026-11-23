@@ -73,6 +73,7 @@ async function bringProjectFiles(files,active=()=>true) {
 function drawAssets() {
   const work=workData(), [main,side]=panels(), item=named(work.assets,assetSelection)||work.assets[0];
   if(item) assetSelection=item.id;
+  assetPresetPanel(side,item);
   const folders=Object.fromEntries(work.assets.filter(a=>a.folder).map(a=>[a.folder,a.folder]));
   if(assetFolder && !folders[assetFolder]) assetFolder='';
   main.append(heading('프로젝트 에셋'),filePicker('에셋 가져오기',true,bringProjectFiles,true));
@@ -97,7 +98,9 @@ function drawAssets() {
     const group={};
     mixer.append(numberField(label+' 음량 (%)',mix[key],0,100,1,v=>edit(()=>{(project.mix ||= mix)[key]=v;},false,group)));
   }
-  main.append(mixer);side.append(heading('에셋 속성'));
+  for(const [k,label,initial] of [['music','배경음','loop'],['voice','음성','once'],['fx','효과음','once']])
+    mixer.append(selectField(label+' 재생 방식',mix[k+'Mode']||initial,{once:'한 번',loop:'장면이나 동작이 바뀔 때까지 반복'},v=>edit(()=>{(project.mix||=mix)[k+'Mode']=v;})));
+  main.append(mixer,artGuidePanel(work));side.append(heading('에셋 속성'));
   if(!item) return;
   const map=activeMap(), character=activeActor(), story=named(project.stories,storyId)||project.stories[0];
   const line=story && (named(story.nodes,lineId)||story.nodes[0]), layout=activeLayout();
@@ -175,4 +178,33 @@ function addSheetEditor(main,item) {
   },'accent');
   panel.append(canvas,controls,selectField('프레임을 받을 캐릭터',actor.id,optionMap(project.characters),id=>{actor=named(project.characters,id);slots();}),
     titled('프레임을 받을 동작',slot),apply);
+}
+
+function artGuidePanel(work){
+  const card=el('details');card.dataset.persist='art-guide';card.append(el('summary','시각 스타일 · 게임 크기 비교'));
+  const guide=work.artGuide||{notes:'',image:'',mapId:activeMap().id};
+  const update=(k,v)=>changeWork(work,()=>{(work.artGuide||=guide)[k]=v;});
+  const current=activeMap(),source=named(project.scenes,guide.mapId)||current;
+  const notes=el('textarea');notes.maxLength=1500;notes.value=guide.notes;
+  card.append(titled('시각 스타일 기준',notes),action('스타일 기록',()=>update('notes',notes.value)),
+    selectField('기준 장면',source.id,optionMap(project.scenes),v=>update('mapId',v)),
+    assetField('고정할 기준 이미지',guide.image,v=>update('image',v),true));
+  const compare=el('div');compare.style.cssText='position:relative;aspect-ratio:16/9;overflow:hidden';
+  function scene(map){
+    const stage=box('stage');paintStage(stage,map);stage.style.cssText+=';position:absolute;inset:0;width:100%;height:100%;margin:0;aspect-ratio:auto';
+    const spawn=map.objects.find(o=>o.type==='spawn')||{x:0,y:0},camera=new MapViewport(map,spawn),art=el('div');
+    art.style.cssText='position:absolute;inset:0;transform-origin:0% 82%';art.style.transform='scale('+camera.frame.zoom+')';stage.append(art);
+    for(const item of map.objects){
+      if(item.x<camera.x-60||item.x>camera.x+160||item.y<camera.y-60||item.y>camera.y+160)continue;
+      const n=actorNode(item,named(project.characters,map.characterId));placeWorld(n,item,camera.x,camera.y);art.append(n);
+    }
+    return stage;
+  }
+  const live=scene(current),ref=scene(source);
+  if(guide.image){ref.replaceChildren();ref.classList.add('drawn-floor');cssImage(ref,imageUrl(guide.image));ref.style.backgroundSize='contain';ref.style.backgroundRepeat='no-repeat';}
+  ref.style.clipPath='inset(0 50% 0 0)';
+  const split=el('input');Object.assign(split,{type:'range',min:0,max:100,step:1,value:50});
+  split.oninput=()=>{ref.style.clipPath='inset(0 '+(100-Number(split.value))+'% 0 0)';};
+  compare.append(live,ref);card.append(compare,titled('기준 장면 표시 비율',split),el('small','왼쪽에 기준 장면, 오른쪽에 현재 맵의 시작 위치를 게임 비율로 표시해요.'));
+  return card;
 }

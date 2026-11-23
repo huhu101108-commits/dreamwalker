@@ -1,5 +1,16 @@
-const DESIGN_OPS=['screen','addWidget','editWidget','submenu','newFunction','addStep','bindFunction'];
-const DESIGN_FIELDS=['name','kind','contents','text','x','y','w','h','tint','shade','color','background','opacity','fontSize','align','shape','radius','borderColor','borderWidth','pressedColor','visible','action','target','flag','flagState','functionId','controlMode','valueKey','hint','initial','limit','min','max','step','options','signal','shortcut','hotspot','thumb','dead','knob','ring'];
+const DESIGN_TARGETS={
+  editMap:{group:'scenes',label:'맵',fields:{name:'text',width:'number',theme:'text',characterId:'text',requireClear:'bool',entryStory:'text',exitStory:'text',hudId:'text',menuId:'text',dialogueId:'text'}},
+  editObject:{group:'scenes',label:'맵 오브젝트',fields:{x:'number',y:'number',editorName:'text'}},
+  editLine:{group:'stories',label:'대사 줄',fields:{text:'text',speaker:'text',speakerName:'text',nextLabel:'text',side:'text',layout:'text'}},
+  editChoice:{group:'stories',label:'대사 선택지',fields:{label:'text',to:'text'}},
+  editActor:{group:'characters',label:'캐릭터',fields:{name:'text',region:'text',summary:'text',color:'text',health:'number',attackScale:'number',speedScale:'number',reachScale:'number',jumpScale:'number',passive:'text'}},
+  editSkill:{group:'characters',label:'선택 스킬',fields:{name:'text',power:'number',cooldown:'number'}},
+  editCombatRule:{group:'combatRules',label:'전투 규칙',fields:{name:'text',enabled:'bool',actor:'text',event:'text',every:'number',hpBelow:'number',cooldown:'number',appliesTo:'text'}},
+  editRuleEffect:{group:'combatRules',label:'규칙 효과',fields:{kind:'text',amount:'number'}},
+  editEventRule:{group:'eventRules',label:'공통 규칙',fields:{name:'text',enabled:'bool',key:'text',actor:'text',map:'text',priority:'number',scope:'text',repeat:'text',duplicate:'text',every:'number',cooldown:'number'}}
+};
+const DESIGN_OPS=[...Object.keys(DESIGN_TARGETS),'screen','addWidget','editWidget','submenu','newFunction','addStep','bindFunction'];
+const DESIGN_FIELDS=[...new Set(['slot',...Object.values(DESIGN_TARGETS).flatMap(row=>Object.keys(row.fields)),'name','kind','contents','text','x','y','w','h','tint','shade','color','background','opacity','fontSize','align','shape','radius','borderColor','borderWidth','pressedColor','visible','action','target','flag','flagState','functionId','controlMode','valueKey','hint','initial','limit','min','max','step','options','signal','shortcut','hotspot','thumb','dead','knob','ring'])];
 const designFormat={
   type:'object',additionalProperties:false,required:['message','changes'],properties:{
     message:{type:'string'},changes:{type:'array',items:{type:'object',additionalProperties:false,
@@ -33,39 +44,87 @@ function designContext(doc,screen){
 }
 const GPT_AREAS={scene:'맵 편집',stories:'대사 편집',characters:'캐릭터',rules:'전투 규칙',interface:'UI 디자인',motion:'모션 · 효과',balance:'전투 수치'};
 const GPT_CONTEXT_FIELDS=['맵 크기','시작 캐릭터','오브젝트','선택 오브젝트','현재 대사','말하는 인물','선택지','대사 수','체력','스킬','설명','발동 조건','재발동 대기','효과','화면 역할','요소 수','선택 요소'];
+function checkedWorkScope(area,ids={}){
+  if(!ids||typeof ids!=='object'||Array.isArray(ids))return null;
+  const keys={scene:['map','object'],stories:['story','line'],characters:['actor','skill'],motion:['actor','skill'],balance:['actor','skill'],rules:['rule','eventRule'],interface:[]}[area]||[];
+  const out={};
+  for(const k of keys){
+    if(ids[k]===undefined||ids[k]==='')continue;
+    if(k==='skill'?!integer(ids[k],0,11):!validId(ids[k]))return null;
+    out[k]=ids[k];
+  }
+  return out;
+}
+function designTargets(doc,work){
+  const out=[],s=work?.scope||{};
+  const add=(op,ref,obj,slot)=>{
+    if(!obj||!ref)return;
+    const fields=DESIGN_TARGETS[op].fields,values={};
+    for(const key of Object.keys(fields))if(obj[key]!==undefined)values[key]=obj[key];
+    out.push({op,ref,...(slot===undefined?{}:{slot}),values,object:obj});
+  };
+  if(work?.area==='scene'){
+    const map=named(doc.scenes,s.map);
+    add('editMap',s.map,map);
+    const obj=map&&named(map.objects,s.object);
+    if(obj&&!obj.locked)add('editObject',s.object,obj);
+  }else if(work?.area==='stories'){
+    const story=named(doc.stories,s.story),line=story&&named(story.nodes,s.line);
+    add('editLine',s.line,line);
+    line?.choices.forEach((choice,i)=>add('editChoice',s.line,choice,i));
+  }else if(['characters','motion','balance'].includes(work?.area)){
+    const actor=named(doc.characters,s.actor);
+    add('editActor',s.actor,actor);
+    add('editSkill',s.actor,actor?.skills?.[s.skill],s.skill);
+  }else if(work?.area==='rules'){
+    const rule=named(doc.combatRules||[],s.rule),event=named(doc.eventRules||[],s.eventRule);
+    add('editCombatRule',s.rule,rule);
+    rule?.effects.forEach((effect,i)=>add('editRuleEffect',s.rule,effect,i));
+    add('editEventRule',s.eventRule,event);
+  }
+  return out;
+}
 function studioWorkContext(doc,area,ids={}){
   const mode=has(GPT_AREAS,area)?area:'interface',fields=[];
-  let title='';
+  let title='',scope={};
   const add=(name,value)=>{if(value!==undefined&&value!==null&&value!=='')fields.push({name,value:String(value).slice(0,420)});};
   if(mode==='scene'){
     const map=named(doc.scenes,ids.map)||doc.scenes[0], obj=named(map.objects,ids.object);
-    title=map.name;add('맵 크기',map.width+' × '+map.height);add('시작 캐릭터',named(doc.characters,map.characterId)?.name);
+    scope={map:map.id,...(obj?{object:obj.id}:{})};title=map.name;add('맵 크기',map.width+' × '+map.height);add('시작 캐릭터',named(doc.characters,map.characterId)?.name);
     const counts=new Map();for(const item of map.objects)counts.set(item.type,(counts.get(item.type)||0)+1);
     add('오브젝트',[...counts].map(([k,v])=>k+' '+v).join(', '));
     if(obj)add('선택 오브젝트',obj.type+' · '+obj.id+' ('+obj.x+', '+obj.y+')');
   }else if(mode==='stories'){
     const story=named(doc.stories,ids.story)||doc.stories[0], line=story&&(named(story.nodes,ids.line)||story.nodes[0]);
-    title=story?.name||'대사 편집';add('대사 수',story?.nodes.length||0);
+    scope=story&&line?{story:story.id,line:line.id}:{};title=story?.name||'대사 편집';add('대사 수',story?.nodes.length||0);
     if(line){add('현재 대사',line.text);add('말하는 인물',line.speakerName||named(doc.characters,line.speaker)?.name||line.speaker);add('선택지',line.choices.map(c=>c.label).join(' / '));}
   }else if(['characters','motion','balance'].includes(mode)){
-    const actor=named(doc.characters,ids.actor)||doc.characters[0];title=actor.name;
+    const actor=named(doc.characters,ids.actor)||doc.characters[0];scope={actor:actor.id,skill:integer(ids.skill,0,actor.skills.length-1)?ids.skill:0};title=actor.name;
     add('체력',actor.health);add('설명',actor.summary);add('스킬',actor.skills.map(s=>s.name+' ('+s.mechanic+')').join(', '));
   }else if(mode==='rules'){
-    const rule=named(doc.combatRules||[],ids.rule)||doc.combatRules?.[0];title=rule?.name||'전투 규칙';
+    const event=named(doc.eventRules||[],ids.eventRule)||(!doc.combatRules?.length?doc.eventRules?.[0]:null),rule=event?null:named(doc.combatRules||[],ids.rule)||doc.combatRules?.[0];
+    scope=event?{eventRule:event.id}:rule?{rule:rule.id}:{};
+    title=event?.name||rule?.name||'전투 규칙';
+    if(event){add('발동 조건',event.event+' · '+event.key);add('효과',event.actions.map(a=>a.kind+' '+a.key+' '+a.value).join(', '));}
     if(rule){add('발동 조건',(rule.enabled?'활성':'비활성')+' · '+rule.event+' · '+rule.every+'회마다 · 체력 '+rule.hpBelow+'% 이하');
       add('재발동 대기',rule.cooldown+'틱');add('효과',rule.effects.map(e=>e.kind+' '+e.amount).join(', '));}
   }else{
     const screen=named(doc.layouts,ids.screen)||doc.layouts[0], w=named(screen.elements,ids.element);title=screen.name;
     add('화면 역할',SCREEN_TYPES[screen.kind]);add('요소 수',screen.elements.length);if(w)add('선택 요소',w.type+' · '+(w.text||w.id));
   }
-  return {area:mode,title:title.slice(0,80),fields};
+  const work={area:mode,title:title.slice(0,80),fields,scope};
+  work.targets=designTargets(doc,work).map(({object,...editable})=>editable);
+  return work;
 }
-function designStamp(doc,screen){
-  return JSON.stringify([screen,doc.menuFunctions||[],designContext(doc,screen).screens]);
+function designStamp(doc,screen,work){
+  const base=[screen,doc.menuFunctions||[],designContext(doc,screen).screens];
+  if(work?.scope&&Object.keys(work.scope).length)
+    base.push(work.area,work.scope,designTargets(doc,work).map(({object,...editable})=>editable));
+  return JSON.stringify(base);
 }
-function planDesign(doc,screenId,changes){
+function planDesign(doc,screenId,changes,work){
   if(!validDesignReply({message:'검토',changes}))throw Error('GPT 변경안 형식을 확인할 수 없어요.');
-  const next=structuredClone(doc),root=named(next.layouts,screenId),aliases=new Map(),notes=[],screens=new Set([screenId]);
+  const next=structuredClone(doc),root=named(next.layouts,screenId),aliases=new Map(),notes=[],diffs=[],groups=new Set(),screens=new Set([screenId]);
   if(!root)throw Error('편집할 화면이 바뀌었어요.');
   const resolve=id=>id?.startsWith('@') ? aliases.get(id.slice(1))?.id : id;
   const fail=hint=>{throw Error(hint);};
@@ -106,10 +165,39 @@ function planDesign(doc,screenId,changes){
       else w[k]=value;
     }
   }
+  const labels={name:'이름',text:'문구',x:'가로 위치',y:'세로 위치',w:'너비',h:'높이',width:'맵 너비',theme:'테마',characterId:'시작 캐릭터',requireClear:'클리어 조건',
+    entryStory:'입장 대화',exitStory:'퇴장 대화',actor:'대상 캐릭터',event:'발동 시점',hpBelow:'체력 조건',every:'발동 횟수',cooldown:'재사용 대기',health:'체력',
+    color:'글자색',background:'바탕색',enabled:'활성',appliesTo:'적용 모드',power:'피해 배율',speaker:'화자',speakerName:'화자 이름',nextLabel:'다음 문구',side:'초상 위치',layout:'대화 화면',
+    region:'소속',summary:'소개',label:'선택 문구',to:'목적지',kind:'종류',amount:'효과량',priority:'우선순위',repeat:'반복',duplicate:'중복 처리',scope:'저장 범위',key:'변수 이름',
+    slot:'슬롯',action:'동작',target:'연결 대상',flag:'상태',contents:'내용',radius:'모서리',opacity:'불투명도',fontSize:'글자 크기',visible:'표시',editorName:'오브젝트 이름'};
+  const valueText=v=>v===undefined?'미설정':v===''?'빈 값':String(v).slice(0,140);
+  function valuesBefore(w,v){
+    const spec={controlMode:'mode',valueKey:'key',hint:'hint',initial:'initial',limit:'limit',min:'min',max:'max',step:'step',options:'options',signal:'signal'};
+    return Object.keys(v).filter(k=>k!=='slot').map(k=>{
+      const old=w?.control&&has(spec,k)?w.control[spec[k]]:w?.stick&&['thumb','dead','knob','ring'].includes(k)?w.stick[k]:w?.[k];
+      return (labels[k]||k)+' · '+valueText(old)+' → '+valueText(v[k]);
+    }).join(' / ');
+  }
   for(const change of changes){
     const {op,ref}=change,v=Object.fromEntries(change.values.map(({key,value})=>[key,value]));
     const layoutId=change.screen?resolve(change.screen):screenId,l=screens.has(layoutId)&&named(next.layouts,layoutId);
     if(!l)fail('선택한 화면이나 이번에 만든 하위 메뉴를 지정하세요.');
+    if(has(DESIGN_TARGETS,op)){
+      const slot=v.slot===undefined?undefined:number(v.slot);
+      const t=designTargets(next,work).find(t=>t.op===op&&t.ref===ref&&t.slot===slot);
+      if(!t)fail('요청을 보낼 때 선택한 제작 항목과 변경 대상이 달라요.');
+      const spec=DESIGN_TARGETS[op];keys(v,[...Object.keys(spec.fields),'slot']);
+      const actual=Object.entries(v).filter(([k])=>k!=='slot');
+      if(!actual.length)fail('바꿀 속성을 선택하세요.');
+      diffs.push(valuesBefore(t.object,v));
+      for(const [k,val]of actual)t.object[k]=spec.fields[k]==='number'?number(val):spec.fields[k]==='bool'?bool(val):val;
+      notes.push(spec.label+' · '+(t.object.name||ref)+(slot===undefined?'':' · '+(slot+1)+'번'));
+      groups.add(spec.group);continue;
+    }
+    groups.add('layouts');
+    if(['newFunction','addStep','bindFunction'].includes(op))groups.add('menuFunctions');
+    const before=op==='screen'?l:op==='addStep'?named(next.menuFunctions||[],resolve(ref)):op.startsWith('edit')||op==='bindFunction'?named(l.elements,resolve(ref)):null;
+    diffs.push(valuesBefore(before,v));
     let subject='';
     if(op==='screen'){
       keys(v,['name','tint','shade']);
@@ -148,5 +236,5 @@ function planDesign(doc,screenId,changes){
   const before=inspectScreens(doc).errors;
   const introduced=inspectScreens(next).errors.find(e=>!before.includes(e));
   if(introduced)fail(introduced);
-  return {project:next,notes,screenIds:[...screens]};
+  return {project:next,notes,diffs,groups:[...groups],screenIds:[...screens]};
 }

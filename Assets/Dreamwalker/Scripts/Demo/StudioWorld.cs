@@ -89,7 +89,7 @@ public sealed partial class StudioWorld : MonoBehaviour
         public Vector2 origin;
     }
     private readonly List<Lift> lifts = new List<Lift>();
-    private readonly HashSet<Foe> slashHits = new HashSet<Foe>();
+    private readonly Dictionary<Foe,int> slashHits = new Dictionary<Foe,int>();
     private Vector2 skillOrigin;
     private int skillFacing, hitIndex, lineIndex;
     private float clock, started, nextHit, lastDamage;
@@ -143,6 +143,11 @@ public sealed partial class StudioWorld : MonoBehaviour
     private void StartPresentation()
     {
         var f = Project.frontScreens;
+        if(!string.IsNullOrEmpty(f?.entry)){
+            if(f.entry=="$field")return;
+            if(f.entry==f.title||f.entry==f.roster||f.entry==f.loading)Present(f.entry);
+            else {flow.Open(f.entry);SyncControls();}return;
+        }
         if (f != null) Present(!string.IsNullOrEmpty(f.title) ? f.title : !string.IsNullOrEmpty(f.roster) ? f.roster : f.loading);
     }
     private void Present(string id)
@@ -202,8 +207,10 @@ public sealed partial class StudioWorld : MonoBehaviour
         if (preserveHealth) RememberMap();
         ClearMap();
         flow.EnterMap();
+        eventMachine?.Enter();
         deferExit = false;
         Map = map;
+        sceneAge=restoring?float.PositiveInfinity:0;
         sceneRoot = new GameObject("Studio map - " + map.name);
         clock = 0;
         lastDamage = float.NegativeInfinity;
@@ -259,8 +266,7 @@ public sealed partial class StudioWorld : MonoBehaviour
             }
         }
         cameraSettings = map.camera ?? new StudioCamera();
-        cameraOffset = new Vector2(Mathf.Clamp(spawn.x - 46, 0, map.width - 100),
-            Mathf.Clamp(spawn.y - 36, 0, Mathf.Max(0, map.height - 100)));
+        cameraOffset=CameraClamp(new Vector2(spawn.x-46/CameraZoom,spawn.y-36/CameraZoom));
         SetCharacter(Project.Character(map.characterId), preserveHealth);
         ApplyMapMemory();
         if (!restoring) { OpenStory(map.entryStory); Fire("enter"); }
@@ -305,8 +311,12 @@ public sealed partial class StudioWorld : MonoBehaviour
         var t = Project.tuning;
         motor.ApplyStudioMovement(t.runSpeed * Actor.speedScale, t.jumpSpeed * Actor.jumpScale, t.dashSpeed,
                                   t.dashDuration);
+        motor.StudioHardwareGate=AllowProgramInput;
+        slash.StudioHardwareGate=AllowProgramInput;
         slash.StudioSweep = SweepStroke;
-        slash.SetStudioTiming(t.startupTicks, t.activeTicks, t.recoveryTicks);
+        var strike=Actor.strike;
+        slash.StudioStrike=strike!=null&&strike.active>0?strike:null;
+        slash.SetStudioTiming(slash.StudioStrike?.startup??t.startupTicks,slash.StudioStrike?.active??t.activeTicks,slash.StudioStrike?.recovery??t.recoveryTicks);
         slash.ApplyStudioAttack(Mathf.Max(1, Mathf.RoundToInt(t.damage * Actor.attackScale)),
                                 t.reach * Actor.reachScale);
         Array.Clear(cooldowns, 0, cooldowns.Length);
@@ -425,27 +435,29 @@ public sealed partial class StudioWorld : MonoBehaviour
     {
         Story = string.IsNullOrEmpty(id) ? null : Project.Story(id);
         lineIndex = 0;
-        if (Story != null)
-            Fire("storyStart", id);
+        BeginStage();
+        if (Story != null){Fire("storyStart", id);DispatchProgram("line",Line.id);}
         SyncControls();
     }
     public void Answer(int choice = -1, bool skip = false)
     {
         if (Story == null)
             return;
-        if (skip)
-            lineIndex = Story.nodes.Length;
+        if (skip) {
+            FinishStageFlags();
+            lineIndex=Line.stageTrack?.Destination(Story)??-1;
+        }
         else if (Line.choices.Length > 0)
         {
-            if (choice < 0 || choice >= Line.choices.Length)
+            if (!StageChoiceAllowed(choice))
                 return;
             string next = Line.choices[choice].to;
+            DispatchProgram("choice",next??"");
             lineIndex = Array.FindIndex(Story.nodes, n => n.id == next);
         }
         else
             lineIndex++;
-        if (lineIndex >= 0 && lineIndex < Story.nodes.Length)
-            return;
+        if (lineIndex >= 0 && lineIndex < Story.nodes.Length) { BeginStage(); DispatchProgram("line",Line.id); return; }
         string storyId = Story.id;
         storiesDone.Add(storyId); GrantRewards();
         Story = null;
@@ -510,16 +522,30 @@ public sealed partial class StudioWorld : MonoBehaviour
         if (e == null || e.target.Health <= 0)
             return;
         int baseDamage = Mathf.Max(1, Mathf.FloorToInt(damage * (1 + (float)GearPower() / Project.tuning.damage) * Actor.attackScale + .5f));
-        if (!e.target.TakeDamage(baseDamage + CombatEvent("hit"), CombatFaction.Player, Vector2.zero)) return;
+        if (!e.target.TakeDamage(baseDamage + CombatEvent("hit",e.config.tag??""), CombatFaction.Player, Vector2.zero)) return;
         if (stack) AddStack(e);
         if (e.target.Health == 0)
         {
-            CombatEvent("kill");
+            CombatEvent("kill",e.config.tag??"");
             kills[Map.id + "/" + e.id] = e.config.tag ?? "";
             GrantRewards();
         }
     }
-    private bool Fire(string signal, string key = "", float previous = 101)
+    private StudioProgramResult DispatchProgram(string signal,string key="")
+    {
+        if(eventMachine==null||Actor==null||Map==null||!eventMachine.Handles(signal))return null;
+        var result=eventMachine.Dispatch(signal,key,combatTick,Actor.id,Map.id,Health,Actor.health,name=>flow.Matches(name,true),flow.Flag);
+        Health=result.hp;
+        if(result.shield>0){var memory=RuleState();memory.shield=Math.Min(9999,memory.shield+result.shield);}
+        foreach(var emitted in result.signals)if(FireScreen("signal",emitted))result.opened=true;
+        return result;
+    }
+    private bool Fire(string signal,string key="",float previous=101)
+    {
+        var result=DispatchProgram(signal,key);
+        return FireScreen(signal,key,previous)||(result?.opened??false);
+    }
+    private bool FireScreen(string signal, string key = "", float previous = 101)
     {
         if (Actor == null ||
             !flow.Fire(Project, Map.id, Actor.id, signal, key, 100f * Health / Actor.health, previous, clock))
@@ -542,19 +568,37 @@ public sealed partial class StudioWorld : MonoBehaviour
     {
         if (!Visible(widget) || !Enabled(widget))
             return;
-        if (primary)
-            Press(widget.action, widget.target);
+        if(primary){
+            if(!Running||!AllowProgramInput(widget.action))return;
+            PressCore(widget.action,widget.target);
+        }
         if (widget.steps == null)
             return;
         foreach (var step in widget.steps)
             if (flow.Matches(step.flag, step.flagState))
                 Press(step.action, step.target);
     }
+    private bool FollowScreenRoute(string key)
+    {
+        string target=CurrentLayout?.navigation?.Route(key);if(string.IsNullOrEmpty(target))return false;
+        Present(null);flow.CloseAll();Menu="";
+        var f=Project.frontScreens;
+        if(target=="$field")FinishOverlay();
+        else if(target==f?.title||target==f?.roster||target==f?.loading)Present(target);
+        else flow.Open(target);
+        SyncControls();return true;
+    }
+    internal bool Selected(StudioWidget w) => !string.IsNullOrEmpty(w.states?.flag) && flow.Matches(w.states.flag,true);
+    internal bool AllowProgramInput(string action)=>!(DispatchProgram("input",action)?.consumed??false);
     public void Press(string action, string target = "")
     {
-        if (!Running)
-            return;
+        if(Running&&AllowProgramInput(action))PressCore(action,target);
+    }
+    private void PressCore(string action,string target)
+    {
         var f = Project.frontScreens;
+        if ((action=="beginGame"||action=="confirmActor")&&FollowScreenRoute("next"))return;
+        if ((action=="back"||action=="resume")&&FollowScreenRoute(action))return;
         if (action == "beginGame" || action == "confirmActor")
         {
             Present(action == "beginGame" && !string.IsNullOrEmpty(f?.roster) ? f.roster : f?.loading);
@@ -673,6 +717,7 @@ public sealed partial class StudioWorld : MonoBehaviour
                 Menu = "";
                 Story = route;
                 lineIndex = 0;
+                BeginStage();
                 SyncControls();
             }
             return;
@@ -714,8 +759,8 @@ public sealed partial class StudioWorld : MonoBehaviour
             return;
         slot--;
         var next = Actor.skills[slot];
-        if (next.mechanic == "none" || clock < cooldowns[slot] || slash.IsAttacking)
-            return;
+        if(next.mechanic=="none" || clock<cooldowns[slot])return;
+        if(slash.IsAttacking){if(slash.StudioStrike==null||!slash.StudioStrike.Cancel(slash.StudioTick))return;slash.ResetStudioAttack();}
         skill = next;
         activeSkillKey = action;
         motionEpoch++;
@@ -890,11 +935,13 @@ public sealed partial class StudioWorld : MonoBehaviour
         var player=body.position;
         foreach (var e in foes)
         {
-            if (e.target.Health <= 0 || slashHits.Contains(e)) continue;
+            var strike=slash.StudioStrike;
+            if(e.target.Health<=0 || (slashHits.TryGetValue(e,out int prior) && (strike==null||strike.repeat==0||slash.StudioTick-prior<strike.repeat)))continue;
             var pos=e.target.transform.position;
-            if (!StudioCombatClock.SweepTouches(player.x,player.y,pos.x,pos.y,face,slash.Reach,from,to,e.config.hurtWidth,e.config.hurtHeight)) continue;
-            Hit(e, Project.tuning.damage);
-            slashHits.Add(e);
+            bool contact=strike?.shape=="box"?strike.Touches(player.x,player.y,pos.x,pos.y,face,e.config.hurtWidth,e.config.hurtHeight):
+                StudioCombatClock.SweepTouches(player.x,player.y,pos.x,pos.y,face,slash.Reach,from,to,e.config.hurtWidth,e.config.hurtHeight);
+            if(!contact)continue;
+            Hit(e,Project.tuning.damage);slashHits[e]=slash.StudioTick;
         }
     }
     private void MovePlatforms()
@@ -917,6 +964,7 @@ public sealed partial class StudioWorld : MonoBehaviour
         if (!Running || Paused)
             return;
         combatTick++;
+        if(eventMachine!=null){foreach(string key in eventMachine.Due(combatTick))Fire("timer",key);if(Paused)return;}
         float previousHp = Health * 100f / Actor.health;
         int previousFoes = Remaining;
         float priorClock = clock;
@@ -1018,14 +1066,19 @@ public sealed partial class StudioWorld : MonoBehaviour
             }
         }
     }
+    private float CameraZoom => cameraSettings?.frame!=null?Mathf.Clamp(cameraSettings.frame.zoom,1,3):1;
+    private Vector2 CameraClamp(Vector2 p){
+        var f=cameraSettings?.frame;float span=100/CameraZoom,w=Mathf.Max(0,Map.width-span),h=Mathf.Max(0,Map.height-span);
+        return new Vector2(Mathf.Clamp(p.x,w*(f?.left??0)/100,w*(f?.right??100)/100),Mathf.Clamp(p.y,h*(f?.bottom??0)/100,h*(f?.top??100)/100));
+    }
     private void UpdateCamera()
     {
-        float width = 100 * UnitX;
+        float zoom=CameraZoom,width=100*UnitX/zoom;
         view.orthographicSize = width / (2 * view.aspect);
-        Vector2 player = new Vector2((transform.position.x - OriginX) / UnitX - 46, transform.position.y / UnitY - 36);
+        Vector2 player = new Vector2((transform.position.x - OriginX) / UnitX - 46/zoom, transform.position.y / UnitY - 36/zoom);
         Vector2 delta = player - cameraOffset;
-        Vector2 goal = new Vector2(Mathf.Clamp(player.x - Mathf.Clamp(delta.x, -cameraSettings.deadX, cameraSettings.deadX), 0, Map.width - 100),
-            Mathf.Clamp(player.y - Mathf.Clamp(delta.y, -cameraSettings.deadY, cameraSettings.deadY), 0, Mathf.Max(0, Map.height - 100)));
+        Vector2 goal=CameraClamp(new Vector2(player.x-Mathf.Clamp(delta.x,-cameraSettings.deadX/zoom,cameraSettings.deadX/zoom),
+            player.y-Mathf.Clamp(delta.y,-cameraSettings.deadY/zoom,cameraSettings.deadY/zoom)));
         float mix = cameraSettings.follow <= 0 ? 1 : 1 - Mathf.Exp(-cameraSettings.follow * Time.deltaTime);
         cameraOffset = Vector2.Lerp(cameraOffset, goal, mix);
         view.transform.position = new Vector3(OriginX + cameraOffset.x * UnitX + width / 2,
@@ -1044,8 +1097,10 @@ public sealed partial class StudioWorld : MonoBehaviour
         if (ShowingFront && front == Project.frontScreens?.loading)
         {
             frontAge += Time.unscaledDeltaTime;
-            if (LoadingFraction >= 1 || frontAge >= Mathf.Max(8, Project.frontScreens.seconds)) Present(null);
+            if (LoadingFraction >= 1 || frontAge >= Mathf.Max(8, Project.frontScreens.seconds)) {if(!FollowScreenRoute("next"))Present(null);}
         }
+        if(!ShowingFront)sceneAge+=Time.unscaledDeltaTime*60;
+        if(Line!=null && !HasOverlay)StepStage(Time.unscaledDeltaTime);
         screenView.ReadInput(motor);
     }
     private void LateUpdate()
@@ -1065,7 +1120,7 @@ public sealed partial class StudioWorld : MonoBehaviour
     {
         if (StudioOnlineArena.Visible) return;
         if (!Running) return;
-        screenView.Draw(); DrawDiagnostics();
+        screenView.Draw(); DrawSceneTransition(); DrawDiagnostics();
         if (!Paused || CurrentLayout == null || (!HasOverlay && Line?.shot?.layers != null) ||
             (ShowingFront && front == Project.frontScreens?.loading)) return;
         bool recovery = Array.Exists(CurrentLayout.elements, w => Visible(w) && Enabled(w) &&
@@ -1100,12 +1155,15 @@ public sealed partial class StudioWorld : MonoBehaviour
         }
         if (motor != null)
         {
+            motor.StudioHardwareGate=null;
             motor.ApplyStudioMovement(originalMovement.x, originalMovement.y, originalMovement.z, originalMovement.w);
             motor.enabled = motorEnabled;
             motor.SetVirtualHorizontal(0);
         }
         if (slash != null)
         {
+            slash.StudioHardwareGate=null;
+            slash.StudioStrike=null;
             slash.StudioSweep = null;
             slash.ResetStudioAttack();
             slash.ApplyStudioAttack(originalDamage, originalReach);
