@@ -28,7 +28,7 @@
             placeholder="암호 입력" /></label
         ><button class="accent" id="enter" hidden disabled>팀 암호로 입장</button
         ><a id="owner-login" hidden target="_top" href="/signin-with-chatgpt?return_to=%2F">소유자 계정으로 열기</a
-        ><output id="msg"></output><a href="/device-files">연결 코드로 파일 보내기</a>
+        ><output id="msg"></output><a href="/device">기기에 있는 파일 열기</a> <a href="/device-files">연결 코드로 파일 보내기</a>
       </form>
     </main>
     <main id="editor" hidden>
@@ -45,7 +45,7 @@
       </div>
       <div class="compact-tools"><button id="tool-menu" aria-controls="tabs" aria-expanded="false">제작 도구</button><span id="current-area"></span><button id="inspector-switch" type="button" aria-pressed="false">속성 보기</button></div>
       <nav id="tabs" aria-label="제작 도구">
-        <div class="tool-group" aria-label="프로젝트"><span>프로젝트</span><button data-tab="desk">제작 보드</button><button data-tab="assets">프로젝트 에셋</button></div>
+        <div class="tool-group" aria-label="프로젝트"><span>프로젝트</span><button data-tab="desk">제작 보드</button><button data-tab="assets">프로젝트 에셋</button><button data-tab="device">기기 파일</button><button data-tab="assistant">제작 GPT</button><button id="studio-layout" type="button">스튜디오 배치</button></div>
         <div class="tool-group" aria-label="게임 제작"><span>게임 제작</span><button data-tab="scene">맵 편집</button><button data-tab="characters">캐릭터</button><button data-tab="motion">모션 · 효과</button><button data-tab="interface">UI 디자인</button><button data-tab="stories">대사 편집</button><button data-tab="roadmap">스토리 로드맵</button><button data-tab="rpg">아이템 · 의뢰</button><button data-tab="balance">전투 수치</button><button data-tab="source">게임 소스</button></div>
         <div class="tool-group" aria-label="검수와 배포"><span>검수와 배포</span><button data-tab="quality">검수·빌드</button><button data-tab="network">네트워크 검사</button><button data-tab="versions">버전 · 백업</button></div>
       </nav>
@@ -78,14 +78,14 @@
     <script src="/characters.js"></script>
     <script src="/shot-view.js"></script><script src="/stories.js"></script><script src="/shot-editor.js"></script>
     <script src="/flows.js"></script>
-    <script src="/interface.js"></script>
+    <script src="/interface.js"></script><script src="/screen-tools.js"></script><script src="/design-plan.js"></script><script src="/studio-gpt.js"></script><script src="/studio-layout.js"></script>
     <script src="/game.js"></script>
     <script src="/export.js"></script>
     <script src="/roadmap.js"></script>
     <script src="/source.js"></script>
     <script src="/network-test.js"></script>
     <script src="/production.js"></script>
-    <script src="/file-wire.js"></script><script src="/file-import.js"></script>
+    <script src="/device-open.js"></script><script src="/device-workspace.js"></script><script src="/file-wire.js"></script><script src="/file-import.js"></script>
     <script src="/desk.js"></script><script src="/asset-desk.js"></script><script src="/scene-tools.js"></script>
     <script src="/app.js"></script>
   </body>

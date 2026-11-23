@@ -122,6 +122,7 @@ function bindColor(label, obj, key, update) {
   });
 }
 function draw() {
+  releaseDevicePreview();
   if(motionPreviewSound){motionPreviewSound.pause();motionPreviewSound=null;}
   if (!project) return;
   for (const section of document.querySelectorAll('#content details'))
@@ -135,7 +136,7 @@ function draw() {
     b.setAttribute('aria-current', b.dataset.tab === tab ? 'page' : 'false');
   }
   ({
-    desk: drawDesk, assets: drawAssets, quality: drawQuality,
+    desk: drawDesk, assets: drawAssets, quality: drawQuality, assistant: drawStudioGpt, device: drawDeviceFiles,
     scene: drawMaps,
     characters: drawCharacters,
     stories: drawStories,
@@ -453,7 +454,8 @@ async function openEditor() {
   }
   if (access.ok) {
     const r = await api('project');
-    const section = new URLSearchParams(location.search).get('tool');
+    const prefs=readStudioLayout();applyStudioLayout(prefs);
+    const section = new URLSearchParams(location.search).get('tool') || prefs.first;
     if ([...$('#tabs').querySelectorAll('[data-tab]')].some((n) => n.dataset.tab === section)) tab = section;
     loadRecord(r);
     if (access.reviewRequired && !access.owner) $('#save').textContent = '소유자 검토 요청';
@@ -476,6 +478,7 @@ async function openEditor() {
       } catch {}
     $('#gate').hidden = true;
     $('#editor').hidden = false;
+    if(location.pathname!=='/play') restoreDeviceView(new URLSearchParams(location.search));
     if (location.pathname === '/play') {
       document.body.classList.add('game-only');
       await playProject(r.project.startMap);
@@ -507,7 +510,8 @@ $('#login').onsubmit = async (e) => {
     $('#enter').disabled = false;
   }
 };
-$('#project-import').append(filePicker('프로젝트 파일 선택',true,bringProjectFiles));
+$('#studio-layout').onclick=editStudioLayout;
+$('#project-import').append(filePicker('프로젝트 파일 선택',true,bringProjectFiles,false,pickLocalFromToolbar));
 $('#tabs').onclick=e=>{const b=e.target.closest('[data-tab]');if(b)goTool(b.dataset.tab);};
 $('#tool-menu').onclick=()=>{
   const open=$('#editor').classList.toggle('rail-open');

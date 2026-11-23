@@ -19,6 +19,7 @@ function drawScreenShortcuts(a, layout) {
     shortcuts.append(action(name, () => fronts[role] ? select(fronts[role]) : make([role]), layout.id === fronts[role] ? 'on' : ''));
   for (const [name,id] of [['전투 HUD',m.hudId],['게임 메뉴',m.menuId],['대화창',m.dialogueId]])
     shortcuts.append(action(name, () => select(id), layout.id === id ? 'on' : ''));
+  shortcuts.append(screenResultButton('clear','클리어 화면'),screenResultButton('defeat','패배 화면'));
   a.append(heading('게임 화면'), shortcuts);
   if (Object.keys(FRONT_SCREENS).some(role => !fronts[role]))
     a.append(action('시작 화면 세트 만들기', () => make(['title','roster','loading'])));
@@ -141,8 +142,8 @@ function drawInterface() {
     if (!v.visible) n.classList.add('ghost');
     if (v.type === 'dialogue')
       n.append(box('sample-dialogue', el('strong', c.name), el('span', '대사와 선택지가 표시되는 영역')));
-    else updateWidget(n, v, sample);
-    const handle = v.id === elementId ? el('i') : null;
+    else updateWidget(n, boundMenuButton(project,v), sample);
+    const handle = v.id === elementId && !v.editorLocked ? el('i') : null;
     if (handle) {
       handle.className = 'resize-handle';
       handle.title = '크기 조절';
@@ -162,8 +163,9 @@ function drawInterface() {
         value: { x: v.x, y: v.y, w: v.w, h: v.h },
       }),
       (dx, dy, p) => {
-        const x = Math.round((dx * 100) / p.rect.width),
-          y = Math.round((dy * 100) / p.rect.height);
+        if(v.editorLocked)return;
+        const snap=delta=>Math.round(Math.round(delta/screenSnap)*screenSnap*10)/10;
+        const x=snap(dx*100/p.rect.width),y=snap(dy*100/p.rect.height);
         if (p.resize) {
           p.value.w = clamp(p.w + x, 3, 100 - p.x);
           p.value.h = clamp(p.h + y, 3, 100 - p.y);
@@ -175,7 +177,7 @@ function drawInterface() {
       },
       (p, cancel) => {
         elementId = v.id;
-        if (cancel) {
+        if (cancel || v.editorLocked) {
           draw();
           return;
         }
@@ -183,13 +185,8 @@ function drawInterface() {
       },
     );
   }
-  a.append(
-    canvas,
-    el(
-      'p',
-      '요소를 끌어 배치하고 오른쪽 아래 손잡이로 크기를 조절하세요. 겹친 요소는 목록에서 선택할 수 있어요.',
-    ),
-  );
+  screenBench(canvas,l,w,a);
+  drawMenuBuilder(l,w,a);
   const allowed = { ...WIDGETS };
   if (l.elements.some((v) => v.type === 'dialogue')) delete allowed.dialogue;
   let type = 'text';
@@ -287,7 +284,8 @@ function drawInterface() {
     ['w', '너비 (%)', 100 - w.x],
     ['h', '높이 (%)', 100 - w.y],
   ]) {
-    const input = bindNumber(label, w, key, ['w', 'h'].includes(key) ? 3 : 0, max, 1, update);
+    const input = bindNumber(label, w, key, ['w', 'h'].includes(key) ? 3 : 0, Math.round(max*10)/10, 0.1, update);
+    input.querySelector('input').disabled=!!w.editorLocked;
     input.querySelector('input').addEventListener('blur', () => {
       const n = g.querySelectorAll('input');
       if (n.length === 4) {
@@ -354,7 +352,7 @@ function drawInterface() {
     const n = nodes.get(w.id);
     if (!n) return;
     const grip = n.querySelector('.resize-handle');
-    updateWidget(n, w, sample);
+    updateWidget(n, boundMenuButton(project,w), sample);
     if (grip && !grip.isConnected) n.append(grip);
   }
   if (w.type === 'image') b.append(assetField('요소 이미지', w.image, (v) => edit(() => (w.image = v))));

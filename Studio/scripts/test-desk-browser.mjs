@@ -17,6 +17,7 @@ export async function testDeskBrowser(page) {
   await page.locator('.kanban-column').filter({hasText:'검수'}).getByText('얼음 동굴의 길').waitFor();
   const picker=field('프로젝트 파일 선택');
   assert.equal(await picker.getAttribute('accept'),null);assert.equal(await picker.getAttribute('capture'),null);
+  await page.locator('#project-import .file-methods summary').click();
   const choose=page.waitForEvent('filechooser');
   await picker.click();
   const img=await readFile(new URL('../art/player.png',import.meta.url));
@@ -53,6 +54,7 @@ export async function testDeskBrowser(page) {
   await button('선택한 대사의 음성으로 사용').click();
   await tab('source');await field('실행 환경').selectOption('Unity');
   const codePicker=page.locator('.file-picker').filter({has:field('기기에서 소스 파일 가져오기')});
+  await codePicker.locator('.file-methods summary').click();
   await codePicker.getByRole('button',{name:'브라우저에서 내 파일 열기'}).click();
   const filePage=await page.context().browser().newContext();
   try {

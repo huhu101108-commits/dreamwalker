@@ -451,7 +451,7 @@ async function uploadAsset(blob) {
   if (!r.ok) throw Error(d.error || '이미지 저장 실패');
   return d.ref;
 }
-function filePicker(label, multiple, consume, imageFiles = false) {
+function filePicker(label, multiple, consume, imageFiles = false, openDirect=null) {
   const input = el('input'), area = box('file-picker');
   input.type = 'file';
   // Leave the native chooser unfiltered so Android can offer Documents and Downloads.
@@ -463,7 +463,7 @@ function filePicker(label, multiple, consume, imageFiles = false) {
   async function receive(items) {
     const files = [...items];
     if (busy || !files.length) return false;
-    busy = input.disabled = true;
+    busy = input.disabled = direct.disabled = true;
     status.textContent = '파일을 읽고 있어요…';
     try {
       await consume(multiple ? files : files.slice(0, 1), () => area.isConnected);
@@ -474,7 +474,7 @@ function filePicker(label, multiple, consume, imageFiles = false) {
       note(error.message);
       return false;
     } finally {
-      busy = input.disabled = false;
+      busy = input.disabled = direct.disabled = false;
       input.value = '';
     }
   }
@@ -489,6 +489,10 @@ function filePicker(label, multiple, consume, imageFiles = false) {
   native.className = 'native-file';
   input.setAttribute('aria-label',label);
   native.append(input);
+  const alternate=el('details');alternate.className='file-methods';
+  alternate.append(el('summary','시스템 파일 선택 · 다른 열기 방법'));
+  const direct=action('기기에서 파일 열기',openDirect||(()=>chooseDeviceFiles(input,receive,()=>{alternate.open=true;},status)),'device-open');
+  direct.setAttribute('aria-label',label==='프로젝트 파일 선택'?'기기에서 파일 열기':label+' · 기기에서 열기');
   const openLink=()=>openDeviceLink(label,multiple,receive,area);
   const handoff = action('브라우저에서 내 파일 열기',openLink,'file-external');
   if (/Android/i.test(navigator.userAgent)) {
@@ -523,7 +527,8 @@ function filePicker(label, multiple, consume, imageFiles = false) {
       if(embedded)timer=setTimeout(fallback,1600);
     });
   }
-  area.append(el('span',label),row(native,handoff));
+  alternate.append(native,openOnDeviceLink(),handoff);
+  area.append(el('span',label),direct,alternate);
   if (imageFiles) {
     const other = el('details'), paste = el('textarea');
     paste.rows = 1;

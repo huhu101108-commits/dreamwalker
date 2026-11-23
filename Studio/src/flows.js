@@ -1,4 +1,4 @@
-function actionFields(owner, chained = false) {
+function actionFields(owner, chained = false, prefix = '') {
   const choices = { ...INPUTS };
   if (chained) {
     delete choices.left;
@@ -14,7 +14,7 @@ function actionFields(owner, chained = false) {
     })[k];
   const root = box(
     'control-grid',
-    selectField(chained ? '실행 동작' : '버튼 동작', owner.action, choices, (k) =>
+    selectField(prefix+(chained ? '실행 동작' : '버튼 동작'), owner.action, choices, (k) =>
       edit(() => {
         owner.action = k;
         owner.target = targetsFor(k)?.[0]?.id || (['flagOn', 'flagOff', 'signal'].includes(k) ? '상태1' : '');
@@ -25,7 +25,7 @@ function actionFields(owner, chained = false) {
   if (targets)
     root.append(
       bindSelect(
-        { open: '열 화면', gotoMap: '이동할 맵', startStory: '재생할 대화', selectActor: '교대할 캐릭터' }[
+        prefix+{ open: '열 화면', gotoMap: '이동할 맵', startStory: '재생할 대화', selectActor: '교대할 캐릭터' }[
           owner.action
         ],
         owner,
@@ -35,12 +35,12 @@ function actionFields(owner, chained = false) {
     );
   if (['flagOn', 'flagOff', 'signal'].includes(owner.action))
     root.append(
-      bindText(owner.action === 'signal' ? '보낼 이벤트 이름' : '변경할 상태 이름', owner, 'target', 50),
+      bindText(prefix+(owner.action === 'signal' ? '보낼 이벤트 이름' : '변경할 상태 이름'), owner, 'target', 50),
     );
   if (chained)
     root.append(
-      bindText('실행 조건 상태 (비우면 항상)', owner, 'flag', 50),
-      bindSelectBool('조건 상태', owner, 'flagState'),
+      bindText(prefix+'실행 조건 상태 (비우면 항상)', owner, 'flag', 50),
+      bindSelectBool(prefix+'조건 상태', owner, 'flagState'),
     );
   return root;
 }
@@ -50,13 +50,18 @@ function bindSelectBool(label, obj, key) {
   );
 }
 function drawButtonActions(w, b) {
-  b.append(heading('누르면 실행'), actionFields(w));
+  b.append(heading('누르면 실행'));
+  if(drawFunctionBinding(w,b))return;
+  b.append(actionFields(w));
+  drawActionSteps(w,b);
+}
+function drawActionSteps(w,b,prefix='') {
   w.steps.forEach((step, i) => {
     b.append(
       box(
         'choice-card',
         el('strong', '후속 동작 ' + (i + 1)),
-        actionFields(step, true),
+        actionFields(step, true, prefix),
         row(
           action('위로', () => edit(() => moveIn(w.steps, step, -1))),
           action('아래로', () => edit(() => moveIn(w.steps, step, 1))),
@@ -66,7 +71,7 @@ function drawButtonActions(w, b) {
     );
   });
   b.append(
-    action('＋ 후속 동작', () => {
+    action(prefix+'＋ 후속 동작', () => {
       if (w.steps.length >= 12) return note('후속 동작은 12개까지 연결할 수 있어요.');
       edit(() => w.steps.push({ action: 'back', target: '', flag: '', flagState: true }));
     }),

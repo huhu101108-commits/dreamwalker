@@ -5,6 +5,7 @@ const files = {};
 for (const [path, name, type] of [
   ['/', 'index.html', 'text/html; charset=utf-8'],
   ['/play', 'index.html', 'text/html; charset=utf-8'],
+  ['/device','device-local.html','text/html; charset=utf-8'],
   ['/device-files', 'device-files.html', 'text/html; charset=utf-8'],
   ['/style.css', 'style.css', 'text/css'],
 ]) {
@@ -22,7 +23,7 @@ for (const name of [
   'maps',
   'characters',
   'stories','shot-view','shot-editor',
-  'interface',
+  'interface','screen-tools','design-plan','studio-gpt','studio-layout','device-open','device-workspace','device-standalone',
   'flows',
   'export',
   'roadmap',
@@ -62,7 +63,7 @@ fs.writeFileSync(
     'const SOURCE_BASE=' +
     JSON.stringify(sourceBase) +
     ';\n' +
-    ['model', 'github-runner', 'android-service', 'link-test-service', 'file-relay-service', 'server']
+    ['model','design-plan','gpt-service', 'github-runner', 'android-service', 'link-test-service', 'file-relay-service', 'server']
       .map((n) => read('src/' + n + '.js'))
       .join('\n'),
 );

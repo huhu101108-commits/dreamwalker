@@ -5,6 +5,7 @@ import { createServer } from 'node:http';
 import { once } from 'node:events';
 import { createRequire } from 'node:module';
 import { BUCKET, ownerDigest, previewOwnerHeaders, worker } from './worker-fixture.mjs';
+import { testDeviceDesigner } from './test-device-designer-browser.mjs';
 import { testDialogueBrowser } from './test-dialogue-browser.mjs';
 import { testDeskBrowser } from './test-desk-browser.mjs';
 import { testTouchAuthoring } from './test-touch-authoring.mjs';
@@ -76,6 +77,7 @@ try {
   await testTouchAuthoring(host);
   await testDeskBrowser(host);
   await testDialogueBrowser(host);
+  await testDeviceDesigner(host);
   assert.deepEqual(errors, []);
 } finally {
   await Promise.allSettled(browsers.map(browser => browser.close()));

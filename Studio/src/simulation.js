@@ -81,6 +81,7 @@ function slashTouches(hero, target, reach, from, to) {
 
 class FieldRun {
   constructor(world, mapId) {
+    if(world.menuFunctions?.length) world={...world,layouts:resolvedScreens(world)};
     this.world = world;
     this.t = world.tuning;
     this.events = [];

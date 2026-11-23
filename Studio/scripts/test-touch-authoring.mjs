@@ -52,6 +52,7 @@ export async function testTouchAuthoring(page) {
   // Exercise both the OS picker event and the Image decoder fallback used by embedded browsers.
   await page.evaluate(() => { window.createImageBitmap = undefined; });
   const file = await readFile(new URL('../art/player.png',import.meta.url));
+  await page.locator('.file-picker').filter({has:field('이 줄의 배경')}).locator('.file-methods summary').click();
   const choose = page.waitForEvent('filechooser');
   await field('이 줄의 배경').click();
   await (await choose).setFiles({name:'stage.png',mimeType:'image/png',buffer:file});

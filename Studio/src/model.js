@@ -201,6 +201,45 @@ function actionRefOK(d, action, target) {
   if (['flagOn', 'flagOff', 'signal'].includes(action)) return signalKey(target);
   return target === '';
 }
+function menuProgram(name,base={action:'back',target:'',steps:[]}) {
+  return {id:uid(),name,action:base.action,target:base.target,steps:structuredClone(base.steps)};
+}
+function boundMenuButton(doc,w) {
+  const fn=w.type==='button' && w.functionId && named(doc.menuFunctions||[],w.functionId);
+  if(!fn) return w;
+  const {functionId,...button}=w;
+  return {...button,action:fn.action,target:fn.target,steps:fn.steps,text:w.text||fn.name};
+}
+function resolvedScreens(doc) {
+  if(!doc.menuFunctions?.length) return doc.layouts;
+  return doc.layouts.map(l=>({...l,elements:l.elements.map(w=>boundMenuButton(doc,w))}));
+}
+function removeMenuProgram(doc,fn) {
+  for(const l of doc.layouts) l.elements=l.elements.map(w=>w.functionId===fn.id?structuredClone(boundMenuButton(doc,w)):w);
+  doc.menuFunctions=doc.menuFunctions.filter(f=>f.id!==fn.id);
+}
+function newMenuButton(layout,text,props={}) {
+  const width=31,height=12;
+  let best={x:3,y:4,overlap:Infinity};
+  for(const y of [5,21,37,53,69,84]) for(const x of [3,35,66]){
+    let overlap=0;
+    for(const w of layout.elements) if(w.visible && w.type!=='panel' && w.type!=='image')
+      overlap+=Math.max(0,Math.min(x+width,w.x+w.w)-Math.max(x,w.x))*Math.max(0,Math.min(y+height,w.y+w.h)-Math.max(y,w.y));
+    if(overlap<best.overlap)best={x,y,overlap};
+  }
+  return widget(uid(),'button',best.x,best.y,width,height,{text,action:'back',shape:'pill',...props});
+}
+function attachSubmenu(doc,parent,name,content='empty') {
+  if(doc.layouts.length>=LIMIT.layouts || parent.elements.length>=LIMIT.widgets) throw Error('화면 또는 버튼 공간이 부족해요.');
+  if(!name.trim() || name.length>50 || !['empty','inventory','quests'].includes(content)) throw Error('메뉴 이름과 내용을 확인하세요.');
+  const child=newScreen(uid(),name,'custom');
+  child.shade=90;
+  child.elements.unshift(widget(uid(),'text',8,6,84,15,{text:name,fontSize:30,opacity:0}));
+  if(content!=='empty')child.elements.splice(1,0,widget(uid(),content,8,24,84,48,{align:'left'}));
+  parent.elements.push(newMenuButton(parent,name,{action:'open',target:child.id}));
+  doc.layouts.push(child);
+  return child;
+}
 function resetUIReferences(d, type, id, fallback = '') {
   if (type === 'screen') {
     for (const role of Object.keys(FRONT_SCREENS))
@@ -209,6 +248,14 @@ function resetUIReferences(d, type, id, fallback = '') {
       if (line.layout === id) line.layout = named(d.layouts, fallback)?.kind === 'dialogue' ? fallback : '';
   }
   const act = { map: 'gotoMap', character: 'selectActor', story: 'startStory', screen: 'open' }[type];
+  for(const fn of d.menuFunctions||[]){
+    if(fn.action===act && fn.target===id){fn.action=fallback?act:'back';fn.target=fallback;}
+    fn.steps=fn.steps.filter(step=>{
+      if(step.action!==act || step.target!==id)return true;
+      if(!fallback)return false;
+      step.target=fallback;return true;
+    });
+  }
   for (const l of d.layouts) {
     if (type === 'map' || type === 'character') {
       const key = type === 'map' ? 'mapId' : 'actorId';
@@ -629,6 +676,10 @@ const rows = (v, min, max) =>
   v.length <= max &&
   v.every((x) => x && validId(x.id)) &&
   new Set(v.map((x) => x.id)).size === v.length;
+function validMenuStep(d,s) {
+  return !!s && actionRefOK(d,s.action,s.target) && !['left','right'].includes(s.action) &&
+    signalKey(s.flag,true) && typeof s.flagState==='boolean';
+}
 function problem(d) {
   const title = (v) => textValue(v, 50, true);
   if (!d || d.schema !== SCHEMA || !title(d.title)) return '프로젝트 형식과 이름을 확인하세요.';
@@ -723,6 +774,9 @@ function problem(d) {
     )
       return '캐릭터의 이름, 능력치와 스킬 동작을 확인하세요.';
   }
+  if(d.menuFunctions!==undefined && (!rows(d.menuFunctions,0,64) || d.menuFunctions.some(f=>
+    !title(f.name)||!actionRefOK(d,f.action,f.target)||!Array.isArray(f.steps)||f.steps.length>12||f.steps.some(s=>!validMenuStep(d,s)))))
+    return '메뉴 기능의 이름과 실행 동작을 확인하세요.';
   if (d.frontScreens !== undefined && (!d.frontScreens || typeof d.frontScreens !== 'object' ||
       !Object.keys(FRONT_SCREENS).every(k => !d.frontScreens[k] || screen(d.frontScreens[k], 'custom')) ||
       (d.frontScreens.seconds !== undefined && !num(d.frontScreens.seconds, 0.2, 10)) ||
@@ -779,6 +833,8 @@ function problem(d) {
     for (const w of l.elements)
       if (
         !has(WIDGETS, w.type) ||
+        (w.editorLocked!==undefined && typeof w.editorLocked!=='boolean') ||
+        (w.functionId!==undefined && (w.type!=='button'||!named(d.menuFunctions||[],w.functionId))) ||
         !signalKey(w.showFlag, true) ||
         !signalKey(w.enableFlag, true) ||
         typeof w.showValue !== 'boolean' ||
@@ -792,14 +848,7 @@ function problem(d) {
         !['contain', 'cover', 'stretch'].includes(w.imageFit) ||
         !Array.isArray(w.steps) ||
         w.steps.length > 12 ||
-        w.steps.some(
-          (step) =>
-            !step ||
-            !actionRefOK(d, step.action, step.target) ||
-            ['left', 'right'].includes(step.action) ||
-            !signalKey(step.flag, true) ||
-            typeof step.flagState !== 'boolean',
-        ) ||
+        w.steps.some(s=>!validMenuStep(d,s)) ||
         !num(w.x, 0, 100) ||
         !num(w.y, 0, 100) ||
         !num(w.w, 3, 100) ||
@@ -975,7 +1024,10 @@ function inspectScreens(doc) {
     for (const id of [scene.hudId, scene.menuId, scene.dialogueId]) destinations.add(id);
   for (const role of Object.keys(FRONT_SCREENS)) if (doc.frontScreens?.[role]) destinations.add(doc.frontScreens[role]);
   for (const s of doc.stories) for (const n of s.nodes) if (n.layout) destinations.add(n.layout);
-  const transitions = (w) => [{ action: w.action, target: w.target }, ...w.steps];
+  const transitions = w => {
+    const button=boundMenuButton(doc,w);
+    return [{action:button.action,target:button.target},...button.steps];
+  };
   for (const l of doc.layouts) {
     if (l.rules.length) destinations.add(l.id);
     for (const w of l.elements)
@@ -1151,8 +1203,9 @@ function mergeProject(base, mine, live) {
   return { project: merge(base, mine, live, ''), conflicts };
 }
 function playableWorld(project) {
-  const {work,...content}=project;
-  return {...content,scenes:content.scenes.map(s=>({...s,objects:s.objects.map(({editorName,locked,prefab,...object})=>object)})),sourceFiles:[]};
+  const {work,menuFunctions,...content}=project;
+  const layouts=resolvedScreens(project).map(l=>({...l,elements:l.elements.map(({editorLocked,...w})=>w)}));
+  return {...content,layouts,scenes:content.scenes.map(s=>({...s,objects:s.objects.map(({editorName,locked,prefab,...object})=>object)})),sourceFiles:[]};
 }
 function packNativeWorld(project) {
   const world = playableWorld(project);

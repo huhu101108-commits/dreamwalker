@@ -74,6 +74,7 @@ async function api(req, env, path) {
   if (!assetHead && !['GET', 'POST'].includes(req.method)) err(405, '지원하지 않는 요청이에요.');
   if (post && req.headers.get('origin') && req.headers.get('origin') !== origin)
     err(403, '허용되지 않은 출처');
+  if(path==='/api/studio-gpt')return studioGpt(req,env,b,sk,ok && session.data.scope==='edit');
   if (path === '/api/owner-session') {
     if (!post) err(405, '지원하지 않는 요청이에요.');
     if (!owner) err(403, '소유자 계정으로 로그인하세요.');

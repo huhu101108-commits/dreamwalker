@@ -3,7 +3,9 @@ async function openDeviceLink(label,multiple,consume,anchor) {
   const dialog = el('dialog'), body = box('panel transfer-panel');
   const status = el('output','파일 선택 연결을 여는 중…'), links = row();
   status.setAttribute('role','status'); dialog.dataset.fileLink='';
-  body.append(heading('브라우저에서 내 파일 열기'), el('p',label),links,status,action('닫기',()=>dialog.close()));
+  body.append(heading('기기에서 파일 열기'),el('p',label),localDiskLink(),openOnDeviceLink(),
+    el('p','브라우저의 편집기에서 파일을 직접 열 수 있어요. 다른 브라우저에는 팀에 저장한 버전이 열려요.'),
+    heading('현재 창으로 파일 보내기'),links,status,action('닫기',()=>dialog.close()));
   dialog.append(body); document.body.append(dialog); dialog.showModal();
   const secret=newFileCode();
   let key='';
