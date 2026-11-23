@@ -66,6 +66,7 @@ function drawSource() {
       }),
     ),
   );
+  unityReturnPanel(a);
   const status = el('small', path ? (change ? '수정본' : '기본 소스') : '파일 없음');
   const list = el('select');
   const browse = el('details'), fileButtons = box('source-file-list');

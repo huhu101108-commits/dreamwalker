@@ -1384,3 +1384,15 @@ body { font-size:16px; }
 .skill-cost-hint small{color:var(--muted)}
 .cast-replay{position:absolute;right:12px;bottom:12px;z-index:10}
 .stage-face-pick{display:flex;gap:8px;align-items:end;flex-wrap:wrap}
+/* Unity changes waiting for review in the game source tab. */
+.unity-return{margin:12px 0}
+.unity-return>p{color:var(--muted);margin:.5em 0}
+.unity-return>small,.unity-return>strong{display:block;margin:8px 0}
+.unity-return>small{color:var(--muted)}
+.unity-change-list{display:grid;gap:8px;margin:10px 0;max-height:min(60vh,720px);overflow:auto}
+.unity-change{display:grid;gap:6px;padding:10px 12px;border:1px solid #35475c;border-radius:8px;background:#1d2c40}
+.unity-change.conflict{border-color:#d9a54a;background:#2c2a20}
+.unity-change small{color:var(--muted)}
+.unity-change img{max-width:160px;max-height:120px;object-fit:contain;background:#0e1824;border-radius:6px}
+.unity-change .check span{overflow-wrap:anywhere}
+.unity-diff{margin:6px 0 0;padding:8px;border-radius:6px;background:#0e1824;color:#d8e6ef;font:12px/1.45 ui-monospace,monospace;white-space:pre-wrap;overflow-wrap:anywhere;max-height:260px;overflow:auto}

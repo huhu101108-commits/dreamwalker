@@ -2029,3 +2029,71 @@ function fitLineExpression(doc,line){
   const speaker=named(doc.characters,line.speaker);
   if(!line.expression||!speaker?.expressions?.some(x=>x.id===line.expression))delete line.expression;
 }
+
+// Work a creator does in the Unity editor comes back as a reviewed change set. Text compares without a BOM and with
+// LF line endings; images and sounds become project assets; studio-generated content stays owned by the studio.
+const UNITY_MEDIA={png:['image','image/png'],jpg:['image','image/jpeg'],jpeg:['image','image/jpeg'],wav:['audio','audio/wav'],ogg:['audio','audio/ogg'],mp3:['audio','audio/mpeg']};
+const UNITY_RETURN={files:400,image:2000000,audio:8000000,total:24*1024*1024};
+const unitySourceText=text=>String(text??'').replace(/^﻿/,'').replace(/\r\n?/g,'\n');
+const unitySourcePath=path=>editablePath(path)&&!path.startsWith('Web/')&&path!=='ProjectSettings/DreamwalkerStudioImport.json';
+function unityMediaKind(path){
+  if(typeof path!=='string'||path.length>180||!path.startsWith('Assets/')||/^Assets\/Resources\/DreamwalkerStudio(?:\/|\.|$)/i.test(path))return null;
+  if(!path.split('/').every(part=>part&&part===part.trim()&&!part.endsWith('.')&&/^[a-zA-Z0-9_가-힣 .-]+$/.test(part)))return null;
+  return UNITY_MEDIA[path.slice(path.lastIndexOf('.')+1).toLowerCase()]||null;
+}
+// The published source the Unity editor compares with: base files overlaid with the project's edits.
+async function unitySourceManifest(base,patches){
+  const files=Object.assign(Object.create(null),base);
+  for(const change of patches||[]){if(change.text===null)delete files[change.path];else files[change.path]=change.text;}
+  const out=[];
+  for(const path of Object.keys(files).sort())if(unitySourcePath(path))out.push({path,sha256:await studioTextDigest(unitySourceText(files[path]))});
+  return out;
+}
+// A stored change set: text, deletions and media already saved as content-addressed assets.
+function unityChangeProblem(set){
+  if(!set||set.format!=='dreamwalker-unity-changes'||set.version!==1||!integer(set.rev,0,1e9)||!Array.isArray(set.files)||
+    set.files.length<1||set.files.length>UNITY_RETURN.files)return 'Unity 변경 목록 형식을 확인하세요.';
+  const seen=new Set();
+  for(const f of set.files){
+    if(!f||typeof f.path!=='string'||seen.has(f.path.toLowerCase()))return 'Unity 변경의 파일 경로가 비었거나 겹쳐요.';
+    seen.add(f.path.toLowerCase());
+    if(!(f.since===''||/^[a-f0-9]{64}$/.test(f.since)))return f.path+'의 비교 기준을 확인하세요.';
+    if(f.kind==='text'){if(!unitySourcePath(f.path)||!textValue(f.text,200000))return f.path+' · Unity 텍스트 파일 경로나 크기를 확인하세요.';}
+    else if(f.kind==='deleted'){if(!unitySourcePath(f.path))return f.path+' · 삭제할 소스 경로를 확인하세요.';}
+    else if(f.kind==='image'||f.kind==='audio'){if(unityMediaKind(f.path)?.[0]!==f.kind||!/^asset:[0-9a-f]{64}$/.test(f.ref))return f.path+' · 이미지·소리 파일을 확인하세요.';}
+    else return f.path+' · 지원하지 않는 변경 종류예요.';
+  }
+  return '';
+}
+// Review rows. A file the studio also changed since Unity compared it is a conflict and starts unchosen.
+async function unityChangeRows(project,base,set){
+  const now=new Map((await unitySourceManifest(base,project.sourceFiles)).map(f=>[f.path,f.sha256]));
+  const assets=new Set((project.work?.assets||[]).map(a=>a.ref)),rows=[];
+  for(const f of set.files){
+    if(f.kind==='image'||f.kind==='audio'){rows.push({...f,change:'asset',conflict:false,chosen:!assets.has(f.ref),same:assets.has(f.ref)});continue;}
+    const studio=now.get(f.path)||'',next=f.kind==='deleted'?'':await studioTextDigest(unitySourceText(f.text));
+    if(studio===next)continue;
+    const change=f.kind==='deleted'?'delete':studio?'edit':'new',conflict=studio!==f.since;
+    rows.push({...f,change,conflict,chosen:change!=='delete'&&!conflict});
+  }
+  return rows;
+}
+// Applies chosen rows to a project copy; the caller validates the result before replacing the draft.
+function applyUnityChanges(project,base,rows){
+  for(const r of rows){
+    if(!r.chosen)continue;
+    if(r.change==='asset'){
+      const work=project.work||=emptyWork();
+      if(work.assets.some(a=>a.ref===r.ref))continue;
+      if(work.assets.length>=400)throw Error('프로젝트 에셋은 400개까지 보관할 수 있어요.');
+      work.assets.push({id:uid(),name:r.path.slice(r.path.lastIndexOf('/')+1).slice(0,120),folder:'Unity',kind:r.kind,ref:r.ref});
+      continue;
+    }
+    const keep=project.sourceFiles.filter(f=>f.path!==r.path),text=r.change==='delete'?null:unitySourceText(r.text);
+    if(text!==(Object.hasOwn(base,r.path)?base[r.path]:null))keep.push({path:r.path,text});
+    project.sourceFiles=keep;
+  }
+  if(project.sourceFiles.length>180||project.sourceFiles.reduce((n,f)=>n+(f.text?.length||0),0)>1200000)
+    throw Error('적용하면 프로젝트 소스가 180개 또는 120만 자를 넘어요. 일부 파일만 골라 적용하세요.');
+  return project;
+}
