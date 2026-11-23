@@ -93,6 +93,7 @@ public static class Verify
         RuleReplay.Run();
         PortableImport.Run();
         CharacterStage.Run();
+        UnityReturn.Run();
         return "PASS bidirectional sweep at tick 10 and saved state";
     }
     public static async System.Threading.Tasks.Task Main(string[] args)

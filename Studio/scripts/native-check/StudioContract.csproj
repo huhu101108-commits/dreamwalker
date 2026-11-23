@@ -11,6 +11,9 @@
     <Compile Include="../../../Assets/Dreamwalker/Scripts/Demo/StudioEventMachine.cs" />
     <Compile Include="RuleReplay.cs" />
     <Compile Include="CharacterStage.cs" />
+    <Compile Include="UnityReturn.cs" />
+    <Compile Include="../../../Assets/Dreamwalker/Editor/StudioChangeReturn.cs" />
+    <None Update="unity-return.json" CopyToOutputDirectory="PreserveNewest" />
     <None Update="character-stage.json" CopyToOutputDirectory="PreserveNewest" />
     <None Update="rule-replay.json" CopyToOutputDirectory="PreserveNewest" />
     <None Update="field-rule-replay.json" CopyToOutputDirectory="PreserveNewest" />

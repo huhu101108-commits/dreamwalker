@@ -189,5 +189,7 @@ function openUnityTransfer(){
     panel.append(first);
   }
   panel.append(row(action('저장본 콘텐츠 ZIP',()=>exportUnityPack()),action('전체 Unity 프로젝트 ZIP',()=>exportUnityPack(true))));
+  panel.append(el('p','Unity에서 만든 스크립트·씬·프리팹·설정과 이미지·소리는 같은 Unity 창의 «Unity 변경 찾기 · 스튜디오로 보내기»로 보내요.'),
+    action('Unity에서 보낸 변경 보기',()=>{modal.close();expandedSections.set('source|unity-return',true);unityInbox=null;tab='source';draw();}));
   modal.append(panel);document.body.append(modal);modal.onclose=()=>modal.remove();modal.showModal();
 }

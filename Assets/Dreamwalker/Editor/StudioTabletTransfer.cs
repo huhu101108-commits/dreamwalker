@@ -43,6 +43,7 @@ namespace Dreamwalker.EditorTools
                 {
                     if (GUILayout.Button("태블릿 변경 가져오기")) FetchPack(token);
                     if (GUILayout.Button("이 에디터 연결 해제")) SessionState.EraseString(TokenKey);
+                    DrawUnityReturn(token);
                 }
                 if (rows == null && tabletTarget != null && GUILayout.Button("전달받은 위치에서 플레이"))
                 {
@@ -55,7 +56,7 @@ namespace Dreamwalker.EditorTools
         private void Send(UnityWebRequest request, Action<UnityWebRequest> success)
         {
             pending = request;
-            request.timeout = 60;
+            if (request.timeout <= 0) request.timeout = 60;
             request.redirectLimit = 0;
             request.SendWebRequest().completed += _ =>
             {

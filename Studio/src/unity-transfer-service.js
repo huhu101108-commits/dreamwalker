@@ -30,6 +30,59 @@ async function unityTransfer(req,b,route,auth,session,owner){
     return new Response(item.body,{headers:{...headers,'content-type':'application/zip','x-dw-revision':revision,
       'x-dw-map':encodeURIComponent(map||''),'x-dw-object':encodeURIComponent(object||'')}});
   }
+  if(route==='source'&&req.method==='GET'){
+    if(!session||!['unity','edit'].includes(session.scope))err(401,'태블릿에서 Unity 연결 코드를 만드세요.');
+    const saved=await get(b,'project'),doc=migrateProject(saved?.data.project||seed());
+    return json({rev:saved?.data.rev??0,files:await unitySourceManifest(SOURCE_BASE,doc.sourceFiles)});
+  }
+  // A paired Unity editor proposes changes; only an editor session reads, applies or discards them.
+  if(route==='changes'&&post){
+    if(session?.scope!=='unity')err(403,'Unity 에디터 연결로 보내세요.');
+    if(!req.headers.get('content-type')?.startsWith('application/json'))err(415,'JSON 요청이 필요해요.');
+    let body;
+    try{body=JSON.parse(new TextDecoder().decode(await limitedFileBody(req,34*1024*1024)));}catch(e){if(e.status)throw e;err(400,'Unity 변경 목록을 읽을 수 없어요.');}
+    if(!body||body.format!=='dreamwalker-unity-changes'||body.version!==1||!Array.isArray(body.files)||body.files.length>UNITY_RETURN.files)
+      err(400,'Unity 변경 목록 형식을 확인하세요.');
+    let total=0;const files=[],media=[];
+    for(const f of body.files){
+      const item={path:f?.path,kind:f?.kind,since:typeof f?.since==='string'?f.since:''};
+      if(item.kind==='text'){
+        if(typeof f.text!=='string')err(400,String(item.path)+' · 텍스트 내용이 없어요.');
+        item.text=unitySourceText(f.text);
+      }
+      if(item.kind==='image'||item.kind==='audio'){
+        const kind=unityMediaKind(item.path);
+        if(kind?.[0]!==item.kind||typeof f.data!=='string'||!/^[A-Za-z0-9+/]+=*$/.test(f.data))err(400,String(item.path)+' · 이미지·소리 파일을 확인하세요.');
+        let bytes;
+        try{bytes=Uint8Array.from(atob(f.data),c=>c.charCodeAt(0));}catch{err(400,item.path+' · 이미지·소리 파일을 확인하세요.');}
+        f.data='';
+        total+=bytes.length;
+        if(bytes.length>UNITY_RETURN[item.kind]||total>UNITY_RETURN.total)err(413,item.path+' · 이미지는 2MB, 소리는 8MB, 전체 24MB까지 보낼 수 있어요.');
+        if(!studioMediaMatches(kind[1],bytes))err(400,item.path+' · 파일 내용이 확장자와 달라요.');
+        item.ref='asset:'+hex(await crypto.subtle.digest('SHA-256',bytes));
+        media.push([item.ref.slice(6),bytes,kind[1]]);
+      }
+      files.push(item);
+    }
+    const set={format:'dreamwalker-unity-changes',version:1,rev:body.rev,files};
+    const issue=unityChangeProblem(set);if(issue)err(400,issue);
+    // Pictures and sounds are kept by content once the whole list is valid, like other studio assets.
+    for(const [digest,bytes,type] of media)await b.put('asset/'+digest,bytes,{httpMetadata:{contentType:type},onlyIf:{etagDoesNotMatch:'*'}});
+    await b.put('unity-sync/changes',JSON.stringify({...set,when:now,generation:auth.data.gen}));
+    return json({files:files.length,rev:set.rev});
+  }
+  if(route==='changes'&&req.method==='GET'){
+    if(!edit)err(403,'편집기에서 Unity 변경을 확인하세요.');
+    const stored=await get(b,'unity-sync/changes');
+    if(!stored||stored.data.generation!==auth.data.gen)return json({files:[]});
+    const {generation,...set}=stored.data;
+    return json(set);
+  }
+  if(route==='changes-clear'&&post){
+    if(!edit)err(403,'편집기에서 Unity 변경을 정리하세요.');
+    await b.delete('unity-sync/changes');
+    return json({ok:true});
+  }
   if(route==='content'&&post){
     if(!edit||auth.data.reviewRequired&&!owner)err(403,'공유 버전을 게시할 편집 권한이 필요해요.');
     if(req.headers.get('content-type')!=='application/zip')err(415,'Unity 콘텐츠 팩을 선택하세요.');

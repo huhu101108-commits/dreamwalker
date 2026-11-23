@@ -127,3 +127,13 @@
 - `testDeviceDesigner` 1개 흐름은 이 샌드박스 Chromium에서 `/device` 사본 저장 파일 이름이 `download`로 나와 실패했다. 변경 전 기준 커밋 `2d0874b`에서도 같은 결과여서 이번 변경과 무관한 실행 환경 차이로 기록한다. CI는 Google Chrome 채널을 사용한다.
 - **Unity 스크립트 컴파일**: Unity 6000.0.23f1 공식 Linux 에디터 압축의 어셈블리로 에디터 런타임·Editor 폴더·Android 플레이어 스크립트를 컴파일하는 `scripts/unity-compile-check.mjs`와 CI 작업 `unity-scripts`를 추가했다. 이 검사로 `6bf3ce8`부터 있던 `StudioControlView.cs`의 CS0136(같은 이름의 지역 변수 중복)을 찾아 고쳤고, 이후 세 구성 모두 오류·경고 없이 컴파일된다.
 - **남은 확인**: Unity 에디터 플레이 모드(컷인·HUD·대사 화면 표시)와 갤럭시 탭 실기기 터치·성능은 Unity 라이선스와 실기기가 필요해 실행하지 않았다.
+
+## Unity에서 만든 작업 반영
+
+- 출발점은 제작 브랜치 `4112731`이다. 지금까지는 태블릿 → Unity 한 방향이었다. Unity에서 만든 스크립트·씬·프리팹·설정과 이미지·소리를 스튜디오로 보내고, 태블릿에서 검토해 초안에 적용하는 반대 방향을 추가했다.
+- **Unity 창**(`StudioUnityReturn.cs`, `StudioChangeReturn.cs`): 연결된 태블릿 변경 가져오기 창에서 **Unity 변경 찾기**가 스튜디오의 소스 목록(경로·SHA-256)과 프로젝트 파일을 비교한다. 새 파일·수정·Unity에 없음(삭제)·이미지·소리를 고르고, 제외한 파일은 이유와 함께 보여 준다. `.meta`는 한 묶음으로 고른다.
+- **Worker**(`unity-transfer-service.js`): `GET unity-sync/source`, Unity 연결 전용 `POST unity-sync/changes`(400개·24MB, 형식·크기·내용 검사, 미디어는 내용 해시 에셋), 편집자 전용 `GET unity-sync/changes`와 `POST unity-sync/changes-clear`. 받은 변경은 팀 암호 세대에 묶인다.
+- **태블릿**(`unity-return.js`): 게임 소스 탭의 **Unity에서 보낸 변경**에서 줄 차이·그림·소리를 확인하고, 충돌(Unity 비교 뒤 스튜디오에서도 바뀐 파일)과 삭제는 직접 고르게 했다. 복사본에 적용하고 `problem()` 검사를 통과해야 초안을 바꾼다. 이미지·소리는 프로젝트 에셋 `Unity` 폴더로 들어간다.
+- **호환**: 프로젝트 형식(schema 4)은 바꾸지 않았다. 받은 변경은 프로젝트 밖의 별도 키에 있어 기존 프로젝트·팀 버전·플레이 세이브와 내보낸 게임에 들어가지 않는다.
+- **검증(2026-11-23, 이 작업 환경)**: [검증표의 Unity → 스튜디오 반영 검수](VERIFICATION.md#unity--스튜디오-반영-검수-2026-11-23)에 기록했다.
+- **남은 확인**: Unity 에디터에서 실제 프로젝트 폴더로 창을 실행하는 확인. 게임 소스 한도(180개·120만 자) 때문에 큰 Unity 프로젝트 전체를 담을 수는 없다.
