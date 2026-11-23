@@ -15,7 +15,9 @@ async function activeArenaRelease(db) {
 }
 async function publishArenaRelease(env, cur, body) {
   if (body.rev!==cur.rev) err(409,'공유 버전이 바뀌었어요. 새로 열고 다시 게시하세요.');
-  const profile=combatProfile(cur.project), data=JSON.stringify(profile), digest=await hash(data);
+  const profile=combatProfile(cur.project);
+  if(cur.project.arenaControls?.length)profile.arenaControls=cur.project.arenaControls;
+  const data=JSON.stringify(profile), digest=await hash(data);
   const write=await arenaQuery(arenaDb(env),
     'INSERT INTO dw_releases(slot,revision,digest,profile) VALUES(1,?,?,?) ON CONFLICT(slot) DO UPDATE SET revision=excluded.revision,digest=excluded.digest,profile=excluded.profile WHERE dw_releases.revision<=excluded.revision',
     cur.rev,digest,data).run();
@@ -116,7 +118,7 @@ async function arenaApi(req,env,op) {
   }
   if (op==='status') {
     const r=await activeArenaRelease(db);
-    return json({protocol:1,hz:60,release:r.release,revision:r.revision,actors:r.profile.actors.map(({id,name})=>({id,name}))});
+    return json({protocol:1,hz:60,release:r.release,revision:r.revision,controls:r.profile.arenaControls||[],actors:r.profile.actors.map(({id,name})=>({id,name}))});
   }
   let player=await arenaPlayer(db,req);
   if (op==='session') {
@@ -144,7 +146,8 @@ async function arenaApi(req,env,op) {
   }
   if (op==='create') {
     const r=await activeArenaRelease(db);
-    const s=arenaStart(r.profile,b.actor,Date.now());
+    const {arenaControls,...combat}=r.profile;
+    const s=arenaStart(combat,b.actor,Date.now());
     for(let i=0;i<4;i++) {
       const code=newRoomCode();
       try {

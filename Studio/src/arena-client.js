@@ -1,7 +1,18 @@
 (() => {
   const $ = id => document.getElementById(id);
   let room=null, sequence=0, press=0, pending=null, polling=false, editing=false, entered=false, nextPoll=0;
-  const left=new Set(),right=new Set();
+  const left=new Set(),right=new Set(),designs=new Map();
+  function readDesign(list){
+    for(const s of list||[]) {
+      designs.set(s.id,s);
+      const node=$(s.id);if(node)paintArenaControl(node,s);
+    }
+    const pads=[...$('pad').querySelectorAll('button')];
+    if(pads.some(b=>designs.has(b.id))){
+      $('pad').classList.add('arena-pad-grid');
+      pads.forEach((b,i)=>placeArenaPad(b,designs.get(b.id)||{x:i*20+1,y:7,w:18,h:86}));
+    }
+  }
   const tell=text=>{$('notice').textContent=text;};
   async function request(path,body) {
     const res=await fetch('/api/arena/'+path,body===undefined ? {} :
@@ -39,13 +50,14 @@
       const li=document.createElement('li'), b=document.createElement('button');
       li.append(document.createTextNode('광산 휘장 · '+item.price+'크레딧'));
       b.textContent=item.mine?'판매 취소':'구매';
+      const s=designs.get(item.mine?'cancel':'buy');if(s)paintArenaControl(b,s);
       b.onclick=()=>busy(async()=>{await market(item.mine?'cancel':'buy',{id:item.id});tell('거래 상태를 갱신했어요.');});
       li.append(b);$('listings').append(li);
     }
     if (!data.listings.length) $('listings').textContent='등록된 휘장이 없어요.';
   }
   async function resume() {
-    const me=await request('me'); entered=true; $('enter').hidden=true; $('market').hidden=false;showRoom(me.room);await market();
+    const me=await request('me'); entered=true; $('enter').hidden=true; $('market').hidden=false; $('marketView').hidden=false;showRoom(me.room);await market();
   }
   async function busy(fn) {
     if(editing) return; editing=true;
@@ -95,7 +107,7 @@
   $('refresh').onclick=()=>busy(()=>market());
   $('sell').onclick=()=>busy(()=>market('sell',{id:crypto.randomUUID(),price:Number($('price').value)}));
   (async()=>{
-    try {const status=await request('status');$('rules').textContent='친선전 규칙 v'+status.revision+' · 60틱/초';
+    try {const status=await request('status');readDesign(status.controls);$('rules').textContent='친선전 규칙 v'+status.revision+' · 60틱/초';
       $('actor').add(new Option('방의 기본 캐릭터',''));
       for(const a of status.actors) $('actor').add(new Option(a.name,a.id));
       try {await resume();} catch(e){if(e.status!==401)throw e;}

@@ -26,6 +26,8 @@ public static class OnlineMatch
         using var client=new HttpClient(new HttpClientHandler { UseCookies=false }) { BaseAddress=endpoint,Timeout=TimeSpan.FromSeconds(8) };
         var status=await Call<Reply>(client,"status");
         if (status.protocol!=1 || status.actors.Length==0) throw new Exception("Online protocol");
+        var attack=Array.Find(status.controls??Array.Empty<ArenaControl>(),s=>s.id=="attack");
+        if (attack?.label!="설화 일격" || attack.x!=68 || attack.w!=30)throw new Exception("Published pad design");
         var login=await Call<Reply>(client,"session",new Command { native=true });
         if (string.IsNullOrEmpty(login.token)) throw new Exception("Missing native guest token");
         client.DefaultRequestHeaders.Authorization=new AuthenticationHeaderValue("Bearer",login.token);

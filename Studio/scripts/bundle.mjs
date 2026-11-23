@@ -8,6 +8,7 @@ for (const [path, name, type] of [
   ['/arena','arena.html','text/html; charset=utf-8'],
   ['/arena.css','arena.css','text/css'],
   ['/arena-client.js','arena-client.js','text/javascript'],
+  ['/arena-design.js','arena-design.js','text/javascript'],
   ['/device','device-local.html','text/html; charset=utf-8'],
   ['/device-files', 'device-files.html', 'text/html; charset=utf-8'],
   ['/style.css', 'style.css', 'text/css'],

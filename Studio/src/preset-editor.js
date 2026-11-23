@@ -20,7 +20,7 @@ function presetPanel(kind,read,apply,options={}){
   const redraw=options.refresh||draw;
   function change(fn){edit(fn,false);redraw();}
   const fresh=action('새 프리셋 저장',()=>{
-    change(()=>writePreset(kind,name.value,read,options.origin));note('프리셋을 초안에 저장했어요. 다른 기기에서도 쓰려면 공유 저장하세요.');persistDraft();
+    change(()=>writePreset(kind,name.value,read,options.origin));note('프리셋을 초안에 저장했어요. 다른 기기에서도 쓰려면 ‘저장 · 게임 반영’을 누르세요.');persistDraft();
   });
   fresh.disabled=!read;block.append(row(titled(title+' 프리셋 이름',name),fresh));
   if(chosen){
@@ -153,3 +153,60 @@ function itemSkinInspector(w,parent){
   parent.append(card);
 }
 
+
+let arenaDesignRole='attack';
+function arenaDesignPanel(){
+  const card=el('details');card.dataset.persist='arena-design';
+  card.append(el('summary','친선전 로비 · 터치 조작 디자인'));
+  const controls=project.arenaControls||[],id=arenaDesignRole;
+  const current=controls.find(s=>s.id===id);
+  const base=current||defaultArenaControl(id);
+  card.append(selectField('디자인할 친선전 조작',id,ARENA_CONTROLS,v=>{arenaDesignRole=v;draw();}),
+    checkField('이 조작의 디자인을 직접 지정',!!current,on=>edit(()=>{
+      if(on)(project.arenaControls||=[]).push(defaultArenaControl(id));
+      else project.arenaControls=controls.filter(v=>v.id!==id);
+    })));
+  const sample=box('arena-design-sample');sample.setAttribute('aria-label','친선전 조작 미리보기');
+  const pad=ARENA_PADS.includes(id),entry=id==='code'||id==='price',selector=id==='actor';
+  if(pad)sample.dataset.pad='';
+  function preview(){
+    sample.replaceChildren();
+    const node=el(entry?'input':selector?'select':'button');
+    if(entry||selector){
+      if(selector)node.add(new Option('캐릭터 미리보기',''));
+      if(id==='price')node.type='number';
+      const label=el('label'),caption=el('span');caption.dataset.caption='';label.append(caption,node);sample.append(label);
+    }else{node.type='button';sample.append(node);}
+    paintArenaControl(node,base);if(pad)placeArenaPad(node,base);
+  }
+  preview();card.append(sample);
+  if(current){
+    card.append(textField('친선전 표시 문구',base.label,v=>{edit(()=>{base.label=v;},false,'arena-label-'+id);preview();},48));
+    if(entry)card.append(textField('친선전 입력 안내',base.hint,v=>{edit(()=>{base.hint=v;},false,'arena-hint-'+id);preview();},80));
+    card.append(box('control-grid',bindColor('친선전 바탕색',base,'fill',preview),bindColor('친선전 글자색',base,'color',preview),
+      bindColor('친선전 누를 때 색',base,'press',preview),bindColor('친선전 테두리 색',base,'edge',preview),
+      bindNumber('친선전 테두리 두께',base,'width',0,12,1,preview),bindNumber('친선전 둥글기 (%)',base,'radius',0,50,1,preview),
+      bindNumber('친선전 글자 크기',base,'size',8,64,1,preview)));
+    if(pad){
+      const positions=[['x','왼쪽',0,95],['y','위쪽',0,85],['w','너비',5,100],['h','높이',15,100]];
+      const fields=positions.map(([key,label,min,max])=>{
+        const input=el('input');Object.assign(input,{type:'number',min,max,step:.1,value:base[key]});
+        return titled('친선전 패드 '+label+' (%)',input);
+      });
+      card.append(box('control-grid',...fields),action('패드 위치와 크기 반영',()=>{
+        const next={...base};
+        positions.forEach(([key],i)=>{next[key]=fields[i].lastElementChild.valueAsNumber;});
+        if(!validArenaControls([next]))throw Error('버튼이 패드 안에 들어오도록 위치와 크기를 입력하세요.');
+        edit(()=>Object.assign(base,next),false);preview();
+      }));
+    }else card.append(box('control-grid',bindNumber('친선전 조작 높이',base,'height',28,96,1,preview),
+      bindNumber('친선전 너비 (%, 0은 자동)',base,'span',0,100,1,preview)));
+    const buttons=(project.work?.presets||[]).filter(p=>p.kind==='widget'&&p.data.type==='button');
+    if(buttons.length)card.append(selectField('친선전에 저장한 버튼 모양 적용','',{'':'버튼 프리셋 선택',...optionMap(buttons)},value=>{
+      const chosen=buttons.find(s=>s.id===value);if(chosen)edit(()=>Object.assign(base,itemSkinFrom(chosen.data)));
+    }));
+  }
+  card.append(presetPanel('arena',()=>project.arenaControls||[],p=>edit(()=>{project.arenaControls=structuredClone(p.data);}),{applyTitle:'친선전 조작 세트 적용'}),
+    el('small','저장 · 게임 반영 후 전투 규칙 · Unity에서 게시하면 친선전 웹과 Unity에 적용돼요.'));
+  return card;
+}

@@ -10,3 +10,9 @@
 #pad{display:flex;gap:6px;margin:8px 0}#pad button{touch-action:none;user-select:none;flex:1;min-width:0;padding:10px 2px}#pad button:last-child{background:#226c79}
 #listings{padding:0;list-style:none}#listings li{display:flex;justify-content:space-between;align-items:center;margin:5px 0;gap:8px}
 @media(max-width:520px){#duel{padding:9px}#field{aspect-ratio:1.8}.bar{gap:5px}}
+
+#pad.arena-pad-grid{position:relative;display:block;height:clamp(96px,18vw,160px)}
+#duel .row:has(.arena-custom){flex-wrap:wrap}
+#duel .row:has(.arena-custom)>*{flex-grow:0;max-width:100%}
+#duel a.arena-custom,header a.arena-custom{color:var(--arena-ink)}
+#marketView,#lobbyView{display:inline-block;margin-block:6px}

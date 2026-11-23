@@ -727,6 +727,7 @@ function validScreenWidget(d,w) {
 }
 function problem(d) {
   const title = (v) => textValue(v, 50, true);
+  if(d?.arenaControls!==undefined && !validArenaControls(d.arenaControls))return '친선전 조작 디자인의 크기와 이름을 확인하세요.';
   if (!d || d.schema !== SCHEMA || !title(d.title)) return '프로젝트 형식과 이름을 확인하세요.';
   if (
     !d.tuning ||
@@ -1409,7 +1410,7 @@ function controlText(text,values,defaults){
 const validShortcut=key=>typeof key==='string' && /^(?:Key[A-Z]|Digit[0-9]|Space|Enter|Arrow(?:Up|Down|Left|Right)|Minus|Equal)?$/.test(key);
 const stickDefaults=()=>({thumb:38,dead:14,knob:'#c5eef1',ring:'#c5eef1'});
 const validStick=s=>!!s && integer(s.thumb,15,75) && integer(s.dead,0,80) && color(s.knob) && color(s.ring);
-const PRESET_KINDS={rule:'전투 규칙',layout:'화면 디자인',widget:'UI 요소',shot:'대사 구도',tuning:'전투 수치',workspace:'제작실 배치'};
+const PRESET_KINDS={rule:'전투 규칙',layout:'화면 디자인',widget:'UI 요소',shot:'대사 구도',tuning:'전투 수치',workspace:'제작실 배치',arena:'친선전 조작'};
 const studioPaintDefaults=()=>({surface:'#233847',entry:'#152b38',ink:'#eef4f6',line:'#57808a',accent:'#a0e7d4',radius:7,height:40});
 function validWorkspace(p){
   const t=p?.paint;
@@ -1445,6 +1446,7 @@ function validStudioPreset(doc,p){
   if(p.kind==='rule')return (data.actor===''||validId(data.actor)) && !validateCombatRules([{...data,actor:''}],[]);
   if(p.kind==='shot')return validShot(data);
   if(p.kind==='workspace')return validWorkspace(data);
+  if(p.kind==='arena')return validArenaControls(data);
   const layout=p.kind==='layout';
   if(layout && (!validId(data.source)||!has(SCREEN_TYPES,data.kind)||!color(data.tint)||!num(data.shade,0,100)||
     !imageRef(data.skin)||!rows(data.elements,0,LIMIT.widgets)))return false;
@@ -1500,3 +1502,20 @@ function choiceSlot(layer,count,index){
     fill:layer.fill,color:layer.color,press:'#36656e',radius:Math.round(layer.radius)};
 }
 
+
+const ARENA_PADS=['left','right','jump','dodge','attack'];
+const ARENA_CONTROLS={home:'스튜디오로 돌아가기',enter:'이 기기 게스트로 입장',actor:'캐릭터',create:'방 만들기',code:'방 코드',join:'참가',leave:'방 나가기',left:'왼쪽',right:'오른쪽',jump:'점프',dodge:'회피',attack:'공격',marketView:'거래소 열기',lobbyView:'로비로 돌아가기',refresh:'새로고침',price:'휘장 1개 판매가',sell:'판매 등록',buy:'구매',cancel:'판매 취소'};
+function defaultArenaControl(id){
+  const i=ARENA_PADS.indexOf(id);
+  return {id,label:ARENA_CONTROLS[id],hint:id==='code'?'8자리':'',color:'#edf5f5',fill:'#233d4a',edge:'#57808a',press:'#36747c',
+    width:1,radius:14,size:16,height:42,span:0,...(i<0?{}:{x:i*20+1,y:7,w:18,h:86})};
+}
+function validArenaControls(list){
+  return rows(list,0,Object.keys(ARENA_CONTROLS).length)&&list.every(s=>{
+    if(!has(ARENA_CONTROLS,s.id))return false;
+    const fields=defaultArenaControl(s.id);
+    return Object.keys(s).every(k=>Object.hasOwn(fields,k))&&textValue(s.label,48,true)&&textValue(s.hint,80)&&validItemSkin(s)&&
+      integer(s.height,28,96)&&integer(s.span,0,100)&&(!ARENA_PADS.includes(s.id)||
+      (num(s.x,0,95)&&num(s.y,0,85)&&num(s.w,5,100-s.x+.001)&&num(s.h,15,100-s.y+.001)));
+  });
+}

@@ -1249,3 +1249,15 @@ body { font-size:16px; }
 .widget.item-skin button:active{background:var(--item-press)}
 .ui-preview .sample-dialogue button,.ui-preview.widget-inventory button{pointer-events:none}
 
+
+:is(#duel,header,.arena-design-sample) .arena-custom,#duel #pad .arena-custom{
+  box-sizing:border-box;background:var(--arena-fill);color:var(--arena-ink);border:var(--arena-stroke) solid var(--arena-edge);
+  border-radius:var(--arena-radius);font-size:var(--arena-size);min-height:var(--arena-height);
+  padding:3px 8px;text-align:center;overflow-wrap:anywhere;
+}
+:is(#duel,header,.arena-design-sample) a.arena-custom{display:inline-flex;align-items:center;justify-content:center}
+:is(#duel,header,.arena-design-sample) .arena-custom:focus-visible{outline:2px solid var(--arena-edge);outline-offset:2px}
+:is(#duel,header,.arena-design-sample) .arena-custom:active,#duel #pad .arena-custom:active{background:var(--arena-press)}
+:is(#duel,.arena-design-sample) .arena-custom::placeholder{color:var(--arena-ink);opacity:.72}
+.arena-design-sample{position:relative;display:grid;align-items:center;min-height:96px;margin:8px 0;overflow:hidden;border:1px dashed #65818c;border-radius:6px;padding:7px}
+.arena-design-sample[data-pad]{height:128px}

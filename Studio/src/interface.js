@@ -92,6 +92,7 @@ function drawInterface() {
     });
   };
   drawScreenShortcuts(a, l);
+  a.append(arenaDesignPanel());
   a.append(
     row(
       selectField('작업 화면', l.id, optionMap(project.layouts), (v) => {

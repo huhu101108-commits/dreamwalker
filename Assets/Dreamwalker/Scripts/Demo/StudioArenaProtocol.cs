@@ -20,6 +20,12 @@ namespace Dreamwalker.Demo
         }
         [Serializable] public class Wallet { public int credits, medals, wins; }
         [Serializable] public class Listing { public string id; public int price; public bool mine; }
+        [Serializable] public class ArenaControl
+        {
+            public string id,label,hint,color,fill,press,edge;
+            public float width,radius,x,y,w,h;
+            public int size,height,span;
+        }
         [Serializable] public class Reply
         {
             public string token, error;
@@ -28,6 +34,7 @@ namespace Dreamwalker.Demo
             public Wallet wallet;
             public Listing[] listings;
             public Actor[] actors;
+            public ArenaControl[] controls;
         }
         [Serializable] public class Command
         {

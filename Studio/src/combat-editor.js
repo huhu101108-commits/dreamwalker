@@ -44,9 +44,10 @@ function drawCombatRules() {
     if (rule.effects.length < 8) main.append(action('+ 효과', () => edit(() => rule.effects.push({kind:'heal', amount:1}))));
     main.append(action('규칙 삭제', () => { if (confirm(rule.name + ' 규칙을 삭제할까요?')) edit(() => rules.splice(rules.indexOf(rule), 1)); }, 'danger'));
   }
+  side.append(arenaDesignPanel());
   side.append(heading('Unity 연결'),el('p','프로젝트를 공유 저장한 뒤 내보내면 현재 전투 규칙과 맵, 캐릭터가 Unity 프로젝트에 함께 들어가요.'),
     action('Unity 프로젝트 내보내기', async () => { try { if (dirty) throw Error('먼저 공유 저장하세요.'); await exportUnityPack(true); } catch(e) { note(e.message); } }),
-    heading('온라인 친선전'),el('p','게시한 규칙은 새 방부터 적용돼요. 진행 중인 방은 시작할 때의 규칙으로 끝까지 플레이해요.'));
+    heading('온라인 친선전'),el('p','게임 반영 후 게시하면 로비와 터치 버튼 디자인도 공개돼요. 새 전투 규칙은 다음 방부터 적용돼요.'));
   const publish = action('저장한 전투 규칙 게시', async () => {
     try {
       if (dirty) throw Error('먼저 공유 저장하세요.');
