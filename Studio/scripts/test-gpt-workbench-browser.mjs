@@ -73,7 +73,8 @@ export async function testGptWorkbenchBrowser(page,origin,hostBrowser){
     const bounds=await dock.boundingBox();assert(bounds.x>=0&&bounds.x+bounds.width<=821&&bounds.height<=660);
     sampling=await openHost(hostBrowser,origin,true);const panel=sampling.frameLocator('iframe');
     await panel.getByLabel('GPT에 요청할 내용').fill('이 화면 이름을 확인해 줘.');await panel.getByRole('button',{name:'GPT에 보내기'}).click();
-    await panel.getByText('선택한 화면을 확인했어요.',{exact:true}).waitFor();
+    try{await panel.getByText('선택한 화면을 확인했어요.',{exact:true}).waitFor({timeout:12000});}
+    catch(e){throw Error('Host sampling: '+await panel.locator('#status').innerText()+'; model deliveries: '+await sampling.evaluate(()=>window.modelTurns.length),{cause:e});}
     assert.equal((await sampling.evaluate(()=>window.modelTurns)).length,1);
     console.log('PASS independent Chrome studio and sandboxed MCP Apps panel: explicit link, real editor context, one model transport, same-page answer, preserved map input, preview/apply/undo, tablet dock and host sampling');
   } finally {await h.close();if(sampling)await sampling.close();}

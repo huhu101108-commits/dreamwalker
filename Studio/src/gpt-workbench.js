@@ -34,7 +34,7 @@
     const old=view?.screen.id;
     if(old && old!==data.screen.id)drafts.set(old,by('prompt').value);
     view=data;const screen=data.screen,j=data.job;
-    if(old!==screen.id)by('prompt').value=drafts.get(screen.id)||'';
+    if(old && old!==screen.id)by('prompt').value=drafts.get(screen.id)||'';
     choice(by('screens'),data.screens,screen.id);
     if(j?.screen===screen.id && j.prompt)remember(screen.id,j.id,'user',j.prompt);
     if(j?.screen===screen.id && j.answer)remember(screen.id,j.id,'assistant',j.answer.message);

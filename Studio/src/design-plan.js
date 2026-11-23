@@ -41,7 +41,7 @@ function studioWorkContext(doc,area,ids={}){
   }else if(mode==='stories'){
     const story=named(doc.stories,ids.story)||doc.stories[0], line=story&&(named(story.nodes,ids.line)||story.nodes[0]);
     title=story?.name||'대사 편집';add('대사 수',story?.nodes.length||0);
-    if(line){add('현재 대사',line.text);add('말하는 인물',named(doc.characters,line.speaker)?.name||line.speaker);add('선택지',line.choices.map(c=>c.text).join(' / '));}
+    if(line){add('현재 대사',line.text);add('말하는 인물',line.speakerName||named(doc.characters,line.speaker)?.name||line.speaker);add('선택지',line.choices.map(c=>c.label).join(' / '));}
   }else if(['characters','motion','balance'].includes(mode)){
     const actor=named(doc.characters,ids.actor)||doc.characters[0];title=actor.name;
     add('체력',actor.health);add('설명',actor.summary);add('스킬',actor.skills.map(s=>s.name+' ('+s.mechanic+')').join(', '));
