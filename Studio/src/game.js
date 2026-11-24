@@ -73,10 +73,53 @@ function makeCastView() {
   return { root, paint };
 }
 
+// Server requests of the game: direct on the studio site, through the hosting studio page inside its game frame
+// (GAME_DATA.relay), and none in offline HTML.
+const relayedFrame = typeof GAME_DATA !== 'undefined' && !!GAME_DATA.relay && window.parent !== window;
+const relayWaits = new Map();
+let relaySerial = 0;
+if (relayedFrame)
+  addEventListener('message', (e) => {
+    if (e.source !== parent || e.data?.dreamwalker !== 'server-reply' || !relayWaits.has(e.data.id)) return;
+    relayWaits.get(e.data.id)(e.data);
+    relayWaits.delete(e.data.id);
+  });
+const serverReachable = () => relayedFrame || (typeof GAME_DATA === 'undefined' && /^https?:$/.test(location.protocol));
+// Player choices kept on the device (language, error report consent, last cloud revision). A game frame cannot use
+// storage; its host page passes the current values in and keeps the changes.
+const deviceCopy = new Map(Object.entries((typeof GAME_DATA !== 'undefined' && GAME_DATA.device) || {}));
+function deviceValue(key) {
+  try { const v = localStorage.getItem(key); if (v !== null) return v; } catch {}
+  return deviceCopy.get(key) ?? null;
+}
+function keepDeviceValue(key, value) {
+  deviceCopy.set(key, value);
+  try { localStorage.setItem(key, value); return; } catch {}
+  if (relayedFrame) parent.postMessage({ dreamwalker: 'device-value', key, value }, '*');
+}
+async function serverCall(path, init = {}) {
+  if (!relayedFrame) return fetch(path, init);
+  const id = ++relaySerial;
+  const reply = await new Promise((resolve) => {
+    relayWaits.set(id, resolve);
+    parent.postMessage({ dreamwalker: 'server', id, path, method: init.method || 'GET', body: init.body ?? null }, '*');
+    setTimeout(() => { if (relayWaits.delete(id)) resolve({ status: 0, data: {} }); }, 15000);
+  });
+  if (!reply.status) throw Error('relay');
+  return { ok: reply.status >= 200 && reply.status < 300, status: reply.status, json: async () => reply.data };
+}
+// The player's language is kept per game on this device; the first visit follows the browser's languages. Test plays
+// in the editor open in the base language unless a language was chosen, so authors see what they wrote.
+const languageKey = (doc) => 'dreamwalker-language-v1:' + (doc.saveId || doc.startMap);
+function startLanguage(doc, chosen = '') {
+  const editor = relayedFrame ? GAME_DATA.relay === 'preview' : typeof GAME_DATA === 'undefined' ? location.pathname !== '/play' : !!GAME_DATA.inspection;
+  return pickLanguage(localeCodes(doc), [chosen, deviceValue(languageKey(doc)) || '', ...(editor ? [] : navigator.languages || [navigator.language])]);
+}
 function launchGame(mapId, screenId = '', inspection = false) {
   const direct=inspection && typeof inspection==='object' && !inspection.fromStart && (inspection.storyId||inspection.objectId||inspection.screenId);
   const ruleCapture=inspection?.traceRules&&!inspection.resume&&typeof FieldRuleCapture==='function'?new FieldRuleCapture():null;
-  const run = new FieldRun(structuredClone(project), mapId,!!direct,ruleCapture),
+  const chosenLanguage = inspection && typeof inspection === 'object' ? inspection.language || '' : '';
+  const run = new FieldRun(structuredClone(project), mapId,!!direct,ruleCapture,startLanguage(project, chosenLanguage)),
     modal = $('#game'),
     stage = $('#arena'),
     layer = $('#overlay'),
@@ -120,20 +163,20 @@ function launchGame(mapId, screenId = '', inspection = false) {
   function saveProgress(show = false) {
     const data = run.checkpoint();
     if (!saveStore) {
-      if (show) say('이 실행 환경은 기기 저장소를 사용할 수 없어요.');
+      if (show) say(systemText(run.world, 'save.unavailable'));
       return;
     }
     if (!data) {
-      if (show) say('대화나 전투 동작이 끝난 뒤 저장할 수 있어요.');
+      if (show) say(systemText(run.world, 'save.busy'));
       return;
     }
     try {
       const text = JSON.stringify(data);
       if (text !== lastSaved) saveStore.setItem(saveKey, text);
       lastSaved = text;
-      if (show) say('이 기기에 진행 상황을 저장했어요.');
+      if (show) say(systemText(run.world, 'save.done'));
     } catch {
-      if (show) say('기기 저장 공간을 사용할 수 없어요.');
+      if (show) say(systemText(run.world, 'save.failed'));
     }
   }
   function continueProgress(show = false) {
@@ -144,10 +187,130 @@ function launchGame(mapId, screenId = '', inspection = false) {
         return true;
       }
     } catch {}
-    if (show) say('이 기기에 호환되는 저장 기록이 없어요.');
+    if (show) say(systemText(run.world, 'save.none'));
     return false;
   }
   if (!inspection && !screenId && (location.pathname === '/play' || typeof GAME_DATA !== 'undefined')) continueProgress();
+  // Cloud saves and device transfer use this site's online guest. The cloud copy is the device save, uploaded as it is;
+  // studio test plays keep their own slots. A device that has used the cloud keeps it up to date once a minute.
+  const preview = relayedFrame ? GAME_DATA.relay === 'preview' : typeof GAME_DATA === 'undefined' && location.pathname !== '/play';
+  const cloudGame = ((preview ? 'preview-' : '') + (run.world.saveId || run.world.startMap)).slice(0, 50);
+  const cloudKey = 'dreamwalker-cloud-v1:' + cloudGame;
+  run.hostInputs = new Map();
+  let cloudBusy = false, cloudSent = '', cloudAt = 0, cloudWarned = false;
+  const cloudRev = () => Math.max(0, Number(deviceValue(cloudKey)) || 0);
+  const keepCloudRev = (rev) => keepDeviceValue(cloudKey, String(rev));
+  async function arenaCall(path, body) {
+    const r = await serverCall('/api/arena/' + path, body === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw Object.assign(Error(data.error || ''), { status: r.status, data });
+    return data;
+  }
+  async function cloud(action, target = '', value = '', quiet = false) {
+    const words = (name) => systemText(run.world, name);
+    if (!serverReachable() || !saveStore) { if (!quiet) say(words('cloud.offline')); return; }
+    if (cloudBusy) return;
+    cloudBusy = true;
+    let claimed = false;
+    try {
+      if (action === 'transferClaim') {
+        // The new device takes over the guest that issued the code and opens the progress it saved.
+        await arenaCall('claim', { code: value });
+        keepCloudRev(0);
+        claimed = true;
+        action = 'cloudLoad';
+      } else if ((await arenaCall('session', {})).created) keepCloudRev(0); // a new guest (for example after a transfer) has no cloud copy yet
+      if (action === 'cloudSave') {
+        saveProgress();
+        const text = saveStore.getItem(saveKey);
+        if (!text) { if (!quiet) say(words('save.busy')); return; }
+        const r = await arenaCall('save', { game: cloudGame, slot: 'web', rev: cloudRev(), overwrite: target === 'overwrite', data: text });
+        keepCloudRev(r.rev);
+        cloudSent = text; cloudAt = Date.now(); cloudWarned = false;
+        if (!quiet) say(words('cloud.saved'));
+      } else if (action === 'cloudLoad') {
+        const r = await arenaCall('save?game=' + encodeURIComponent(cloudGame) + '&slot=web');
+        const before = saveStore.getItem(saveKey);
+        saveStore.setItem(saveKey, r.data);
+        if (!continueProgress(false)) {
+          if (before) saveStore.setItem(saveKey, before);
+          say(words('cloud.incompatible'));
+          return;
+        }
+        keepCloudRev(r.rev);
+        cloudSent = r.data; cloudAt = Date.now();
+        run.serial++; render();
+        say(words(claimed ? 'cloud.claimed' : 'cloud.loaded'));
+      } else if (action === 'transferIssue') {
+        const r = await arenaCall('transfer', {});
+        run.hostInputs.set('기기이전코드', r.code);
+        run.serial++; render();
+        say(words('cloud.code').replaceAll('{코드}', r.code));
+      }
+    } catch (e) {
+      if (e.status === 409 && action === 'cloudSave') { if (!cloudWarned) say(words('cloud.conflict')); cloudWarned = true; }
+      else if (e.status === 404 && action === 'cloudLoad') say(claimed ? words('cloud.claimed') + ' ' + words('cloud.none') : words('cloud.none'));
+      else if ((e.status === 400 || e.status === 404) && !claimed && value) say(words('cloud.badCode'));
+      else if (!quiet) say(words('cloud.failed'));
+    } finally {
+      cloudBusy = false;
+    }
+  }
+  // Error reports with the player's consent: the published play page sends uncaught errors (ten different ones at most
+  // per play) and one count per play. No player identity, inputs or saves are sent.
+  const reportKey = 'dreamwalker-reports-v1:' + (run.world.saveId || run.world.startMap);
+  const reportsAllowed = () => deviceValue(reportKey) === 'on';
+  const reportsWord = () => run.hostInputs.set('오류보고', systemText(run.world, reportsAllowed() ? 'reports.on' : 'reports.off'));
+  const published = !inspection && (relayedFrame ? GAME_DATA.relay === 'published' : location.pathname === '/play' && serverReachable());
+  const reported = new Set(), gameVersion = typeof GAME_DATA !== 'undefined' ? (GAME_DATA.revision == null ? '' : 'v' + GAME_DATA.revision) : typeof record !== 'undefined' && record ? 'v' + record.rev : '';
+  const browserFamily = () => {
+    const ua = navigator.userAgent, m = /(Edg|SamsungBrowser|Firefox|Chrome|Version)\/(\d+)/.exec(ua);
+    const os = /Android/.test(ua) ? 'Android' : /iPhone|iPad|Mac OS/.test(ua) ? 'Apple' : /Windows/.test(ua) ? 'Windows' : /Linux/.test(ua) ? 'Linux' : '';
+    return ((m ? (m[1] === 'Version' ? 'Safari' : m[1]) + ' ' + m[2] : 'browser') + (os ? ' · ' + os : '')).slice(0, 80);
+  };
+  const sendReport = (path, body) => serverCall('/api/reports' + path, { method: 'POST', keepalive: true, headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ runtime: 'web', ...body }) }).catch(() => {});
+  function reportError(message, stack) {
+    if (!published || !reportsAllowed() || reported.size >= 10) return;
+    const key = message + '\n' + String(stack || '').split('\n')[1];
+    if (reported.has(key)) return;
+    reported.add(key);
+    sendReport('', { message: String(message).slice(0, 300), stack: String(stack || '').slice(0, 2000), version: gameVersion, place: run.map?.id || '', device: browserFamily() });
+  }
+  const onWindowError = (e) => reportError(e.message || String(e.error), e.error?.stack || '');
+  const onRejection = (e) => reportError(String(e.reason?.message || e.reason), e.reason?.stack || '');
+  window.addEventListener('error', onWindowError);
+  window.addEventListener('unhandledrejection', onRejection);
+  if (published && reportsAllowed()) sendReport('/session', {});
+  reportsWord();
+  function setReports(target) {
+    const on = target === 'on' || (target === '' && !reportsAllowed());
+    keepDeviceValue(reportKey, on ? 'on' : 'off');
+    reportsWord();
+    run.serial++; render();
+    say(systemText(run.world, on ? 'reports.agreed' : 'reports.stopped'));
+  }
+  // Paid products: the web has no store. Studio test plays complete a test purchase so the flow can be checked.
+  function buyWithMoney(id) {
+    if (!preview) return say(systemText(run.world, 'shop.store'));
+    if (run.buy(id, true) === 'ok') { persistShop(); render(); say(systemText(run.world, 'shop.testPaid')); }
+  }
+  // A purchase or pull is kept at once, also while a menu is open: the last device save gets the new wallet and bag.
+  function persistShop() {
+    saveProgress();
+    try {
+      const text = saveStore?.getItem(saveKey);
+      if (!text) return;
+      const next = JSON.stringify(Object.assign(JSON.parse(text), { bag: [...run.bag], gear: [...run.gear], shop: run.shopSave() }));
+      if (next !== text) { saveStore.setItem(saveKey, next); lastSaved = next; }
+    } catch {}
+  }
+  // Keeps the cloud copy of a device that has used it current, at most once a minute.
+  function syncCloud() {
+    if (inspection || !cloudRev() || cloudBusy || Date.now() - cloudAt < 60000) return;
+    const text = saveStore?.getItem(saveKey);
+    if (text && text !== cloudSent) { cloudAt = Date.now(); cloud('cloudSave', '', '', true); }
+  }
   if(options){if(!options.resume || !continueProgress())beginInspectionAt(run,{...options,screenId});}
   else if(!inspection)run.startPresentation(screenId);
   const replay=options?.replayTape&&validFieldTake(options.replayTape)?options.replayTape:null;
@@ -177,24 +340,33 @@ function launchGame(mapId, screenId = '', inspection = false) {
   diagnostics.className = 'perf-readout';
   stage.append(diagnostics);
   const extra = [];
-  function barButton(label, fn) {
-    const n = action(label, fn);
+  // Bar buttons carry the game's wording and follow a language change.
+  const barWords = [];
+  function barButton(name, fn) {
+    const n = action(systemText(run.world, name), fn);
     $('#assist').parentNode.insertBefore(n, $('#assist'));
     extra.push(n);
+    barWords.push([n, name]);
     return n;
   }
-  const exitOverlay = barButton('화면 닫기', () => {
+  const fixedBar = [['#assist', 'bar.assist'], ['#restart', 'button.restart'], ['#stop', 'bar.stop'], ['#replay', 'bar.replay']];
+  function wordBar() {
+    for (const [n, name] of barWords) n.textContent = systemText(run.world, name);
+    for (const [selector, name] of fixedBar) { const n = $(selector); if (n) n.textContent = systemText(run.world, name); }
+    modal.lang = run.language;
+  }
+  const exitOverlay = barButton('bar.close', () => {
     run.press(run.dialogue && !run.customScreen ? 'skip' : 'back');
     render();
   });
-  barButton('진행 저장', () => saveProgress(true));
-  barButton('이어하기', () => {
+  barButton('bar.save', () => saveProgress(true));
+  barButton('bar.continue', () => {
     if (continueProgress(true)) render();
   });
-  const stickToggle = barButton('조이스틱', () => {
+  const stickToggle = barButton('bar.stick', () => {
     extraStick = !extraStick; run.serial++; render();
   });
-  barButton('성능', () => {
+  barButton('bar.stats', () => {
     enabledStats = !enabledStats;
     diagnostics.hidden = !enabledStats;
   });
@@ -204,7 +376,7 @@ function launchGame(mapId, screenId = '', inspection = false) {
   hitCanvas.hidden = true;
   hitCanvas.setAttribute('aria-hidden', 'true');
   stage.append(hitCanvas);
-  barButton('판정 표시', () => {
+  barButton('bar.hitboxes', () => {
     hitCanvas.hidden = !hitCanvas.hidden;
   });
   const controls = () => [
@@ -338,6 +510,7 @@ function launchGame(mapId, screenId = '', inspection = false) {
         const n = run.dialogue.node;
         urls.add(imageUrl(n.backdrop));
         urls.add(lineFaceUrl(run.world,n));
+        for (const url of faceMotionUrls(run.world,n)) urls.add(url);
         for(const p of n.shot?.layers||[]) if(p.visible && (p.image || p.actor)) urls.add(p.image ? imageUrl(p.image) : castLayerUrl(run.world,p));
       }
       for (const s of run.character.skills) if (s.cast?.cutin) urls.add(imageUrl(s.cast.image) || imageUrl(actorFaceRef(run.character)) || characterUrl(run.character, true));
@@ -381,17 +554,17 @@ function launchGame(mapId, screenId = '', inspection = false) {
     styleScreen(layer, screen);
     layer.className = run.dialogue ? 'reading' : '';
     if (run.result && !run.customScreen) {
-      const title = run.result === 'clear' ? '맵 탐험 완료' : run.character.name + ' 전투 종료';
+      const title = run.result === 'clear' ? systemText(run.world, 'result.clear') : run.character.name + ' ' + systemText(run.world, 'result.over');
       layer.append(
         box(
           'results',
           el('h2', title),
-          action('이 맵 다시 시작', () => {
+          action(systemText(run.world, 'result.again'), () => {
             run.press('restart');
             render();
           }),
           '',
-          action('편집기로', () => modal.close()),
+          action(systemText(run.world, 'bar.stop'), () => modal.close()),
         ),
       );
     } else if(composed) {
@@ -424,9 +597,10 @@ function launchGame(mapId, screenId = '', inspection = false) {
         layer.append(n);
         widgets.push({ w, n });
       }
+    if (run.shopPanel) layer.append(shopPanelView(run.world, run, () => { run.press('closePanel'); render(); }));
     $('#controls').replaceChildren();
     for (const key of controls()) {
-      const b = el('button', getActionLabel(key, run.character));
+      const b = el('button', getActionLabel(key, run.character, run.world));
       bindAction(b, key);
       $('#controls').append(b);
     }
@@ -436,12 +610,12 @@ function launchGame(mapId, screenId = '', inspection = false) {
       : run.dialogue
         ? run.dialogue.story.name
         : run.menu
-          ? '일시정지'
+          ? systemText(run.world, 'status.paused')
           : run.result
-            ? '플레이 종료'
+            ? systemText(run.world, 'status.ended')
             : run.map.requireClear
-              ? '적을 모두 처치한 뒤 출구로 이동하세요.'
-              : '출구로 이동하면 다음 맵으로 이어져요.';
+              ? systemText(run.world, 'status.clearFirst')
+              : systemText(run.world, 'status.exit');
     say(notice);
   }
   function say(text) {
@@ -452,7 +626,31 @@ function launchGame(mapId, screenId = '', inspection = false) {
   }
   let backgroundStamp = '';
   let hudStamp = '';
+  // An offline HTML build has no server to play against; the studio site opens its match page.
+  let onlineSeen = 0, languageSeen = -1;
+  function openOnlineMatch() {
+    if (relayedFrame) { parent.postMessage({ dreamwalker: 'open-arena' }, '*'); return; }
+    if (typeof GAME_DATA !== 'undefined' || location.protocol === 'file:') {
+      $('#gameNote').textContent = lastNotice = systemText(run.world, 'online.unavailable');
+      return;
+    }
+    window.open('/arena', '_blank', 'noopener');
+  }
   function render() {
+    if ((run.onlineRequests || 0) !== onlineSeen) { onlineSeen = run.onlineRequests || 0; openOnlineMatch(); }
+    for (const r of run.hostRequests?.splice(0) || [])
+      if (r.action === 'reports') setReports(r.target);
+      else if (r.action === 'say') say(systemText(run.world, r.target));
+      else if (r.action === 'store') buyWithMoney(r.target);
+      else if (r.action === 'shopSaved') persistShop();
+      else cloud(r.action, r.target, r.value);
+    if (run.languageSerial !== languageSeen) {
+      languageSeen = run.languageSerial;
+      // Only a choice the player made is remembered; until then the browser's languages decide.
+      if (!inspection && run.languageSerial > 0) keepDeviceValue(languageKey(project), run.language);
+      wordBar();
+      reportsWord();
+    }
     const fade=run.map.camera?.frame;
     const alpha=fade?.fadeTicks && !run.presentation ? 1-run.sceneAge/fade.fadeTicks : 0;
     sceneFade.hidden=!(alpha>0);
@@ -568,10 +766,12 @@ function launchGame(mapId, screenId = '', inspection = false) {
       }
   }
   function paintHUD() {
-    const state = { flags:run.flags,inputs:run.inputValues, inputDefaults:run.inputDefaults, character: run.character, hp: run.hero.hp, map: run.map, enemies: run.enemiesLeft, loading: run.loadingFraction, energy: run.energy, boss: run.boss };
+    const state = { world: run.world, wallet: run.wallet, flags:run.flags,inputs:run.inputValues, inputDefaults:run.inputDefaults, character: run.character, hp: run.hero.hp, map: run.map, enemies: run.enemiesLeft, loading: run.loadingFraction, energy: run.energy, boss: run.boss };
     const stamp = state.hp + '|' + state.enemies + '|' + run.progressVersion + '|' + Math.round(100 * state.loading) + '|' +
       (state.energy ? state.energy.now + '/' + state.energy.max : '') + '|' + (state.boss ? state.boss.id + ':' + state.boss.hp : '');
     if (hudStamp !== stamp) {
+      // Values the host shows but saves never keep ({입력:기기이전코드}, {입력:오류보고}) join only when repainting.
+      if (run.hostInputs?.size) state.inputs = new Map([...run.inputValues, ...run.hostInputs]);
       for (const { w, n } of widgets)
         if(w.type==='input'){if(!n.contains(document.activeElement))showInputValue(n,w,readControl(w,run.screen.id,run.inputValues));}
         else if (w.type === 'inventory' || w.type === 'quests') paintProgressWidget(n, w, run);
@@ -628,6 +828,7 @@ function launchGame(mapId, screenId = '', inspection = false) {
     }
     if (ts - savedAt > 5000) {
       saveProgress();
+      syncCloud();
       savedAt = ts;
     }
     acc += Math.min(0.1, (ts - last) / 1000);
@@ -723,6 +924,7 @@ function launchGame(mapId, screenId = '', inspection = false) {
     metrics?.capture();sizeObserver.disconnect();cancelAnimationFrame(frame);
     if(sample) modal.removeEventListener('pointerdown',countTouch,true);
     clearControls();padHeld.clear();audioBus.close();sceneFade.remove();castView.root.remove();
+    window.removeEventListener('error', onWindowError);window.removeEventListener('unhandledrejection', onRejection);
     for (const release of releaseSticks) release();
     saveProgress();
     diagnostics.remove();

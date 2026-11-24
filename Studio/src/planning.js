@@ -260,13 +260,14 @@ function bugFromRun(r){
 }
 function releasePanel(work){
   const panel=workSection('출시 기준 · 운영 기록','releases'), releases=work.releases||[];
-  const revisions=[record,...(record.history||[])].filter((h,i,a)=>a.findIndex(v=>v.rev===h.rev)===i&&h.project);
+  const revisions=[record,...(record.history||[])].filter((h,i,a)=>a.findIndex(v=>v.rev===h.rev)===i);
   const title=el('input');title.maxLength=80;
   let rev=record.rev,stage='alpha';
   panel.append(row(titled('새 출시 기록 이름',title),selectField('기준 공유 버전',String(rev),Object.fromEntries(revisions.map(h=>[h.rev,'v'+h.rev])),v=>rev=Number(v)),
     selectField('새 출시 단계',stage,releaseStages,v=>stage=v),action('출시 기록 추가',async()=>{
       if(!title.value.trim()||releases.length>=60)throw Error('출시 기록 이름과 개수를 확인하세요.');
-      const at=revisions.find(h=>h.rev===rev), name=title.value.trim(), saved=project;
+      const listed=revisions.find(h=>h.rev===rev), name=title.value.trim(), saved=project;
+      const at=listed&&await savedRevision(listed.rev);
       if(!at)throw Error('기준 공유 버전을 선택하세요.');
       const digest=await contentDigest(migrateProject(structuredClone(at.project)));
       if(saved!==project||!panel.isConnected)throw Error('프로젝트가 바뀌었어요. 기준 버전을 다시 선택하세요.');

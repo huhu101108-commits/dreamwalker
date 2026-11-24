@@ -173,6 +173,8 @@ function drawRPG() {
         action('아이템 삭제', () => {
           if (project.quests.some((q) => q.reward === it.id))
             return note('이 장비를 보상으로 쓰는 의뢰를 먼저 수정하세요.');
+          const uses = shopUses('item', it.id);
+          if (uses.length) return note('상점 · 뽑기에서 먼저 바꾸세요 · ' + uses.slice(0, 4).join(', '));
           edit(() => project.items.splice(project.items.indexOf(it), 1));
         }),
       ),

@@ -54,6 +54,21 @@ async function startSession(b, generation, scope, ownerOnly = false, editor = nu
     'set-cookie': 'dw_session=' + token + '; Path=/; Max-Age=43200; Secure; HttpOnly; SameSite=Strict',
   });
 }
+// Saved revisions: the current project lives in the 'project' record and every earlier revision is its own object
+// ('project/rev/<n>'), so a save writes the project twice instead of nine times and loads stay small. Records from
+// before this layout keep inline history projects until the next save moves them out.
+const REVISIONS_KEPT = 30;
+const revisionKey = (rev) => 'project/rev/' + rev;
+const revisionList = (cur) => cur.history.map(({ rev, updated }) => ({ rev, updated }));
+async function savedRevision(b, cur, rev) {
+  if (!Number.isSafeInteger(rev)) return null;
+  if (rev === cur.rev) return { rev: cur.rev, updated: cur.updated, project: cur.project };
+  const listed = cur.history.find((h) => h.rev === rev);
+  if (!listed) return null;
+  if (listed.project) return { rev, updated: listed.updated, project: migrateProject(listed.project) };
+  const stored = await get(b, revisionKey(rev));
+  return stored ? { rev, updated: stored.data.updated, project: migrateProject(stored.data.project) } : null;
+}
 async function saveStudioRevision(b, old, cur, project, claudePreview) {
   project = migrateProject(project);
   const issue = problem(project) || inspectScreens(project).errors[0];
@@ -67,14 +82,19 @@ async function saveStudioRevision(b, old, cur, project, claudePreview) {
         err(400,'필요한 에셋이 없거나 형식이 달라요. 파일이 포함된 백업을 가져오세요.');
     }
   }
+  // The outgoing revision (and inline history of an older record) is stored on its own before the record changes.
+  for (const v of [{ rev: cur.rev, updated: cur.updated, project: cur.project }, ...cur.history.filter((h) => h.project)])
+    await b.put(revisionKey(v.rev), JSON.stringify({ rev: v.rev, updated: v.updated, project: v.project }));
+  const listed = [{ rev: cur.rev, updated: cur.updated }, ...revisionList(cur)];
   const next = {
     rev: cur.rev + 1,
     updated: new Date().toISOString(),
     ...(claudePreview ? { claudePreview } : {}),
     project,
-    history: [{ rev: cur.rev, updated: cur.updated, project: cur.project }, ...cur.history].slice(0, 8),
+    history: listed.slice(0, REVISIONS_KEPT),
   };
   if (!(await put(b, 'project', next, old))) err(409, '동시 저장 충돌이 발생했어요.');
+  for (const gone of listed.slice(REVISIONS_KEPT)) await b.delete(revisionKey(gone.rev));
   return next;
 }
 async function api(req, env, path) {
@@ -179,7 +199,7 @@ async function api(req, env, path) {
   if (post) {
     if (!req.headers.get('content-type')?.startsWith('application/json')) err(415, 'JSON 요청이 필요해요.');
     const raw = await req.text();
-    if (raw.length > 3000000) err(413, '프로젝트 데이터가 3MB를 초과했어요.');
+    if (raw.length > 8000000) err(413, '프로젝트 데이터가 8MB를 초과했어요.');
     body = JSON.parse(raw);
     if (!body || typeof body !== 'object') err(400, '요청 형식을 확인하세요.');
   }
@@ -248,6 +268,10 @@ async function api(req, env, path) {
     if (session.data.scope !== 'edit') err(403, '편집 권한이 필요해요.');
     return json(SOURCE_BASE);
   }
+  if (path === '/api/report-groups' || path === '/api/report-resolve') {
+    if (session.data.scope !== 'edit') err(403, '편집 팀원만 오류 보고를 볼 수 있어요.');
+    return post && path === '/api/report-resolve' ? resolveReports(env, body) : !post && path === '/api/report-groups' ? reportOverview(env) : err(405, '요청 방식을 확인하세요.');
+  }
   if (path.startsWith('/api/net-test/')) {
     if (session.data.scope !== 'edit') err(403, '편집 팀원만 테스트할 수 있어요.');
     if (path === '/api/net-test/echo' && !post) return json({ ok: true });
@@ -257,7 +281,7 @@ async function api(req, env, path) {
   const cur = old?.data || { rev: 0, updated: null, project: seed(), history: [] };
   if (!post && path === '/api/runtime' && new URL(req.url).searchParams.get('since') === String(cur.rev))
     return new Response(null, { status: 204, headers });
-  if (old) for (const version of [cur, ...cur.history]) version.project = migrateProject(version.project);
+  if (old) cur.project = migrateProject(cur.project);
   if (path === '/api/arena-release') {
     if (!post || !owner || session.data.scope !== 'edit') err(403,'소유자만 온라인 규칙을 게시할 수 있어요.');
     return publishArenaRelease(env,cur,body);
@@ -299,7 +323,12 @@ async function api(req, env, path) {
     return json({ rev: cur.rev, project: world });
   }
   if (session.data.scope !== 'edit') err(403, '편집 권한이 필요해요.');
-  if (!post && path === '/api/project') return json(cur);
+  if (!post && path === '/api/project') return json({ ...cur, history: revisionList(cur) });
+  if (!post && path === '/api/revision') {
+    const found = await savedRevision(b, cur, Number(new URL(req.url).searchParams.get('rev')));
+    if (!found) err(404, '그 버전은 보관 기간(최근 ' + REVISIONS_KEPT + '개)이 지났어요.');
+    return json(found);
+  }
   if (!post && path === '/api/reviews') {
     const queue = await get(b, 'reviews');
     return json((queue?.data || []).map(({ id, label, when, rev }) => ({ id, label, when, rev })));
@@ -345,7 +374,7 @@ async function api(req, env, path) {
   if (post && path === '/api/save') {
     if (auth.data.reviewRequired && !owner) err(403, '팀 수정안을 소유자에게 검토 요청하세요.');
     if (body.rev !== cur.rev) {
-      const base = cur.history.find((h) => h.rev === body.rev);
+      const base = await savedRevision(b, cur, body.rev);
       if (!body.merge || !base) err(409, '기준 버전이 변경됐어요. 내 초안을 보관하고 최신본을 확인하세요.');
       const merged = mergeProject(base.project, body.project, cur.project);
       if (merged.conflicts.length)
@@ -364,6 +393,8 @@ export default {
       if (path==='/mcp') return await studioGptMcp(req,env);
       if (path.startsWith('/api/gpt-device/')) return await personalGptDevice(req,env,path.slice('/api/gpt-device/'.length));
       if (path.startsWith('/api/arena/')) return await arenaApi(req,env,path.slice(11));
+      if (path === '/api/reports' || path === '/api/reports/session') return await reportsApi(req,env,path.slice(13).replace(/^\//,''));
+      if (path === '/odds' && req.method === 'GET') return await oddsPage(env);
       if (path.startsWith('/api/')) return await api(req, env, path);
       if (path in FILES) {
         const [mime, data, etag] = FILES[path];

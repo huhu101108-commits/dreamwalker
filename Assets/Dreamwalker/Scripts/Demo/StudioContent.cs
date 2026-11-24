@@ -14,7 +14,9 @@ public class StudioRelease
 public class StudioProject
 {
     public int schema;
-    public string startMap, saveId, customJson;
+    public string title, startMap, saveId, customJson;
+    public StudioLocale locale;
+    public StudioShop shop;
     public bool authoredKeysOnly;
     public StudioTuning tuning;
     public StudioMix mix;
@@ -85,6 +87,7 @@ public class StudioCharacter
     public StudioExpression[] expressions;
     public StudioProfileEntry[] profile;
     public StudioEnergy energy;
+    public StudioFaceMotion faceMotion;
     public bool HasEnergy => energy != null && energy.max > 0;
     public string ExpressionImage(string id)
     {
@@ -102,6 +105,22 @@ public class StudioCharacter
         if (expressions != null) foreach (var x in expressions) if (!string.IsNullOrEmpty(x?.image)) return x.image;
         return "";
     }
+    // The face a line or cast layer shows, with its eyes-closed and speaking pictures (the studio's faceSet).
+    public string FaceSet(string expression, out string blink, out string talk)
+    {
+        blink = talk = "";
+        if (!string.IsNullOrEmpty(expression) && expressions != null)
+            foreach (var x in expressions)
+                if (x != null && x.id == expression && !string.IsNullOrEmpty(x.image)) { blink = x.blink ?? ""; talk = x.talk ?? ""; return x.image; }
+        string main = !string.IsNullOrEmpty(portrait) ? portrait : sprite;
+        if (!string.IsNullOrEmpty(main)) { blink = faceMotion?.blink ?? ""; talk = faceMotion?.talk ?? ""; return main; }
+        if (expressions != null)
+            foreach (var x in expressions)
+                if (!string.IsNullOrEmpty(x?.image)) { blink = x.blink ?? ""; talk = x.talk ?? ""; return x.image; }
+        // With no art of its own the character shows the built-in picture, which the default variants still serve.
+        blink = faceMotion?.blink ?? ""; talk = faceMotion?.talk ?? "";
+        return "";
+    }
     // {프로필:항목} shows this character's value; an unknown item shows nothing.
     public string ProfileText(string text)
     {
@@ -113,7 +132,31 @@ public class StudioCharacter
         });
     }
 }
-[Serializable] public class StudioExpression { public string id, name, image; }
+[Serializable] public class StudioExpression { public string id, name, image, blink, talk; }
+// Breathing level 0-3 and the default portrait's eyes-closed and speaking pictures.
+[Serializable] public class StudioFaceMotion { public int breathe; public string blink, talk; }
+// Portrait motion with the studio's numbers (model.js portraitPose, motionSeed), checked against one table by both sides.
+public static class StudioPortraitMotion
+{
+    public const int Breath = 3200, BlinkEvery = 4000, BlinkHold = 130, TalkStep = 120;
+    private static readonly double[] Breathe = { 0, .006, .012, .02 };
+    // FNV-1a over UTF-16 code units, so characters on screen together blink at different moments.
+    public static uint Seed(string id)
+    {
+        uint h = 2166136261;
+        foreach (char ch in id ?? "") { h ^= ch; h = unchecked(h * 16777619); }
+        return h;
+    }
+    // clock in milliseconds; revealing while the line's text is still appearing. Blink wins over talk.
+    public static string Pose(int level, bool hasBlink, bool hasTalk, double clock, bool revealing, uint seed, out double scale)
+    {
+        long t = Math.Max(0, (long)Math.Floor(clock)), phase = seed % BlinkEvery;
+        string pose = hasBlink && (t + phase) % BlinkEvery < BlinkHold ? "blink" : hasTalk && revealing && t / TalkStep % 2 == 0 ? "talk" : "base";
+        double amp = level >= 0 && level < Breathe.Length ? Breathe[level] : 0;
+        scale = amp > 0 ? 1 + amp * Math.Sin(2 * Math.PI * ((t + phase) % Breath) / Breath) : 1;
+        return pose;
+    }
+}
 [Serializable] public class StudioProfileEntry { public string id, label, value; }
 [Serializable] public class StudioEnergy { public int max, start, hit, hurt, kill; }
 [Serializable]
@@ -375,6 +418,13 @@ public sealed class StudioInputGestureClock
     public StudioTextValidation validation;
     public int limit, min, max, step;
     public string[] options;
+    // Display labels of a choice in the current language, set by StudioLocalization; the stored value stays options[i].
+    public string[] labels;
+    public string Label(string value)
+    {
+        int at = options == null ? -1 : Array.IndexOf(options, value);
+        return at >= 0 && labels != null && at < labels.Length ? labels[at] : value;
+    }
     public string Value(string raw)
     {
         raw = raw ?? "";

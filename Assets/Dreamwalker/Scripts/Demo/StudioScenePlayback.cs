@@ -17,9 +17,7 @@ public sealed partial class StudioWorld
         var f=Map?.camera?.frame;
         if(f==null || f.fadeTicks<=0 || sceneAge>=f.fadeTicks || ShowingFront)return;
         var paint=Tint(f.fadeColor,Color.black);paint.a=1-sceneAge/f.fadeTicks;
-        Color previous=GUI.color;GUI.color=paint;
-        GUI.DrawTexture(new Rect(0,0,Screen.width,Screen.height),Texture2D.whiteTexture);
-        GUI.color=previous;
+        Painter.Box(new Rect(0,0,Screen.width,Screen.height),paint);
     }
 
     private void BeginStage()

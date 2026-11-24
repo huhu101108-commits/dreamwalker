@@ -50,16 +50,20 @@ const editablePath = (path) =>
   /^(Web|Assets|Packages|ProjectSettings)\//.test(path) &&
   !/^Assets\/Resources\/DreamwalkerStudio(?:\/|\.|$)/i.test(path) &&
   path.split('/').every((part) => part === part.trim() && !part.endsWith('.'));
+// Content limits sized for a full game: a save may be up to 8MB and earlier revisions are stored apart (server.js).
 const LIMIT = {
-  characters: 48,
-  scenes: 64,
-  objects: 160,
-  stories: 128,
-  nodes: 100,
+  characters: 120,
+  scenes: 200,
+  objects: 400,
+  stories: 400,
+  nodes: 300,
   choices: 6,
-  layouts: 64,
-  widgets: 48,
+  layouts: 120,
+  widgets: 96,
 };
+// Edited game source: file count, total characters and one file's characters.
+const SOURCE_LIMIT = { files: 600, chars: 4000000, file: 200000 };
+const sourceLimitText = () => SOURCE_LIMIT.files + '개 또는 ' + SOURCE_LIMIT.chars / 10000 + '만 자';
 const MECHANICS = {
   none: '미지정',
   sequence: '직접 조립한 동작',
@@ -147,6 +151,17 @@ Object.assign(INPUTS, {
   flagOn: '상태 켜기',
   flagOff: '상태 끄기',
   signal: '이벤트 보내기',
+  online: '온라인 친선전 열기',
+  language: '언어 바꾸기',
+  cloudSave: '클라우드에 진행 저장',
+  cloudLoad: '클라우드에서 진행 불러오기',
+  transferIssue: '기기 이전 코드 받기',
+  transferClaim: '이전 코드로 진행 가져오기',
+  reports: '오류 보고 동의 바꾸기',
+  buy: '상품 구매',
+  draw: '뽑기 1회',
+  drawMulti: '연속 뽑기',
+  odds: '확률 정보 보기',
 });
 const screenActions = () => INPUTS;
 const UI_EVENTS = {
@@ -206,6 +221,16 @@ function actionRefOK(d, action, target) {
   if (action === 'startStory') return !!named(d.stories, target);
   if (action === 'selectActor') return !!named(d.characters, target);
   if (['flagOn', 'flagOff', 'signal'].includes(action)) return signalKey(target);
+  // '' moves to the next language; a code picks that language.
+  if (action === 'language') return target === '' || localeCodes(d).includes(target);
+  // overwrite: keep this device's progress over a newer cloud copy. A claim names the input that holds the code.
+  if (action === 'cloudSave') return target === '' || target === 'overwrite';
+  if (action === 'transferClaim') return signalKey(target);
+  // '' switches the player's choice; on and off set it.
+  if (action === 'reports') return ['', 'on', 'off'].includes(target);
+  if (action === 'buy') return !!named(d.shop?.products || [], target);
+  if (action === 'draw' || action === 'odds') return !!named(d.shop?.banners || [], target);
+  if (action === 'drawMulti') return (named(d.shop?.banners || [], target)?.multi || 0) > 0;
   return target === '';
 }
 function menuProgram(name,base={action:'back',target:'',steps:[]}) {
@@ -768,12 +793,12 @@ function problem(d) {
   }
   if (
     !Array.isArray(d.sourceFiles) ||
-    d.sourceFiles.length > 180 ||
+    d.sourceFiles.length > SOURCE_LIMIT.files ||
     d.sourceFiles.some(
-      (f) => !f || !editablePath(f.path) || (f.text !== null && !textValue(f.text, 200000)),
+      (f) => !f || !editablePath(f.path) || (f.text !== null && !textValue(f.text, SOURCE_LIMIT.file)),
     ) ||
     new Set(d.sourceFiles.map((f) => f.path.toLowerCase())).size !== d.sourceFiles.length ||
-    d.sourceFiles.reduce((n, f) => n + (f.text?.length || 0), 0) > 1200000
+    d.sourceFiles.reduce((n, f) => n + (f.text?.length || 0), 0) > SOURCE_LIMIT.chars
   )
     return '소스 파일 경로, 중복 이름 또는 용량을 확인하세요.';
   if (!named(d.scenes, d.startMap)) return '게임을 시작할 맵을 지정하세요.';
@@ -932,7 +957,7 @@ function problem(d) {
     for (const o of s.objects) if (!sceneObjectOK(d,s,o))
         return s.name + '의 개체 좌표 또는 연결을 확인하세요.';
   }
-  return productionProblem(d) || workProblem(d);
+  return productionProblem(d) || workProblem(d) || localeProblem(d) || shopProblem(d);
 }
 function sceneObjectOK(d,s,o) {
   return !!o && !(
@@ -985,7 +1010,9 @@ function imageRefs(d) {
   d.characters.forEach((c) => {
     add(c.sprite);
     add(c.portrait);
-    for (const face of c.expressions || []) add(face.image);
+    for (const face of c.expressions || []) { add(face.image); add(face.blink); add(face.talk); }
+    add(c.faceMotion?.blink);
+    add(c.faceMotion?.talk);
     for (const skill of c.skills || []) add(skill.cast?.image);
     for (const clip of Object.values(c.clips || {})) {
       add(clip.fx);
@@ -1024,13 +1051,13 @@ function roadmapStory(world, character, startId = '') {
       mapId: e.mapId,
       speaker: '',
       text: [e.title, detail, e.summary].filter(Boolean).join('\n'),
-      choices: [{ label: story ? '대화 읽기' : '계속', to: story ? prefix + story.nodes[0].id : end }],
+      choices: [{ label: systemText(world, story ? 'roadmap.read' : 'roadmap.continue'), to: story ? prefix + story.nodes[0].id : end }],
     });
     if (story)
       story.nodes.forEach((line, i) => {
         const choices = line.choices.length
           ? line.choices.map((c) => ({ ...c, to: c.to ? prefix + c.to : end }))
-          : [{ label: line.nextLabel || '다음', to: story.nodes[i + 1] ? prefix + story.nodes[i + 1].id : end }];
+          : [{ label: line.nextLabel || systemText(world, 'dialogue.nextShort'), to: story.nodes[i + 1] ? prefix + story.nodes[i + 1].id : end }];
         nodes.push({ ...line, ...(line.stageTrack?{stageTrack:{...line.stageTrack,skipTo:line.stageTrack.skipTo?prefix+line.stageTrack.skipTo:''}}:{}), mapId: e.mapId, id: prefix + line.id, choices });
       });
     nodes.push({
@@ -1040,7 +1067,7 @@ function roadmapStory(world, character, startId = '') {
       text: e.title,
       choices: e.links.length
         ? e.links.map((l) => ({ label: l.label, to: l.to + ':' }))
-        : [{ label: '스토리 마치기', to: '' }],
+        : [{ label: systemText(world, 'roadmap.finish'), to: '' }],
     });
   }
   return { id: character.id, name: character.name + '의 스토리', nodes };
@@ -1268,6 +1295,9 @@ function mergeProject(base, mine, live) {
     if (path==='/work' && a===undefined && b && c) a=emptyWork();
     if(/^\/work\/(presets|levels|studies|releases)$/.test(path) && a===undefined && Array.isArray(b) && Array.isArray(c))a=[];
     if(path==='/work/design' && a===undefined && b && c)a={};
+    if(a===undefined && plainObject(b) && plainObject(c) && (['/locales','/locales/system','/locales/strings'].includes(path) ||
+      (path.startsWith('/locales/strings/') && !('text' in b))))a={};
+    if(path==='/locales/languages' && a===undefined && Array.isArray(b) && Array.isArray(c))a=[];
     if (same(b, c) || same(b, a)) return c;
     if (same(c, a)) return b;
     const arrays = [a, b, c].every(Array.isArray);
@@ -1278,7 +1308,9 @@ function mergeProject(base, mine, live) {
             ? 'id'
             : all.length && all.every((x) => x && typeof x === 'object' && 'path' in x)
               ? 'path'
-              : null;
+              : all.length && all.every((x) => x && typeof x === 'object' && 'code' in x)
+                ? 'code'
+                : null;
       if (key) {
         const maps = [a, b, c].map((xs) => new Map(xs.map((v) => [v[key], v])));
         const retained = a.map((v) => v[key]).filter((id) => maps.every((m) => m.has(id)));
@@ -1311,7 +1343,9 @@ function mergeProject(base, mine, live) {
 function playableWorld(project) {
   const {work,menuFunctions,...content}=project;
   const layouts=resolvedScreens(project).map(l=>({...l,elements:l.elements.map(({editorLocked,editorGroup,...w})=>w)}));
-  return {...content,layouts,scenes:content.scenes.map(s=>({...s,objects:s.objects.map(({editorName,locked,prefab,...object})=>object)})),sourceFiles:[]};
+  const world={...content,layouts,scenes:content.scenes.map(s=>({...s,objects:s.objects.map(({editorName,locked,prefab,...object})=>object)})),sourceFiles:[]};
+  if(project.locales)world.locales=playLocales(project);
+  return world;
 }
 async function contentDigest(doc) {
   const content=packNativeWorld(doc);
@@ -1341,6 +1375,8 @@ function packNativeWorld(project) {
   })}));
   world.combatContract = 1;
   world.combatRules = project.combatRules || [];
+  delete world.locales;
+  if (project.locales) world.locale = packLocale(project);
   world.characters = project.characters.map(({ clips, ...c }) => ({
     ...c,
     motionClips: Object.entries(clips || {}).map(([key, clip]) => ({ key, ...clip })),
@@ -1636,7 +1672,7 @@ function validStudioPreset(doc,p){
   if(p.kind==='object')return ['prop','enemy','platform'].includes(data.type)&&sceneObjectOK(doc,{width:100,height:100},{...data,x:50,y:0});
   if(p.kind==='asset')return ['image','audio'].includes(data.kind)&&textValue(data.name,120,true)&&textValue(data.folder,60)&&/^asset:[0-9a-f]{64}$/.test(data.ref);
   if(p.kind==='character'){
-    if(!data || ['id','name','region','summary','roadmap','profile','expressions','__proto__','prototype','constructor'].some(k=>Object.hasOwn(data,k)))return false;
+    if(!data || ['id','name','region','summary','roadmap','profile','expressions','faceMotion','__proto__','prototype','constructor'].some(k=>Object.hasOwn(data,k)))return false;
     const check=seed(), actor=check.characters[0];
     check.characters=[{...actor,...data}];
     return !problem(check);
@@ -1777,7 +1813,7 @@ function screenEdges(doc,l){
 
 // Identity, profile and expression art stay with the original character when its settings are copied.
 function portableActorSettings(actor){
-  const {id,name,region,summary,roadmap,profile,expressions,...settings}=actor;
+  const {id,name,region,summary,roadmap,profile,expressions,faceMotion,...settings}=actor;
   return structuredClone(settings);
 }
 // Only media fields take part: a player's text may legitimately look like an asset URL.
@@ -1944,7 +1980,7 @@ function controlPresetElements(doc,p,layout){
 // Every field is optional: projects without them keep their previous field, dialogue and HUD behavior.
 const mediaRef=v=>v===''||(typeof v==='string'&&/^asset:[0-9a-f]{64}$/.test(v));
 const CAST_TICKS=[12,240];
-const STAGE_LIMIT={expressions:24,profile:16};
+const STAGE_LIMIT={expressions:48,profile:32};
 const profileLabelOK=v=>typeof v==='string'&&/^[^{}:\n\r]{1,20}$/.test(v)&&v.trim()===v;
 const newExpression=name=>({id:uid(),name,image:''});
 const newProfileEntry=(label,value='')=>({id:uid(),label,value});
@@ -1957,6 +1993,38 @@ function expressionImage(actor,id){
 // A character's face: chosen expression, dialogue portrait, sprite, then the first expression that has art.
 function actorFaceRef(actor,expression=''){
   return expressionImage(actor,expression)||actor?.portrait||actor?.sprite||(Array.isArray(actor?.expressions)?actor.expressions.find(x=>x.image)?.image:'')||'';
+}
+// Portrait motion: breathing, blinking and mouth movement drawn from the creator's own images. Each expression may have
+// an eyes-closed (blink) and a speaking (talk) picture; faceMotion.blink/talk serve the default portrait. Unity's
+// StudioPortraitMotion follows the same numbers (scripts/native-check/portrait-motion.json).
+const MOTION={breathe:[0,.006,.012,.02],breath:3200,blinkEvery:4000,blinkHold:130,talkStep:120};
+const MOTION_LEVELS={0:'없음',1:'약하게',2:'보통',3:'강하게'};
+// The face a line or cast layer shows, with its variants: chosen expression, default portrait, then the first expression with art.
+function faceSet(actor,expression=''){
+  const pick=x=>({image:x.image,blink:x.blink||'',talk:x.talk||''});
+  const chosen=expression&&Array.isArray(actor?.expressions)?actor.expressions.find(x=>x.id===expression&&x.image):null;
+  if(chosen)return pick(chosen);
+  const base=actor?.portrait||actor?.sprite;
+  if(base)return {image:base,blink:actor.faceMotion?.blink||'',talk:actor.faceMotion?.talk||''};
+  const first=Array.isArray(actor?.expressions)?actor.expressions.find(x=>x.image):null;
+  // With no art of its own the character shows the built-in picture, which the default variants still serve.
+  return first?pick(first):{image:'',blink:actor?.faceMotion?.blink||'',talk:actor?.faceMotion?.talk||''};
+}
+// FNV-1a over UTF-16 code units, so characters on screen together blink at different moments.
+function motionSeed(id){
+  let h=2166136261;
+  for(let i=0;i<String(id).length;i++){h^=String(id).charCodeAt(i);h=Math.imul(h,16777619)>>>0;}
+  return h;
+}
+// clock: milliseconds; revealing: the line's text is still appearing. Blink wins over talk; breathing scales height.
+function portraitPose(level,hasBlink,hasTalk,clock,revealing,seed){
+  const t=Math.max(0,Math.floor(clock)),phase=seed%MOTION.blinkEvery;
+  const pose=hasBlink&&(t+phase)%MOTION.blinkEvery<MOTION.blinkHold?'blink':hasTalk&&revealing&&Math.floor(t/MOTION.talkStep)%2===0?'talk':'base';
+  const amp=MOTION.breathe[level]||0;
+  return {pose,scale:amp?1+amp*Math.sin(2*Math.PI*((t+phase)%MOTION.breath)/MOTION.breath):1};
+}
+function validMotion(m){
+  return !!m&&typeof m==='object'&&!Array.isArray(m)&&integer(m.breathe,0,3)&&mediaRef(m.blink)&&mediaRef(m.talk);
 }
 // {프로필:항목} shows the current character's value; an unknown item shows nothing.
 function profileText(text,actor){
@@ -1973,11 +2041,13 @@ function validSkillCast(c){
 function characterStageProblem(c){
   const where='캐릭터 / '+c.name+' / ';
   if(c.expressions!==undefined&&(!rows(c.expressions,0,STAGE_LIMIT.expressions)||
-    c.expressions.some(x=>!textValue(x.name,30,true)||x.name.trim()!==x.name||!mediaRef(x.image))||
+    c.expressions.some(x=>!textValue(x.name,30,true)||x.name.trim()!==x.name||!mediaRef(x.image)||
+      (x.blink!==undefined&&!mediaRef(x.blink))||(x.talk!==undefined&&!mediaRef(x.talk)))||
     new Set(c.expressions.map(x=>x.name)).size!==c.expressions.length))return where+'표정 이름(1~30자, 서로 다르게)과 이미지를 확인하세요.';
   if(c.profile!==undefined&&(!rows(c.profile,0,STAGE_LIMIT.profile)||c.profile.some(p=>!profileLabelOK(p.label)||!textValue(p.value,300))||
     new Set(c.profile.map(p=>p.label)).size!==c.profile.length))return where+'프로필 항목 이름(1~20자, 중괄호·콜론 제외, 서로 다르게)과 내용(300자)을 확인하세요.';
   if(c.energy!==undefined&&!validEnergy(c.energy))return where+'스킬 게이지 최대치·시작값·충전량을 확인하세요.';
+  if(c.faceMotion!==undefined&&!validMotion(c.faceMotion))return where+'초상 움직임(숨쉬기 0~3단계, 눈 감은·말하는 그림)을 확인하세요.';
   for(const s of c.skills){
     if(s.cost!==undefined&&(!integer(s.cost,0,9999)||(s.cost>0&&(!c.energy||s.cost>c.energy.max))))
       return where+s.name+' / 게이지 소모량은 스킬 게이지를 켠 뒤 최대치 이하로 정하세요.';
@@ -2058,7 +2128,7 @@ function unityChangeProblem(set){
     if(!f||typeof f.path!=='string'||seen.has(f.path.toLowerCase()))return 'Unity 변경의 파일 경로가 비었거나 겹쳐요.';
     seen.add(f.path.toLowerCase());
     if(!(f.since===''||/^[a-f0-9]{64}$/.test(f.since)))return f.path+'의 비교 기준을 확인하세요.';
-    if(f.kind==='text'){if(!unitySourcePath(f.path)||!textValue(f.text,200000))return f.path+' · Unity 텍스트 파일 경로나 크기를 확인하세요.';}
+    if(f.kind==='text'){if(!unitySourcePath(f.path)||!textValue(f.text,SOURCE_LIMIT.file))return f.path+' · Unity 텍스트 파일 경로나 크기를 확인하세요.';}
     else if(f.kind==='deleted'){if(!unitySourcePath(f.path))return f.path+' · 삭제할 소스 경로를 확인하세요.';}
     else if(f.kind==='image'||f.kind==='audio'){if(unityMediaKind(f.path)?.[0]!==f.kind||!/^asset:[0-9a-f]{64}$/.test(f.ref))return f.path+' · 이미지·소리 파일을 확인하세요.';}
     else return f.path+' · 지원하지 않는 변경 종류예요.';
@@ -2093,7 +2163,391 @@ function applyUnityChanges(project,base,rows){
     if(text!==(Object.hasOwn(base,r.path)?base[r.path]:null))keep.push({path:r.path,text});
     project.sourceFiles=keep;
   }
-  if(project.sourceFiles.length>180||project.sourceFiles.reduce((n,f)=>n+(f.text?.length||0),0)>1200000)
-    throw Error('적용하면 프로젝트 소스가 180개 또는 120만 자를 넘어요. 일부 파일만 골라 적용하세요.');
+  if(project.sourceFiles.length>SOURCE_LIMIT.files||project.sourceFiles.reduce((n,f)=>n+(f.text?.length||0),0)>SOURCE_LIMIT.chars)
+    throw Error('적용하면 프로젝트 소스가 '+sourceLimitText()+'를 넘어요. 일부 파일만 골라 적용하세요.');
   return project;
+}
+
+// ── Localization ──────────────────────────────────────────────────────────────────────────────────────────────────────
+// Base-language text stays where the creator wrote it. project.locales lists the other languages and holds their text by
+// stable content keys ('story/<id>/line/<id>/text', 'screen/<id>/<widget>/text', 'system/<name>' …). Each translation
+// keeps a hash of the base text it was made from, so an original changed since then shows up for review. At play time
+// localizeWorld writes one language into the same fields of the play copy: game code keeps reading the fields it always
+// read and switching language is instant. Unity's StudioLocalization lists the same keys (scripts/native-check/locale.json).
+const LOCALE_LIMIT={languages:12,keys:60000,text:1200};
+const LANGUAGES={ko:'한국어',en:'English',ja:'日本語','zh-Hans':'简体中文','zh-Hant':'繁體中文',es:'Español',fr:'Français',de:'Deutsch',
+  'pt-BR':'Português (Brasil)',ru:'Русский',it:'Italiano',th:'ไทย',vi:'Tiếng Việt',id:'Bahasa Indonesia',tr:'Türkçe'};
+const localeCode=v=>typeof v==='string'&&/^[a-z]{2,3}(?:-[A-Z][a-z]{3})?(?:-(?:[A-Z]{2}|[0-9]{3}))?$/.test(v);
+const LOCALE_KEY=/^(?:title|(?:character|map|story|screen|item|quest|shop)(?:\/[A-Za-z0-9_-]{1,50}){2,5}|system\/[A-Za-z]{1,20}\.[A-Za-z0-9]{1,20})$/;
+// Text the game itself shows: labels of buttons left without text, HUD and list wording, results and save messages.
+// Creators may reword each in the base language (locales.system) and translate it like any other text.
+const SYSTEM_TEXT={
+  'button.dodge':'회피','button.jump':'점프','button.attack':'베기','button.menu':'메뉴','button.open':'화면 열기',
+  'button.resume':'계속하기','button.restart':'다시 시작','button.switch':'캐릭터 교대','button.skip':'건너뛰기',
+  'button.nextLine':'다음 대사','button.roadmap':'캐릭터 스토리','button.beginGame':'게임 시작','button.confirmActor':'선택 확정',
+  'button.previousActor':'이전 캐릭터','button.newRun':'게임 처음부터','button.back':'뒤로','button.gotoMap':'맵 이동',
+  'button.startStory':'대화','button.selectActor':'캐릭터 선택','button.flagOn':'상태 켜기','button.flagOff':'상태 끄기',
+  'button.signal':'이벤트','button.online':'온라인 친선전','button.language':'언어',
+  'button.cloudSave':'클라우드 저장','button.cloudLoad':'클라우드 불러오기','button.transferIssue':'기기 이전 코드','button.transferClaim':'코드로 이전',
+  'button.reports':'오류 보고','button.buy':'구매','button.draw':'뽑기','button.drawMulti':'연속 뽑기','button.odds':'확률 정보',
+  'hud.loading':'로딩','hud.enemies':'남은 적','hud.energy':'스킬 게이지','hud.noEnergy':'없음','hud.boss':'보스',
+  'dialogue.narrator':'내레이션','dialogue.next':'다음 대사 →','dialogue.end':'대화 마치기','dialogue.nextShort':'다음','dialogue.choice':'선택',
+  'roadmap.read':'대화 읽기','roadmap.continue':'계속','roadmap.finish':'스토리 마치기',
+  'items.open':'보유 장비 · 장착 변경','items.empty':'보유한 장비가 없어요.','items.unequip':'장착 해제','items.power':'공격력',
+  'items.busy':'다른 캐릭터가 장착 중이에요.',
+  'gear.weapon':'무기','gear.head':'머리','gear.top':'상의','gear.bottom':'하의','gear.feet':'신발',
+  'gear.extra1':'추가 장비 1','gear.extra2':'추가 장비 2','gear.extra3':'추가 장비 3',
+  'quests.title':'의뢰 목록 · 진행 상태','quests.empty':'등록된 의뢰가 없어요.','quests.done':'완료','quests.active':'진행',
+  'result.clear':'맵 탐험 완료','result.over':'전투 종료','result.again':'이 맵 다시 시작',
+  'status.paused':'일시정지','status.ended':'플레이 종료','status.clearFirst':'적을 모두 처치한 뒤 출구로 이동하세요.',
+  'status.exit':'출구로 이동하면 다음 맵으로 이어져요.',
+  'save.unavailable':'이 실행 환경은 기기 저장소를 사용할 수 없어요.','save.busy':'대화나 전투 동작이 끝난 뒤 저장할 수 있어요.',
+  'save.done':'이 기기에 진행 상황을 저장했어요.','save.failed':'기기 저장 공간을 사용할 수 없어요.','save.none':'이 기기에 호환되는 저장 기록이 없어요.',
+  'bar.close':'화면 닫기','bar.save':'진행 저장','bar.continue':'이어하기','bar.stick':'조이스틱','bar.stats':'성능','bar.hitboxes':'판정 표시',
+  'bar.assist':'보조 조작','bar.stop':'편집기로','bar.replay':'다시 플레이',
+  'input.invalid':'입력 조건을 확인하세요.','online.unavailable':'온라인 친선전은 스튜디오 사이트나 Unity 앱에서 열 수 있어요.',
+  'cloud.saved':'클라우드에 진행을 저장했어요.','cloud.loaded':'클라우드에서 진행을 불러왔어요.','cloud.none':'클라우드에 저장된 진행이 없어요.',
+  'cloud.conflict':'다른 기기에서 더 최근에 저장했어요. 불러오거나 이 기기 진행으로 덮어쓰세요.','cloud.incompatible':'이 버전에서 열 수 없는 진행 기록이에요.',
+  'cloud.offline':'이 실행 환경에서는 클라우드 저장을 쓸 수 없어요.','cloud.failed':'서버에 연결하지 못했어요. 잠시 뒤 다시 시도하세요.',
+  'cloud.code':'기기 이전 코드 {코드} · 24시간 안에 새 기기에서 한 번 쓸 수 있어요.','cloud.claimed':'이 기기로 진행을 옮겼어요.',
+  'cloud.badCode':'이전 코드가 맞지 않거나 기간이 지났어요.',
+  'reports.on':'켜짐','reports.off':'꺼짐','reports.agreed':'오류 보고를 켰어요. 게임 오류가 나면 오류 내용·게임 버전·기기 종류를 보내요.',
+  'reports.stopped':'오류 보고를 껐어요.',
+  'shop.short':'재화가 부족해요.','shop.limit':'구매 한도에 도달했어요.','shop.bought':'구매했어요.','shop.close':'닫기',
+  'shop.store':'이 실행 환경에서는 결제할 수 없어요.','shop.testPaid':'테스트 결제로 구매했어요. 실제 결제는 일어나지 않았어요.',
+  'shop.got':'획득','gacha.odds':'확률 정보','gacha.price':'1회 {가격}','gacha.pity':'{횟수}회째 뽑기에서 {등급} 확정',
+  'gacha.noPity':'천장 없음','gacha.since':'마지막 {등급} 이후 {횟수}회','gacha.effective':'천장 포함 {등급} 평균 확률 {확률}% (평균 {횟수}회)',
+  'gacha.history':'최근 뽑기',
+};
+const SYSTEM_GROUPS={shop:'상점',gacha:'뽑기 확률 정보',cloud:'클라우드 저장·기기 이전',reports:'오류 보고',button:'버튼 기본 문구',hud:'HUD',dialogue:'대화',roadmap:'스토리 로드맵',items:'장비',gear:'장비 부위',quests:'의뢰',
+  result:'결과 화면',status:'진행 안내',save:'진행 저장',bar:'웹 플레이 막대',input:'입력 컨트롤',online:'온라인'};
+const LOCALE_GROUPS={character:'캐릭터',map:'맵',story:'대사',screen:'UI 화면',item:'아이템 · 의뢰',quest:'아이템 · 의뢰',shop:'상점 · 뽑기',system:'게임 기본 문구',title:'게임 제목'};
+const plainObject=v=>!!v&&typeof v==='object'&&!Array.isArray(v);
+const localeHash=text=>motionSeed(String(text)).toString(16).padStart(8,'0');
+const localeBase=doc=>doc?.locales?.base||'ko';
+function localeCodes(doc){return [localeBase(doc),...(doc?.locales?.languages||[]).map(l=>l.code)];}
+function languageName(doc,code){
+  const loc=doc?.locales;
+  if(code===localeBase(doc))return loc?.baseName||LANGUAGES[code]||code;
+  return loc?.languages?.find(l=>l.code===code)?.name||LANGUAGES[code]||code;
+}
+// Every translatable text as {key, owner, field, max, where}. Empty text has nothing to translate and is left out.
+// play: choice inputs get display labels, because the value a choice stores must not change with the language.
+// system: the game's own wording, with the creator's base-language rewording where there is one.
+function textSlots(doc,{play=false,system=false}={}){
+  const out=[];
+  const add=(key,owner,field,max,where)=>{if(typeof owner?.[field]==='string'&&owner[field].trim())out.push({key,owner,field,max,where});};
+  add('title',doc,'title',50,'게임 제목');
+  for(const c of doc.characters||[]){
+    const k='character/'+c.id+'/',w=c.name+' · ';
+    add(k+'name',c,'name',50,w+'이름');add(k+'region',c,'region',50,w+'지역');add(k+'summary',c,'summary',500,w+'소개');
+    for(const p of c.profile||[])add(k+'profile/'+p.id,p,'value',300,w+'프로필 · '+p.label);
+    (c.skills||[]).forEach((s,i)=>{
+      add(k+'skill/'+i+'/name',s,'name',50,w+'스킬 '+(i+1)+' 이름');
+      if(s.cast){add(k+'skill/'+i+'/caption',s.cast,'caption',40,w+s.name+' · 컷인 문구');add(k+'skill/'+i+'/line',s.cast,'line',80,w+s.name+' · 외침');}
+    });
+    for(const e of c.roadmap?.episodes||[]){
+      const ek=k+'episode/'+e.id+'/',ew=w+'에피소드 '+e.title+' · ';
+      add(ek+'title',e,'title',50,ew+'제목');add(ek+'summary',e,'summary',240,ew+'요약');
+      (e.links||[]).forEach((l,i)=>add(ek+'link/'+i,l,'label',80,ew+'분기 '+(i+1)));
+    }
+  }
+  for(const m of doc.scenes||[]){
+    add('map/'+m.id+'/name',m,'name',50,m.name+' · 맵 이름');
+    for(const o of m.objects||[])if(o.type==='enemy'||o.type==='prop')add('map/'+m.id+'/object/'+o.id+'/label',o,'label',50,m.name+' · '+(o.type==='enemy'?'적':'소품')+' '+o.id+' 이름');
+  }
+  for(const s of doc.stories||[]){
+    add('story/'+s.id+'/name',s,'name',50,s.name+' · 스토리 제목');
+    (s.nodes||[]).forEach((n,i)=>{
+      const k='story/'+s.id+'/line/'+n.id+'/',w=s.name+' · '+(i+1)+'행 ';
+      add(k+'text',n,'text',1200,w+'대사');add(k+'speaker',n,'speakerName',50,w+'화자 표시 이름');add(k+'next',n,'nextLabel',80,w+'다음 버튼');
+      (n.choices||[]).forEach((c,j)=>add(k+'choice/'+j,c,'label',80,w+'선택지 '+(j+1)));
+      for(const l of n.shot?.layers||[])if(l.kind==='caption')add(k+'layer/'+l.id,l,'caption',400,w+'화면 문구 '+(l.title||l.id));
+    });
+  }
+  for(const l of doc.layouts||[])add('screen/'+l.id+'/name',l,'name',50,l.name+' · 화면 이름');
+  for(const l of doc.layouts||[])for(const w of l.elements||[]){
+    const k='screen/'+l.id+'/'+w.id+'/',at=l.name+' · '+(WIDGETS[w.type]||w.type)+' '+w.id+' ';
+    add(k+'text',w,'text',160,at+'글자');
+    if(w.type!=='input'||!w.control)continue;
+    add(k+'hint',w.control,'hint',120,at+'안내 문구');
+    if(w.control.validation)add(k+'message',w.control.validation,'message',100,at+'입력 오류 문구');
+    if(w.control.mode==='choice'){
+      const shown=play?(w.control.labels??=w.control.options.slice()):w.control.options;
+      shown.forEach((_,i)=>add(k+'option/'+i,shown,i,60,at+'선택 항목 '+(i+1)));
+    }
+  }
+  for(const v of doc.items||[])add('item/'+v.id+'/name',v,'name',50,'아이템 · '+v.name);
+  for(const q of doc.quests||[])add('quest/'+q.id+'/name',q,'name',50,'의뢰 · '+q.name);
+  for(const c of doc.shop?.currencies||[])add('shop/currency/'+c.id+'/name',c,'name',20,'재화 · '+c.name);
+  for(const p of doc.shop?.products||[])add('shop/product/'+p.id+'/name',p,'name',40,'상품 · '+p.name);
+  for(const b of doc.shop?.banners||[]){
+    add('shop/banner/'+b.id+'/name',b,'name',40,'뽑기 · '+b.name);
+    for(const t of b.tiers||[])add('shop/banner/'+b.id+'/tier/'+t.id+'/name',t,'name',20,'뽑기 · '+b.name+' · 등급 '+t.name);
+  }
+  if(system)for(const name of Object.keys(SYSTEM_TEXT)){
+    const owner={text:doc.locales?.system?.[name]||SYSTEM_TEXT[name]};
+    out.push({key:'system/'+name,owner,field:'text',max:200,where:(SYSTEM_GROUPS[name.split('.')[0]]||'')+' · '+SYSTEM_TEXT[name],system:name});
+  }
+  return out;
+}
+function localeKeys(doc){return new Set(textSlots(doc,{system:true}).map(s=>s.key));}
+// missing: no translation; stale: the original changed after it was translated; done.
+function translationState(doc,slot,code){
+  const t=doc.locales?.strings?.[slot.key]?.[code];
+  return !t?'missing':t.src!==localeHash(slot.owner[slot.field])?'stale':'done';
+}
+function setTranslation(doc,key,code,text,from){
+  const loc=doc.locales;if(!loc||code===loc.base)return;
+  if(!text.trim()){if(loc.strings[key]){delete loc.strings[key][code];if(!Object.keys(loc.strings[key]).length)delete loc.strings[key];}return;}
+  (loc.strings[key]??={})[code]={text:text.slice(0,LOCALE_LIMIT.text),src:localeHash(from)};
+}
+// {…} tokens that the game fills in: a translation must keep the same ones as its original.
+const textTokens=text=>(String(text).match(/\{(?:입력|프로필|변수|언어|코드|재화|횟수|등급|확률|가격)(?::[^{}]*)?\}/g)||[]).sort().join('\n');
+function emptyLocales(){return {base:'ko',baseName:'한국어',languages:[],system:{},strings:{}};}
+function localeProblem(d){
+  const loc=d.locales;
+  if(loc===undefined)return '';
+  if(!plainObject(loc)||!localeCode(loc.base)||!textValue(loc.baseName,30,true)||!Array.isArray(loc.languages)||loc.languages.length>LOCALE_LIMIT.languages)
+    return '번역 · 언어의 기본 언어와 언어 목록(최대 '+LOCALE_LIMIT.languages+'개)을 확인하세요.';
+  const codes=new Set([loc.base]);
+  for(const l of loc.languages){
+    if(!plainObject(l)||!localeCode(l.code)||codes.has(l.code)||!textValue(l.name,30,true))return '번역 · 언어 코드와 이름을 확인하세요. 같은 언어를 두 번 넣을 수 없어요.';
+    codes.add(l.code);
+  }
+  if(!plainObject(loc.system)||Object.entries(loc.system).some(([k,v])=>!has(SYSTEM_TEXT,k)||!textValue(v,200,true)))return '번역 · 게임 기본 문구의 값을 확인하세요.';
+  if(!plainObject(loc.strings))return '번역 표 형식을 확인하세요.';
+  const keys=Object.keys(loc.strings);
+  if(keys.length>LOCALE_LIMIT.keys)return '번역 항목은 '+LOCALE_LIMIT.keys+'개까지 저장할 수 있어요. 쓰지 않는 번역을 정리하세요.';
+  for(const k of keys){
+    const row=loc.strings[k];
+    if(!LOCALE_KEY.test(k)||!plainObject(row))return '번역 항목 '+k.slice(0,80)+'을 확인하세요.';
+    for(const [code,t] of Object.entries(row))
+      if(code===loc.base||!codes.has(code)||!plainObject(t)||!textValue(t.text,LOCALE_LIMIT.text,true)||typeof t.src!=='string'||!/^[0-9a-f]{8}$/.test(t.src))
+        return '번역 '+k.slice(0,80)+' · '+code+'의 내용(1~'+LOCALE_LIMIT.text+'자)을 확인하세요.';
+  }
+  return '';
+}
+// What a game export carries: current keys only, no review hashes.
+function playLocales(doc){
+  const loc=doc.locales;if(!loc)return undefined;
+  const used=localeKeys(doc),strings={};
+  for(const [k,row] of Object.entries(loc.strings))if(used.has(k)){
+    const kept=Object.fromEntries(Object.entries(row).map(([code,t])=>[code,{text:t.text}]));
+    if(Object.keys(kept).length)strings[k]=kept;
+  }
+  return {base:loc.base,baseName:loc.baseName,languages:loc.languages.map(l=>({code:l.code,name:l.name})),system:{...loc.system},strings};
+}
+// Unity reads arrays: one key list and, per language, the texts in the same order ('' falls back to the base text).
+function packLocale(doc){
+  const loc=playLocales(doc);if(!loc)return undefined;
+  const keys=Object.keys(loc.strings);
+  return {base:loc.base,baseName:loc.baseName,keys,
+    languages:loc.languages.map(l=>({code:l.code,name:l.name,values:keys.map(k=>loc.strings[k][l.code]?.text||'')})),
+    system:Object.entries(loc.system).map(([key,text])=>({key,text}))};
+}
+const localeMemory=new WeakMap();
+// Writes one language into the play copy. The base text of every field is kept, so any language can follow.
+function localizeWorld(world,code){
+  let state=localeMemory.get(world);
+  if(!state){
+    state={slots:textSlots(world,{play:true}),code:''};
+    for(const s of state.slots)s.base=s.owner[s.field];
+    localeMemory.set(world,state);
+  }
+  const loc=world.locales,base=localeBase(world);
+  if(!localeCodes(world).includes(code))code=base;
+  const name=languageName(world,code);
+  for(const s of state.slots){
+    const v=(code!==base&&loc?.strings?.[s.key]?.[code]?.text)||s.base;
+    s.owner[s.field]=v.includes('{언어}')?v.replaceAll('{언어}',name):v;
+  }
+  state.code=code;
+  return code;
+}
+function worldLanguage(world){return localeMemory.get(world)?.code||localeBase(world);}
+function systemText(world,name){
+  const loc=world?.locales,code=worldLanguage(world);
+  return (code!==localeBase(world)&&loc?.strings?.['system/'+name]?.[code]?.text)||loc?.system?.[name]||SYSTEM_TEXT[name]||'';
+}
+// The first wanted language the game has: exact code, Chinese script by region, then the same main language.
+function pickLanguage(codes,wanted){
+  const script=w=>/^zh-(?:hant|tw|hk|mo)\b/i.test(w)?'zh-Hant':/^zh-(?:hans|cn|sg)\b/i.test(w)?'zh-Hans':'';
+  for(const raw of wanted){
+    if(typeof raw!=='string'||!raw)continue;
+    const w=raw.replaceAll('_','-'),lower=w.toLowerCase();
+    const exact=codes.find(c=>c.toLowerCase()===lower)||codes.find(c=>c===script(w));
+    if(exact)return exact;
+    const main=lower.split('-')[0];
+    const near=codes.find(c=>c.toLowerCase().split('-')[0]===main);
+    if(near)return near;
+  }
+  return codes[0];
+}
+// CSV for translators: key, where it appears, length limit, the base text and one column per language.
+// A cell that a spreadsheet would read as a formula is written with a leading apostrophe and read back without it.
+function csvCell(v){
+  let s=String(v??'');
+  if(/^[=+\-@]/.test(s))s="'"+s;
+  return /[",\r\n]|^\s|\s$/.test(s)?'"'+s.replaceAll('"','""')+'"':s;
+}
+function csvRows(text){
+  const rows=[];let row=[],cell='',quoted=false,i=text.charCodeAt(0)===0xfeff?1:0;
+  for(;i<text.length;i++){
+    const ch=text[i];
+    if(quoted){
+      if(ch==='"'){if(text[i+1]==='"'){cell+='"';i++;}else quoted=false;}
+      else cell+=ch;
+    }else if(ch==='"'&&cell==='')quoted=true;
+    else if(ch===','){row.push(cell);cell='';}
+    else if(ch==='\n'||ch==='\r'){
+      if(ch==='\r'&&text[i+1]==='\n')i++;
+      row.push(cell);rows.push(row);row=[];cell='';
+    }else cell+=ch;
+  }
+  if(cell!==''||row.length){row.push(cell);rows.push(row);}
+  return rows.map(r=>r.map(c=>/^'[=+\-@]/.test(c)?c.slice(1):c));
+}
+function localeCsv(doc,codes=doc.locales?.languages.map(l=>l.code)||[]){
+  const base=localeBase(doc),strings=doc.locales?.strings||{};
+  const lines=[['key','where','max',base,...codes].map(csvCell).join(',')];
+  for(const s of textSlots(doc,{system:true}))
+    lines.push([s.key,s.where,s.max,s.owner[s.field],...codes.map(c=>strings[s.key]?.[c]?.text||'')].map(csvCell).join(','));
+  return '﻿'+lines.join('\r\n')+'\r\n';
+}
+// Reads translations back. The base column records which original each translation was made from, so text that changed
+// after the file was written is marked for review. Empty cells keep what is there; unknown keys and languages are reported.
+function importLocaleCsv(doc,text){
+  const rows=csvRows(text),head=rows.shift()||[],col=name=>head.indexOf(name);
+  const loc=doc.locales;
+  if(!loc)throw Error('먼저 번역할 언어를 추가하세요.');
+  if(col('key')<0||col(loc.base)<0)throw Error('CSV 첫 줄에 key와 기본 언어('+loc.base+') 열이 있어야 해요.');
+  const codes=head.filter(h=>loc.languages.some(l=>l.code===h)),unknownLanguages=head.filter((h,i)=>i>2&&h&&h!==loc.base&&!codes.includes(h));
+  const slots=new Map(textSlots(doc,{system:true}).map(s=>[s.key,s]));
+  const report={changed:0,same:0,unknownKeys:[],unknownLanguages,tooLong:[],tokens:[]};
+  for(const r of rows){
+    const key=r[col('key')];if(!key)continue;
+    const slot=slots.get(key);if(!slot){report.unknownKeys.push(key);continue;}
+    const from=r[col(loc.base)]??'';
+    for(const code of codes){
+      const value=(r[col(code)]??'').trim()?r[col(code)]:'';
+      if(!value)continue;
+      if(value.length>LOCALE_LIMIT.text){report.tooLong.push(key+' · '+code);continue;}
+      if(textTokens(value)!==textTokens(from))report.tokens.push(key+' · '+code);
+      const old=loc.strings[key]?.[code];
+      if(old?.text===value&&old.src===localeHash(from)){report.same++;continue;}
+      setTranslation(doc,key,code,value,from);report.changed++;
+    }
+  }
+  return report;
+}
+// Removes translations whose text no longer exists in the game.
+function pruneTranslations(doc){
+  const used=localeKeys(doc);let n=0;
+  for(const k of Object.keys(doc.locales?.strings||{}))if(!used.has(k)){delete doc.locales.strings[k];n++;}
+  return n;
+}
+
+// ── Store and gacha ───────────────────────────────────────────────────────────────────────────────────────────────────
+// project.shop (optional): the creator's currencies, products and gacha banners. Tier rates are integers in 0.001%
+// units (100000 = 100%); an entry's chance is its tier's rate split by weight. Pity: the pity-th pull since the last
+// top-tier result is a top-tier result. gachaOdds is the disclosure table both runtimes show; gachaPull is the draw rule,
+// mirrored by StudioGacha in Unity (scripts/native-check/gacha.json).
+const SHOP_LIMIT={currencies:8,products:100,gives:10,banners:30,tiers:6,entries:100,rate:100000,amount:99999999,history:30};
+const GACHA_KINDS={item:'아이템',currency:'재화'};
+const emptyShop=()=>({currencies:[],products:[],banners:[]});
+const newCurrency=(id,name)=>({id,name,start:0,max:9999999,icon:''});
+const newProduct=(id,name,currency)=>({id,name,cost:{kind:'currency',id:currency,amount:100},gives:[],limit:0});
+function newBanner(id,name,currency){
+  return {id,name,image:'',cost:{currency,amount:160},multi:10,pity:0,
+    tiers:[{id:uid(),name:'최고 등급',rate:2000,top:true,entries:[]},{id:uid(),name:'일반',rate:98000,top:false,entries:[]}]};
+}
+function shopReward(d,g){
+  return !!g&&['item','currency'].includes(g.kind)&&integer(g.count,1,g.kind==='item'?999:SHOP_LIMIT.amount)&&
+    (g.kind==='item'?!!named(d.items||[],g.id):!!named(d.shop?.currencies||[],g.id));
+}
+function shopProblem(d){
+  const s=d.shop;
+  if(s===undefined)return '';
+  const where='상점 · 뽑기 / ';
+  if(!plainObject(s)||!rows(s.currencies,0,SHOP_LIMIT.currencies)||!rows(s.products,0,SHOP_LIMIT.products)||!rows(s.banners,0,SHOP_LIMIT.banners))
+    return where+'재화·상품·뽑기 목록과 ID를 확인하세요.';
+  for(const c of s.currencies)
+    if(!textValue(c.name,20,true)||!integer(c.max,1,SHOP_LIMIT.amount)||!integer(c.start,0,c.max)||!mediaRef(c.icon))
+      return where+(c.name||c.id)+' / 재화 이름, 시작 수량과 최대치를 확인하세요.';
+  const currency=id=>!!named(s.currencies,id);
+  for(const p of s.products){
+    const c=p.cost;
+    if(!textValue(p.name,40,true)||!integer(p.limit,0,999)||!Array.isArray(p.gives)||p.gives.length<1||p.gives.length>SHOP_LIMIT.gives||
+      !p.gives.every(g=>shopReward(d,g))||!plainObject(c)||
+      !(c.kind==='currency'?currency(c.id)&&integer(c.amount,1,SHOP_LIMIT.amount):
+        c.kind==='money'&&integer(c.amount,100,10000000)&&typeof c.sku==='string'&&/^[a-z0-9][a-z0-9._]{0,99}$/.test(c.sku)))
+      return where+(p.name||p.id)+' / 상품 가격(재화 또는 원화와 스토어 상품 ID)과 지급 내용을 확인하세요.';
+  }
+  const skus=s.products.filter(p=>p.cost.kind==='money').map(p=>p.cost.sku);
+  if(new Set(skus).size!==skus.length)return where+'스토어 상품 ID가 겹쳐요.';
+  for(const b of s.banners){
+    const at=where+(b.name||b.id)+' / ';
+    if(!textValue(b.name,40,true)||!mediaRef(b.image)||!plainObject(b.cost)||!currency(b.cost.currency)||!integer(b.cost.amount,1,SHOP_LIMIT.amount)||
+      !(b.multi===0||integer(b.multi,2,10))||!integer(b.pity,0,1000))return at+'뽑기 이름, 비용, 연속 뽑기 수와 천장을 확인하세요.';
+    if(!rows(b.tiers,1,SHOP_LIMIT.tiers)||b.tiers.some(t=>!textValue(t.name,20,true)||!integer(t.rate,0,SHOP_LIMIT.rate)||typeof t.top!=='boolean'||
+      !Array.isArray(t.entries)||t.entries.length>SHOP_LIMIT.entries||(t.rate>0&&!t.entries.length)||
+      !t.entries.every(e=>shopReward(d,e)&&integer(e.weight,1,1000000))))return at+'등급 이름, 확률, 보상과 가중치를 확인하세요.';
+    if(b.tiers.reduce((n,t)=>n+t.rate,0)!==SHOP_LIMIT.rate)return at+'등급 확률의 합이 100%가 되도록 정하세요.';
+    const tops=b.tiers.filter(t=>t.top);
+    if(tops.length>1||(b.pity>0&&(tops.length!==1||tops[0].rate===0||!tops[0].entries.length)))return at+'천장을 쓰려면 확률이 있는 최고 등급을 하나 표시하세요.';
+  }
+  return '';
+}
+// Percent with three decimals from an exact fraction of 0.001% units (rate×weight/total), rounded half up.
+function oddsPercent(numerator,denominator){
+  const thousandths=Math.floor((numerator*2+denominator)/(2*denominator));
+  return (thousandths/1000).toFixed(3);
+}
+// The disclosure: every reward with its chance, each tier's chance, and the pity rule.
+function gachaOdds(d,b){
+  const name=g=>g.kind==='item'?named(d.items||[],g.id)?.name||g.id:named(d.shop?.currencies||[],g.id)?.name||g.id;
+  return {banner:b.id,name:b.name,pity:b.pity,top:b.tiers.find(t=>t.top)?.name||'',
+    tiers:b.tiers.map(t=>{
+      const total=t.entries.reduce((n,e)=>n+e.weight,0);
+      return {name:t.name,top:t.top,percent:oddsPercent(t.rate,1),
+        entries:t.entries.map(e=>({kind:e.kind,id:e.id,count:e.count,name:name(e),percent:total?oddsPercent(t.rate*e.weight,total):'0.000'}))};
+    })};
+}
+// One pull. tierRoll: an integer below 100000; entryRoll: an integer below the tier's total weight (drawn after the tier).
+// Returns the tier and entry indexes and the pulls since the last top-tier result after this pull.
+function gachaTier(b,sinceTop,tierRoll){
+  const top=b.tiers.findIndex(t=>t.top);
+  if(b.pity>0&&top>=0&&sinceTop+1>=b.pity)return top;
+  let edge=0;
+  for(let i=0;i<b.tiers.length;i++){edge+=b.tiers[i].rate;if(tierRoll<edge)return i;}
+  return b.tiers.length-1;
+}
+function gachaEntry(t,entryRoll){
+  let edge=0;
+  for(let i=0;i<t.entries.length;i++){edge+=t.entries[i].weight;if(entryRoll<edge)return i;}
+  return t.entries.length-1;
+}
+function gachaPull(b,sinceTop,tierRoll,entryRoll){
+  const tier=gachaTier(b,sinceTop,tierRoll),entry=gachaEntry(b.tiers[tier],entryRoll);
+  return {tier,entry,sinceTop:b.tiers[tier].top?0:sinceTop+1};
+}
+const gachaWeight=t=>t.entries.reduce((n,e)=>n+e.weight,0);
+// With hard pity N and top chance p per pull, the average pulls per top result are (1-(1-p)^N)/p.
+function gachaEffective(b){
+  const top=b.tiers.find(t=>t.top);
+  if(!top||!top.rate)return null;
+  const p=top.rate/SHOP_LIMIT.rate,pulls=b.pity>0?(1-Math.pow(1-p,b.pity))/p:1/p;
+  return {pulls:Math.round(pulls*10)/10,percent:(Math.round(100000/pulls)/1000).toFixed(3)};
+}
+// {재화:id} shows the player's amount of a currency.
+function walletText(text,wallet){
+  if(typeof text!=='string'||!text.includes('{재화:')||!wallet)return text;
+  return text.replace(/\{재화:([a-zA-Z0-9_-]{1,50})\}/g,(_,id)=>String(wallet.get(id)??0));
+}
+// Uniform integers below n from the platform's secure random source, without modulo bias.
+function secureBelow(n){
+  const limit=Math.floor(0x100000000/n)*n,buf=new Uint32Array(1);
+  do crypto.getRandomValues(buf);while(buf[0]>=limit);
+  return buf[0]%n;
 }

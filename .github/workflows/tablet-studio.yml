@@ -52,7 +52,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/dreamwalker-unity
-          key: unity-managed-${{ hashFiles('ProjectSettings/ProjectVersion.txt') }}
+          key: unity-managed-ugui-${{ hashFiles('ProjectSettings/ProjectVersion.txt') }}
       - name: Compile editor, editor-only and Android player scripts
         working-directory: Studio
         run: node scripts/unity-compile-check.mjs --fetch ~/.cache/dreamwalker-unity

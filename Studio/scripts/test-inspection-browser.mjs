@@ -25,7 +25,7 @@ export async function testInspectionWorkflow(host,origin){
     await mapName.fill('복구 검수 구간');const id=await p.evaluate(()=>activeMap().id);
     await p.locator('#save').click();await p.waitForFunction(()=>!dirty && record.project.scenes.some(s=>s.name==='복구 검수 구간'));
     const normalKey=await p.evaluate(()=>{const k='dreamwalker-progress-v1:preview:'+(project.saveId||project.startMap);localStorage.setItem(k,'original-player-marker');return k;});
-    await mapName.fill('저장 전 복구 구간');await p.waitForFunction(()=>JSON.parse(localStorage.getItem(draftKey))?.project.scenes.some(s=>s.name==='저장 전 복구 구간'));
+    await mapName.fill('저장 전 복구 구간');for(const end=Date.now()+30000;!await p.evaluate(async()=>(await readDeviceDraft())?.project.scenes.some(s=>s.name==='저장 전 복구 구간'));await p.waitForTimeout(100))if(Date.now()>end)throw Error('the device draft was not written');
     await p.reload();await p.locator('#editor').waitFor();
     assert.equal(await mapName.inputValue(),'저장 전 복구 구간');assert.equal(await p.evaluate(()=>activeMap().id),id);
     await p.locator('#undo').click();assert.equal(await mapName.inputValue(),'복구 검수 구간');

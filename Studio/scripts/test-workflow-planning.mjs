@@ -47,7 +47,8 @@ const token=await call('owner-session',{},previewOwnerHeaders),headers={...previ
 let response=await call('save',{rev:0,project:shared},headers);assert.equal(response.status,200,await response.text());
 response=await call('save',{rev:1,project:doc},headers);assert.equal(response.status,200,await response.text());
 const latest=await (await call('project',undefined,headers)).json();
-assert.equal(latest.project.work.releases[0].evidence[0].id,'review');assert.equal(m.problem(m.migrateProject(latest.history[0].project)),'');
+assert.equal(latest.project.work.releases[0].evidence[0].id,'review');
+const earlier=await (await call('revision?rev='+latest.history[0].rev,undefined,headers)).json();assert.equal(m.problem(m.migrateProject(earlier.project)),'');
 const stale=await call('save',{rev:1,project:shared},headers);assert.equal(stale.status,409);
 const cyclic=structuredClone(doc);cyclic.work.tasks[0].needs=['level'];
 const refused=await call('save',{rev:2,project:cyclic},headers);assert.equal(refused.status,400,await refused.text());

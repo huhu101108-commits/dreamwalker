@@ -106,14 +106,82 @@ async function arenaMarket(db, player, op, b) {
   const wallet=await arenaQuery(db,'SELECT credits,medals,wins FROM dw_players WHERE id=?',player).first();
   return json({wallet,listings:[...own.results,...rows.results].map(v=>({...v,mine:!!v.mine}))});
 }
+// Cloud saves: a few slots per game for each device guest, written with the revision the device last saw so two
+// devices never overwrite each other silently. A transfer code moves the guest to another device once.
+const CLOUD={slots:8,bytes:65536,codeHours:24};
+const cloudGame=v=>typeof v==='string'&&/^[a-zA-Z0-9_-]{1,50}$/.test(v);
+const cloudSlot=v=>typeof v==='string'&&/^[a-z0-9-]{1,20}$/.test(v);
+function newTransferCode() {
+  const alphabet='23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+  return Array.from(crypto.getRandomValues(new Uint8Array(12)),v=>alphabet[v%alphabet.length]).join('');
+}
+const transferCode=v=>typeof v==='string'&&/^[2-9A-HJ-NP-Z]{12}$/.test(v.replace(/[\s-]/g,'').toUpperCase());
+async function cloudApi(db,req,player,op,b) {
+  const url=new URL(req.url);
+  if (op==='saves') {
+    const game=url.searchParams.get('game');
+    if (!cloudGame(game)) err(400,'게임 저장 식별자를 확인하세요.');
+    const rows=await arenaQuery(db,'SELECT slot,rev,updated,length(data) AS size FROM dw_saves WHERE player=? AND game=? ORDER BY slot',player.id,game).all();
+    return json({saves:rows.results});
+  }
+  if (op==='save' && req.method==='GET') {
+    const game=url.searchParams.get('game'),slot=url.searchParams.get('slot');
+    if (!cloudGame(game)||!cloudSlot(slot)) err(400,'게임 저장 식별자와 슬롯을 확인하세요.');
+    const row=await arenaQuery(db,'SELECT slot,rev,updated,data FROM dw_saves WHERE player=? AND game=? AND slot=?',player.id,game,slot).first();
+    if (!row) err(404,'클라우드에 저장된 진행이 없어요.');
+    return json(row);
+  }
+  if (op==='save') {
+    if (!cloudGame(b.game)||!cloudSlot(b.slot)||!integer(b.rev,0,2147483646)||typeof b.data!=='string') err(400,'저장 요청을 확인하세요.');
+    if (b.data.length>CLOUD.bytes) err(413,'진행 기록이 너무 커요.');
+    try { const v=JSON.parse(b.data); if (!v||typeof v!=='object'||Array.isArray(v)) throw Error(); } catch { err(400,'진행 기록 형식을 확인하세요.'); }
+    const now=Date.now();
+    const current=await arenaQuery(db,'SELECT rev,updated FROM dw_saves WHERE player=? AND game=? AND slot=?',player.id,b.game,b.slot).first();
+    // overwrite: the player chose this device's progress over a newer cloud copy.
+    const base=b.overwrite===true&&current?current.rev:b.rev;
+    if ((current?.rev||0)!==base) return json({error:'다른 기기에서 더 최근에 저장했어요.',rev:current?.rev||0,updated:current?.updated||0},409);
+    if (!current) {
+      const count=await arenaQuery(db,'SELECT count(*) AS n FROM dw_saves WHERE player=? AND game=?',player.id,b.game).first();
+      if (count.n>=CLOUD.slots) err(409,'클라우드 저장 슬롯은 게임마다 '+CLOUD.slots+'개까지예요.');
+      try { await arenaQuery(db,'INSERT INTO dw_saves(player,game,slot,rev,data,updated) VALUES(?,?,?,1,?,?)',player.id,b.game,b.slot,b.data,now).run(); }
+      catch(e) { if (String(e).includes('UNIQUE')||String(e).includes('PRIMARY')) err(409,'다른 기기에서 먼저 저장했어요. 다시 시도하세요.'); throw e; }
+      return json({slot:b.slot,rev:1,updated:now});
+    }
+    const write=await arenaQuery(db,'UPDATE dw_saves SET rev=rev+1,data=?,updated=? WHERE player=? AND game=? AND slot=? AND rev=?',b.data,now,player.id,b.game,b.slot,current.rev).run();
+    if (!write.meta.changes) err(409,'다른 기기에서 먼저 저장했어요. 다시 시도하세요.');
+    return json({slot:b.slot,rev:current.rev+1,updated:now});
+  }
+  if (op==='transfer') {
+    const code=newTransferCode(),expires=Date.now()+CLOUD.codeHours*3600000;
+    // One code per player: a new code replaces the earlier one, also when two requests arrive together.
+    await arenaQuery(db,'INSERT INTO dw_transfers(code,player,expires) VALUES(?,?,?) ON CONFLICT(player) DO UPDATE SET code=excluded.code,expires=excluded.expires',
+      await hash(code),player.id,expires).run();
+    return json({code:code.slice(0,4)+'-'+code.slice(4,8)+'-'+code.slice(8),expires});
+  }
+  err(404,'서비스 경로를 찾을 수 없어요.');
+}
+// The new device takes over the guest: it gets a fresh credential and the old device's one stops working.
+async function claimTransfer(db,b) {
+  if (!transferCode(b.code)) err(400,'이전 코드 12자리를 확인하세요.');
+  const code=b.code.replace(/[\s-]/g,'').toUpperCase(),key=await hash(code);
+  const row=await arenaQuery(db,'SELECT player,expires FROM dw_transfers WHERE code=?',key).first();
+  if (!row||row.expires<Date.now()) err(404,'이전 코드가 맞지 않거나 기간(24시간)이 지났어요.');
+  const used=await arenaQuery(db,'DELETE FROM dw_transfers WHERE code=?',key).run();
+  if (!used.meta.changes) err(404,'이미 사용한 이전 코드예요.');
+  const token=random();
+  await arenaQuery(db,'UPDATE dw_players SET credential=? WHERE id=?',await hash(token),row.player).run();
+  return token;
+}
 async function arenaApi(req,env,op) {
   const db=arenaDb(env), post=req.method==='POST';
-  if ((op==='status' || op==='me' || op==='market') ? req.method!=='GET' : !post) err(405,'요청 방식을 확인하세요.');
+  const reads=['status','me','market','saves'];
+  if (op==='save' ? !['GET','POST'].includes(req.method) : reads.includes(op) ? req.method!=='GET' : !post) err(405,'요청 방식을 확인하세요.');
   if (post && req.headers.get('origin') && req.headers.get('origin')!==new URL(req.url).origin) err(403,'허용되지 않은 출처예요.');
   let b={};
   if (post) {
     if (!req.headers.get('content-type')?.startsWith('application/json')) err(415,'JSON 요청이 필요해요.');
-    b=JSON.parse(new TextDecoder().decode(await limitedFileBody(req,4096)));
+    // A save is limited by its characters below; its request may take up to 4 bytes a character (UTF-8 and escapes).
+    b=JSON.parse(new TextDecoder().decode(await limitedFileBody(req,op==='save'?CLOUD.bytes*4+4096:4096)));
     if (!b || Array.isArray(b) || typeof b!=='object') err(400,'요청 형식을 확인하세요.');
   }
   if (op==='status') {
@@ -125,9 +193,14 @@ async function arenaApi(req,env,op) {
     if (player) return json(b.native===true ? {ok:true,token:arenaToken(req)} : {ok:true});
     const token=random(), id=crypto.randomUUID();
     await arenaQuery(db,'INSERT INTO dw_players(id,credential) VALUES(?,?)',id,await hash(token)).run();
-    return json(b.native===true ? {ok:true,token} : {ok:true},201,{'set-cookie':'dw_arena='+token+'; Path=/api/arena/; Max-Age=31536000; Secure; HttpOnly; SameSite=Strict'});
+    return json(b.native===true ? {ok:true,token,created:true} : {ok:true,created:true},201,{'set-cookie':'dw_arena='+token+'; Path=/api/arena/; Max-Age=31536000; Secure; HttpOnly; SameSite=Strict'});
+  }
+  if (op==='claim') {
+    const token=await claimTransfer(db,b);
+    return json(b.native===true ? {ok:true,token} : {ok:true},200,{'set-cookie':'dw_arena='+token+'; Path=/api/arena/; Max-Age=31536000; Secure; HttpOnly; SameSite=Strict'});
   }
   if (!player) err(401,'기기 게스트로 입장하세요.');
+  if (['saves','save','transfer'].includes(op)) return cloudApi(db,req,player,op,b);
   if (op==='me') {
     const room=await arenaCurrent(db,player.id);
     const wallet=await arenaQuery(db,'SELECT credits,medals,wins FROM dw_players WHERE id=?',player.id).first();

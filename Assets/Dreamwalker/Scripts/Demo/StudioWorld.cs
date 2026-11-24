@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Dreamwalker.Combat;
 using Dreamwalker.Player;
+using Dreamwalker.UI;
 using UnityEngine;
 
 namespace Dreamwalker.Demo
@@ -33,6 +34,7 @@ public sealed partial class StudioWorld : MonoBehaviour
     public StudioCharacter Actor { get; private set; }
     public StudioStory Story { get; private set; }
     public StudioLine Line => Story == null ? null : Story.nodes[lineIndex];
+    public bool LastLine => Story != null && lineIndex == Story.nodes.Length - 1;
     public string Menu { get; private set; }
     public string Result { get; private set; }
     public int Health { get; private set; }
@@ -51,10 +53,13 @@ public sealed partial class StudioWorld : MonoBehaviour
                                                         : Story != null ? (string.IsNullOrEmpty(Line.layout) ? Map.dialogueId : Line.layout)
                                                         : string.IsNullOrEmpty(Menu) ? Map.hudId
                                                                                      : Menu);
-    public bool Paused => !string.IsNullOrEmpty(front) || Story != null || !string.IsNullOrEmpty(Result) ||
+    public bool Paused => ShopPanel != null || !string.IsNullOrEmpty(front) || Story != null || !string.IsNullOrEmpty(Result) ||
                           (Project.schema < 4 ? !string.IsNullOrEmpty(Menu) : CurrentLayout.pauseGame);
     public bool Running { get; private set; }
     public StudioConnection Connection { get; private set; }
+    // Game screens, HUD, dialogue and cut-ins are drawn through this painter (a uGUI canvas in players).
+    internal StudioPainter Painter { get; private set; }
+    private int previousFrameRate, previousSleep;
 
     private BaekseolMotor motor;
     private BaekseolSlash slash;
@@ -174,10 +179,20 @@ public sealed partial class StudioWorld : MonoBehaviour
             white = MakeSprite(Texture2D.whiteTexture);
             slash.TargetHit += OnBasicHit;
             screenView = new StudioScreenView(this);
+            Painter ??= StudioPainter.Create(this, "Dreamwalker Game UI", 10, PaintUi);
+            // Drawing keeps pace with the 60-tick simulation (mobile players default to 30), and the screen stays on while playing.
+            previousFrameRate = Application.targetFrameRate;
+            previousSleep = Screen.sleepTimeout;
+            Application.targetFrameRate = 60;
+            Screen.sleepTimeout = SleepTimeout.NeverSleep;
             Running = true;
         }
         Project = project;
+        // One language at a time: the player's earlier choice, else the device language, else the base language.
+        Language = StudioLocalization.Apply(project, StudioLocalization.Pick(StudioLocalization.Codes(project),
+            new[] { PlayerPrefs.GetString(LanguageKey, ""), DeviceLanguage() }));
         flow = new StudioScreenFlow();
+        StartReports();
         hasTimers = Array.Exists(project.layouts,
                                  l => l.rules != null && Array.Exists(l.rules, r => r.@event == "elapsed"));
         ResetProgress();
@@ -559,7 +574,7 @@ public sealed partial class StudioWorld : MonoBehaviour
             Enter(dest, true);
         else
         {
-            Result = "맵 탐험 완료";
+            Result = StudioLocalization.Text("result.clear");
             Fire("clear");
             SyncControls();
         }
@@ -691,6 +706,31 @@ public sealed partial class StudioWorld : MonoBehaviour
     }
     private void PressCore(string action,string target)
     {
+        // The built-in shop panel sits above every screen and closes first.
+        if (ShopPanel != null && (action == "back" || action == "resume" || action == "closePanel")) { ShopPanel = null; return; }
+        if (ShopAction(action, target)) return;
+        if (CloudAction(action)) { CloudPress(action, target); return; }
+        if (action == "reports") { SetReports(target); return; }
+        // A language button: the next language in the list, or the one it names. The choice is kept on this device.
+        if (action == "language")
+        {
+            var codes = StudioLocalization.Codes(Project);
+            string chosen = string.IsNullOrEmpty(target) ? codes[(codes.IndexOf(Language) + 1) % codes.Count] : target;
+            if (codes.Contains(chosen) && chosen != Language)
+            {
+                Language = StudioLocalization.Apply(Project, chosen);
+                PlayerPrefs.SetString(LanguageKey, Language);
+                PlayerPrefs.Save();
+                ReportsWord();
+            }
+            return;
+        }
+        // A creator-placed button opens the online friendly match, also in release builds where the studio panel is hidden.
+        if (action == "online")
+        {
+            (GetComponent<StudioOnlineArena>() ?? gameObject.AddComponent<StudioOnlineArena>()).Open();
+            return;
+        }
         var f = Project.frontScreens;
         if ((action=="beginGame"||action=="confirmActor")&&FollowScreenRoute("next"))return;
         if ((action=="back"||action=="resume")&&FollowScreenRoute(action))return;
@@ -1140,7 +1180,7 @@ public sealed partial class StudioWorld : MonoBehaviour
         }
         if (Health <= 0)
         {
-            Result = "전투 종료";
+            Result = StudioLocalization.Text("result.over");
             Fire("defeat");
             SyncControls();
             return;
@@ -1226,12 +1266,14 @@ public sealed partial class StudioWorld : MonoBehaviour
             RecordFrame();
             if (Time.unscaledTime >= nextProgressSave) { SaveProgress(); nextProgressSave = Time.unscaledTime + 5; }
         }
+        // After the camera has moved, so the shout bubble follows the hero on the same frame.
+        Painter?.Frame(PaintUi);
     }
-    private void OnGUI()
+    private void PaintUi()
     {
         if (StudioOnlineArena.Visible) return;
         if (!Running) return;
-        screenView.Draw(); screenView.DrawCast(); DrawSceneTransition(); DrawDiagnostics();
+        screenView.Draw(); screenView.DrawCast(); DrawSceneTransition(); DrawDiagnostics(); DrawShopPanel(); DrawNotice();
         if (!Paused || CurrentLayout == null || (!HasOverlay && Line?.shot?.layers != null) ||
             (ShowingFront && front == Project.frontScreens?.loading)) return;
         bool recovery = Array.Exists(CurrentLayout.elements, w => Visible(w) && Enabled(w) &&
@@ -1239,7 +1281,8 @@ public sealed partial class StudioWorld : MonoBehaviour
              w.action == "restart" || w.action == "newRun" || w.action == "gotoMap" || w.action == "open" ||
              w.action == "beginGame" || w.action == "confirmActor" ||
              (Story != null && (w.action == "skip" || w.action == "nextLine")))));
-        if (!recovery && GUI.Button(new Rect(Screen.width-104,4,100,38),"화면 닫기"))
+        if (!recovery && Painter.Button("world/close", new Rect(Screen.width-Painter.Dp(104),Painter.Dp(4),Painter.Dp(100),Painter.Dp(38)),StudioLocalization.Text("bar.close"),
+                new StudioText(Mathf.RoundToInt(Painter.Dp(14)),StudioAlign.Center,Color.white),true,StudioSkin.Standard(Painter.Density)))
             Press(HasOverlay || Story == null ? "back" : "skip");
     }
     private void OnDestroy()
@@ -1251,8 +1294,11 @@ public sealed partial class StudioWorld : MonoBehaviour
         if (!Running)
             return;
         SaveProgress();
+        StopReports();
         Running = false;
         Time.fixedDeltaTime = previousStep;
+        Application.targetFrameRate = previousFrameRate;
+        Screen.sleepTimeout = previousSleep;
         ClearMap();
         if (slash != null)
             slash.TargetHit -= OnBasicHit;
@@ -1293,6 +1339,8 @@ public sealed partial class StudioWorld : MonoBehaviour
             demoHud.enabled = hudEnabled;
         ReleaseSound();
         screenView.Dispose();
+        Painter?.Dispose();
+        Painter = null;
         foreach (var sprite in sprites.Values)
             Destroy(sprite);
         sprites.Clear();

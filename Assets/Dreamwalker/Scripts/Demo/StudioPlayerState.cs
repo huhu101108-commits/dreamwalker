@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Dreamwalker.UI;
 using UnityEngine;
 
 namespace Dreamwalker.Demo
@@ -42,6 +43,7 @@ public class StudioPlayerSave
     public int combatTick;
     public StudioActorRules[] combatStates;
     public StudioProgramBucket eventState;
+    public StudioShopSave shop;
 }
 public sealed partial class StudioWorld
 {
@@ -61,7 +63,9 @@ public sealed partial class StudioWorld
                 eventMachine.Value(m.Groups[1].Success?m.Groups[1].Value:"save",m.Groups[2].Value).ToString(System.Globalization.CultureInfo.InvariantCulture));
         if (!string.IsNullOrEmpty(text) && text.Contains("{입력:"))
             text = System.Text.RegularExpressions.Regex.Replace(text,@"\{입력:([a-zA-Z0-9_가-힣-]{1,50})\}",
-                m => formValues.TryGetValue(m.Groups[1].Value,out string value) || formDefaults.TryGetValue(m.Groups[1].Value,out value) ? value : "");
+                m => formValues.TryGetValue(m.Groups[1].Value,out string value) || formDefaults.TryGetValue(m.Groups[1].Value,out value) ||
+                     hostValues.TryGetValue(m.Groups[1].Value,out value) ? value : "");
+        text = WalletText(text);
         return Actor != null ? Actor.ProfileText(text) : text;
     }
     internal void CommitField(StudioWidget w,string raw) {
@@ -167,6 +171,41 @@ public sealed partial class StudioWorld
 #if UNITY_EDITOR
     public const string TabletPreviewSlotKey="Dreamwalker.TabletPreview.Slot", TabletPreviewMapKey="Dreamwalker.TabletPreview.Map", TabletPreviewObjectKey="Dreamwalker.TabletPreview.Object";
 #endif
+    public string Language { get; private set; } = "ko";
+    private string LanguageKey => "dreamwalker-language-v1:" + (string.IsNullOrEmpty(Project.saveId) ? Project.startMap : Project.saveId);
+    // The device language as a language code; Android reports the full tag (zh-TW, pt-BR) where it can.
+    private static string DeviceLanguage()
+    {
+#if UNITY_ANDROID && !UNITY_EDITOR
+        try
+        {
+            using (var locale = new AndroidJavaClass("java.util.Locale"))
+            using (var current = locale.CallStatic<AndroidJavaObject>("getDefault"))
+                return current.Call<string>("toLanguageTag");
+        }
+        catch (Exception) { }
+#endif
+        switch (Application.systemLanguage)
+        {
+        case SystemLanguage.Korean: return "ko";
+        case SystemLanguage.English: return "en";
+        case SystemLanguage.Japanese: return "ja";
+        case SystemLanguage.ChineseSimplified: return "zh-Hans";
+        case SystemLanguage.ChineseTraditional: return "zh-Hant";
+        case SystemLanguage.Chinese: return "zh";
+        case SystemLanguage.Spanish: return "es";
+        case SystemLanguage.French: return "fr";
+        case SystemLanguage.German: return "de";
+        case SystemLanguage.Portuguese: return "pt";
+        case SystemLanguage.Russian: return "ru";
+        case SystemLanguage.Italian: return "it";
+        case SystemLanguage.Thai: return "th";
+        case SystemLanguage.Vietnamese: return "vi";
+        case SystemLanguage.Indonesian: return "id";
+        case SystemLanguage.Turkish: return "tr";
+        default: return "";
+        }
+    }
     private string SaveKey
     {
         get
@@ -223,6 +262,7 @@ public sealed partial class StudioWorld
         rewards.Clear();
         bag.Clear();
         gear.Clear();
+        ShopReset();
         nextProgressSave = Time.unscaledTime + 5;
         lastPose = lastSpriteRef = null;
     }
@@ -292,6 +332,7 @@ public sealed partial class StudioWorld
         foreach (var pair in gear)
             equipment.Add(new StudioEquipEntry { key = pair.Key, id = pair.Value });
         snapshot.gear = equipment.ToArray();
+        if (Project.shop != null) snapshot.shop = ShopSave();
         string json = JsonUtility.ToJson(snapshot);
         if (json != lastCheckpoint)
         {
@@ -354,6 +395,7 @@ public sealed partial class StudioWorld
         foreach (var entry in saved.gear ?? Array.Empty<StudioEquipEntry>())
             if (entry?.key != null && bag.ContainsKey(entry.id))
                 gear[entry.key] = entry.id;
+        ShopRestore(saved.shop);
         Enter(Project.Map(saved.map), false, true);
         SetCharacter(Project.Character(saved.actor), false);
         flow.Restore(saved.flags, saved.runRules, saved.mapRules);
@@ -437,7 +479,7 @@ public sealed partial class StudioWorld
         gear[key] = item.id;
         return true;
     }
-    internal void DrawProgressWidget(StudioWidget widget, Rect area, GUIStyle style)
+    internal void DrawProgressWidget(StudioWidget widget, Rect area, StudioText style)
     {
         string key = CurrentLayout.id + ":" + widget.id;
         widgetScroll.TryGetValue(key, out var scroll);
@@ -445,12 +487,12 @@ public sealed partial class StudioWorld
         int count = inventory ? bag.Count : (Project.quests?.Length ?? 0);
         if (count == 0)
         {
-            GUI.Label(area, inventory ? "보유 장비 없음" : "등록된 의뢰 없음", style);
+            Painter.Label(area, StudioLocalization.Text(inventory ? "items.empty" : "quests.empty"), style);
             return;
         }
-        float line = Mathf.Max(32, (inventory ? screenView.ItemStyle(widget,style).fontSize : style.fontSize) * 2);
-        float width = Mathf.Max(24, area.width - 18);
-        widgetScroll[key] = GUI.BeginScrollView(area, scroll, new Rect(0, 0, width, count * line));
+        float line = Mathf.Max(Painter.Dp(32), (inventory ? screenView.ItemStyle(widget,style).size : style.size) * 2);
+        float width = Mathf.Max(Painter.Dp(24), area.width - Painter.Dp(18));
+        widgetScroll[key] = Painter.BeginScroll("progress/" + key, area, new Rect(0, 0, width, count * line), scroll);
         int i = 0;
         if (inventory)
             foreach (var p in bag)
@@ -461,15 +503,15 @@ public sealed partial class StudioWorld
                 gear.TryGetValue(Actor.id + ":" + item.slot, out var equipped);
                 var old = Item(equipped);
                 string label = item.name + " ×" + p.Value + " · " +
-                               (equipped == item.id ? "장착 해제" : (old?.power ?? 0) + " → " + item.power);
-                if (screenView.ItemButton(widget,new Rect(0, i++ * line, width, line), label, style,true))
+                               (equipped == item.id ? StudioLocalization.Text("items.unequip") : (old?.power ?? 0) + " → " + item.power);
+                if (screenView.ItemButton(widget,"progress/" + key + "/" + item.id,new Rect(0, i++ * line, width, line), label, style,true,true))
                     ToggleGear(item);
             }
         else
             foreach (var q in Project.quests)
-                GUI.Label(new Rect(0, i++ * line, width, line),
-                          (rewards.Contains(q.id) ? "완료 · " : "진행 · ") + q.name, style);
-        GUI.EndScrollView();
+                Painter.Label(new Rect(0, i++ * line, width, line),
+                          StudioLocalization.Text(rewards.Contains(q.id) ? "quests.done" : "quests.active") + " · " + q.name, style);
+        Painter.EndScroll();
     }
     private Sprite GraphicsFor(string reference)
     {

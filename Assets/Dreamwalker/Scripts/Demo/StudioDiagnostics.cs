@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using Dreamwalker.UI;
 using UnityEngine;
 namespace Dreamwalker.Demo
 {
@@ -32,8 +33,11 @@ public sealed partial class StudioWorld
     {
         if (!Debug.isDebugBuild && !Application.isEditor)
             return;
-        float w = Mathf.Min(260, Screen.width * .35f);
-        if (GUI.Button(new Rect(4, Screen.height - 38, 100, 34), showReport ? "성능 닫기" : "성능 기록"))
+        var ui = Painter;
+        float w = Mathf.Min(ui.Dp(260), Screen.width * .35f);
+        var label = new StudioText(Mathf.RoundToInt(ui.Dp(13)), StudioAlign.Center, Color.white);
+        var standard = StudioSkin.Standard(ui.Density);
+        if (ui.Button("world/performance", new Rect(ui.Dp(4), Screen.height - ui.Dp(38), ui.Dp(100), ui.Dp(34)), showReport ? "성능 닫기" : "성능 기록", label, true, standard))
             showReport = !showReport;
         if (!showReport || sampleCount == 0)
             return;
@@ -62,14 +66,15 @@ public sealed partial class StudioWorld
             reportText = JsonUtility.ToJson(report);
             reportLabel = report.fps.ToString("F1") + " FPS · P95 " + report.p95ms.ToString("F1") + " ms";
         }
-        var rect = new Rect(4, Screen.height - 152, w, 108);
-        GUI.Box(rect, reportLabel);
-        if (GUI.Button(new Rect(rect.x + 4, rect.y + 28, w - 8, 33), "측정 JSON 복사"))
+        var rect = new Rect(ui.Dp(4), Screen.height - ui.Dp(152), w, ui.Dp(108));
+        ui.Box(rect, new Color(.05f, .07f, .1f, .9f), ui.Dp(6));
+        ui.Label(new Rect(rect.x, rect.y, rect.width, ui.Dp(26)), reportLabel, label);
+        if (ui.Button("world/performance/copy", new Rect(rect.x + ui.Dp(4), rect.y + ui.Dp(28), w - ui.Dp(8), ui.Dp(33)), "측정 JSON 복사", label, true, standard))
         {
             GUIUtility.systemCopyBuffer = reportText;
             reportStatus = "복사 완료";
         }
-        if (GUI.Button(new Rect(rect.x + 4, rect.y + 65, w - 8, 33), "기기에 기록 " + reportStatus))
+        if (ui.Button("world/performance/save", new Rect(rect.x + ui.Dp(4), rect.y + ui.Dp(65), w - ui.Dp(8), ui.Dp(33)), "기기에 기록 " + reportStatus, label, true, standard))
         {
             try
             {

@@ -8,7 +8,7 @@ import { worker, BUCKET, ownerDigest, ownerHeaders, call } from './worker-fixtur
 const ctx = vm.createContext({ crypto, structuredClone, TextEncoder });
 for (const file of ['model']) vm.runInContext(await readFile('src/' + file + '.js', 'utf8'), ctx);
 const m = vm.runInContext(`({unitySourceText,unitySourcePath,unityMediaKind,studioTextDigest,unitySourceManifest,unityChangeProblem,
-  unityChangeRows,applyUnityChanges,problem,seed,emptyWork,imageRefs,soundRefs})`, ctx);
+  unityChangeRows,applyUnityChanges,problem,seed,emptyWork,imageRefs,soundRefs,SOURCE_LIMIT})`, ctx);
 const rules = JSON.parse(await readFile('scripts/native-check/unity-return.json', 'utf8'));
 for (const t of rules.texts) {
   assert.equal(m.unitySourceText(t.text), t.normal);
@@ -104,8 +104,8 @@ assert.deepEqual(Array.from(again, (r) => r.path + ':' + r.chosen).sort(), [
   'Assets/Art/hero.png:false', 'Assets/Audio/hit.wav:false', 'Assets/Dreamwalker/Scripts/Demo/StudioCombatClock.cs:false',
 ], 'applied rows no longer show as changes; assets already present stay unchosen');
 const crowded = structuredClone(draft);
-for (let i = 0; i < 180; i++) crowded.sourceFiles.push({ path: 'Assets/Filler/F' + i + '.cs', text: '' });
-assert.throws(() => m.applyUnityChanges(crowded, base, rows), /180개/);
+for (let i = 0; i < m.SOURCE_LIMIT.files; i++) crowded.sourceFiles.push({ path: 'Assets/Filler/F' + i + '.cs', text: '' });
+assert.throws(() => m.applyUnityChanges(crowded, base, rows), new RegExp(m.SOURCE_LIMIT.files + '개'));
 const saved = await call('save', { rev: record.rev, project: next }, edit);
 assert.equal(saved.status, 200, await saved.clone().text());
 assert.equal((await call('unity-sync/changes-clear', {}, unity)).status, 403);

@@ -1,0 +1,970 @@
+{"poses":[
+["baekseol",2493931719,0,true,true,0,true,"talk",1],
+["baekseol",2493931719,0,true,true,0,false,"base",1],
+["baekseol",2493931719,0,true,true,119,true,"talk",1],
+["baekseol",2493931719,0,true,true,119,false,"base",1],
+["baekseol",2493931719,0,true,true,120,true,"base",1],
+["baekseol",2493931719,0,true,true,120,false,"base",1],
+["baekseol",2493931719,0,true,true,130,true,"base",1],
+["baekseol",2493931719,0,true,true,130,false,"base",1],
+["baekseol",2493931719,0,true,true,241,true,"talk",1],
+["baekseol",2493931719,0,true,true,241,false,"base",1],
+["baekseol",2493931719,0,true,true,1000,true,"talk",1],
+["baekseol",2493931719,0,true,true,1000,false,"base",1],
+["baekseol",2493931719,0,true,true,3999,true,"base",1],
+["baekseol",2493931719,0,true,true,3999,false,"base",1],
+["baekseol",2493931719,0,true,true,4129,true,"talk",1],
+["baekseol",2493931719,0,true,true,4129,false,"base",1],
+["baekseol",2493931719,0,true,true,12345.6,true,"blink",1],
+["baekseol",2493931719,0,true,true,12345.6,false,"blink",1],
+["baekseol",2493931719,0,true,true,3600000,true,"talk",1],
+["baekseol",2493931719,0,true,true,3600000,false,"base",1],
+["baekseol",2493931719,0,true,false,0,true,"base",1],
+["baekseol",2493931719,0,true,false,0,false,"base",1],
+["baekseol",2493931719,0,true,false,119,true,"base",1],
+["baekseol",2493931719,0,true,false,119,false,"base",1],
+["baekseol",2493931719,0,true,false,120,true,"base",1],
+["baekseol",2493931719,0,true,false,120,false,"base",1],
+["baekseol",2493931719,0,true,false,130,true,"base",1],
+["baekseol",2493931719,0,true,false,130,false,"base",1],
+["baekseol",2493931719,0,true,false,241,true,"base",1],
+["baekseol",2493931719,0,true,false,241,false,"base",1],
+["baekseol",2493931719,0,true,false,1000,true,"base",1],
+["baekseol",2493931719,0,true,false,1000,false,"base",1],
+["baekseol",2493931719,0,true,false,3999,true,"base",1],
+["baekseol",2493931719,0,true,false,3999,false,"base",1],
+["baekseol",2493931719,0,true,false,4129,true,"base",1],
+["baekseol",2493931719,0,true,false,4129,false,"base",1],
+["baekseol",2493931719,0,true,false,12345.6,true,"blink",1],
+["baekseol",2493931719,0,true,false,12345.6,false,"blink",1],
+["baekseol",2493931719,0,true,false,3600000,true,"base",1],
+["baekseol",2493931719,0,true,false,3600000,false,"base",1],
+["baekseol",2493931719,0,false,true,0,true,"talk",1],
+["baekseol",2493931719,0,false,true,0,false,"base",1],
+["baekseol",2493931719,0,false,true,119,true,"talk",1],
+["baekseol",2493931719,0,false,true,119,false,"base",1],
+["baekseol",2493931719,0,false,true,120,true,"base",1],
+["baekseol",2493931719,0,false,true,120,false,"base",1],
+["baekseol",2493931719,0,false,true,130,true,"base",1],
+["baekseol",2493931719,0,false,true,130,false,"base",1],
+["baekseol",2493931719,0,false,true,241,true,"talk",1],
+["baekseol",2493931719,0,false,true,241,false,"base",1],
+["baekseol",2493931719,0,false,true,1000,true,"talk",1],
+["baekseol",2493931719,0,false,true,1000,false,"base",1],
+["baekseol",2493931719,0,false,true,3999,true,"base",1],
+["baekseol",2493931719,0,false,true,3999,false,"base",1],
+["baekseol",2493931719,0,false,true,4129,true,"talk",1],
+["baekseol",2493931719,0,false,true,4129,false,"base",1],
+["baekseol",2493931719,0,false,true,12345.6,true,"talk",1],
+["baekseol",2493931719,0,false,true,12345.6,false,"base",1],
+["baekseol",2493931719,0,false,true,3600000,true,"talk",1],
+["baekseol",2493931719,0,false,true,3600000,false,"base",1],
+["baekseol",2493931719,1,true,true,0,true,"talk",1.0051096755872992],
+["baekseol",2493931719,1,true,true,0,false,"base",1.0051096755872992],
+["baekseol",2493931719,1,true,true,119,true,"talk",1.0056990140756854],
+["baekseol",2493931719,1,true,true,119,false,"base",1.0056990140756854],
+["baekseol",2493931719,1,true,true,120,true,"base",1.005702687579551],
+["baekseol",2493931719,1,true,true,120,false,"base",1.005702687579551],
+["baekseol",2493931719,1,true,true,130,true,"base",1.0057382111128914],
+["baekseol",2493931719,1,true,true,130,false,"base",1.0057382111128914],
+["baekseol",2493931719,1,true,true,241,true,"talk",1.0059815040023987],
+["baekseol",2493931719,1,true,true,241,false,"base",1.0059815040023987],
+["baekseol",2493931719,1,true,true,1000,true,"talk",1.0009502409025839],
+["baekseol",2493931719,1,true,true,1000,false,"base",1.0009502409025839],
+["baekseol",2493931719,1,true,true,3999,true,"base",1.0031550570245116],
+["baekseol",2493931719,1,true,true,3999,false,"base",1.0031550570245116],
+["baekseol",2493931719,1,true,true,4129,true,"talk",1.001764241951394],
+["baekseol",2493931719,1,true,true,4129,false,"base",1.001764241951394],
+["baekseol",2493931719,1,true,true,12345.6,true,"blink",1.0007519994013858],
+["baekseol",2493931719,1,true,true,12345.6,false,"blink",1.0007519994013858],
+["baekseol",2493931719,1,true,true,3600000,true,"talk",1.0051096755872992],
+["baekseol",2493931719,1,true,true,3600000,false,"base",1.0051096755872992],
+["baekseol",2493931719,1,true,false,0,true,"base",1.0051096755872992],
+["baekseol",2493931719,1,true,false,0,false,"base",1.0051096755872992],
+["baekseol",2493931719,1,true,false,119,true,"base",1.0056990140756854],
+["baekseol",2493931719,1,true,false,119,false,"base",1.0056990140756854],
+["baekseol",2493931719,1,true,false,120,true,"base",1.005702687579551],
+["baekseol",2493931719,1,true,false,120,false,"base",1.005702687579551],
+["baekseol",2493931719,1,true,false,130,true,"base",1.0057382111128914],
+["baekseol",2493931719,1,true,false,130,false,"base",1.0057382111128914],
+["baekseol",2493931719,1,true,false,241,true,"base",1.0059815040023987],
+["baekseol",2493931719,1,true,false,241,false,"base",1.0059815040023987],
+["baekseol",2493931719,1,true,false,1000,true,"base",1.0009502409025839],
+["baekseol",2493931719,1,true,false,1000,false,"base",1.0009502409025839],
+["baekseol",2493931719,1,true,false,3999,true,"base",1.0031550570245116],
+["baekseol",2493931719,1,true,false,3999,false,"base",1.0031550570245116],
+["baekseol",2493931719,1,true,false,4129,true,"base",1.001764241951394],
+["baekseol",2493931719,1,true,false,4129,false,"base",1.001764241951394],
+["baekseol",2493931719,1,true,false,12345.6,true,"blink",1.0007519994013858],
+["baekseol",2493931719,1,true,false,12345.6,false,"blink",1.0007519994013858],
+["baekseol",2493931719,1,true,false,3600000,true,"base",1.0051096755872992],
+["baekseol",2493931719,1,true,false,3600000,false,"base",1.0051096755872992],
+["baekseol",2493931719,1,false,true,0,true,"talk",1.0051096755872992],
+["baekseol",2493931719,1,false,true,0,false,"base",1.0051096755872992],
+["baekseol",2493931719,1,false,true,119,true,"talk",1.0056990140756854],
+["baekseol",2493931719,1,false,true,119,false,"base",1.0056990140756854],
+["baekseol",2493931719,1,false,true,120,true,"base",1.005702687579551],
+["baekseol",2493931719,1,false,true,120,false,"base",1.005702687579551],
+["baekseol",2493931719,1,false,true,130,true,"base",1.0057382111128914],
+["baekseol",2493931719,1,false,true,130,false,"base",1.0057382111128914],
+["baekseol",2493931719,1,false,true,241,true,"talk",1.0059815040023987],
+["baekseol",2493931719,1,false,true,241,false,"base",1.0059815040023987],
+["baekseol",2493931719,1,false,true,1000,true,"talk",1.0009502409025839],
+["baekseol",2493931719,1,false,true,1000,false,"base",1.0009502409025839],
+["baekseol",2493931719,1,false,true,3999,true,"base",1.0031550570245116],
+["baekseol",2493931719,1,false,true,3999,false,"base",1.0031550570245116],
+["baekseol",2493931719,1,false,true,4129,true,"talk",1.001764241951394],
+["baekseol",2493931719,1,false,true,4129,false,"base",1.001764241951394],
+["baekseol",2493931719,1,false,true,12345.6,true,"talk",1.0007519994013858],
+["baekseol",2493931719,1,false,true,12345.6,false,"base",1.0007519994013858],
+["baekseol",2493931719,1,false,true,3600000,true,"talk",1.0051096755872992],
+["baekseol",2493931719,1,false,true,3600000,false,"base",1.0051096755872992],
+["baekseol",2493931719,3,true,true,0,true,"talk",1.0170322519576638],
+["baekseol",2493931719,3,true,true,0,false,"base",1.0170322519576638],
+["baekseol",2493931719,3,true,true,119,true,"talk",1.0189967135856184],
+["baekseol",2493931719,3,true,true,119,false,"base",1.0189967135856184],
+["baekseol",2493931719,3,true,true,120,true,"base",1.0190089585985032],
+["baekseol",2493931719,3,true,true,120,false,"base",1.0190089585985032],
+["baekseol",2493931719,3,true,true,130,true,"base",1.019127370376305],
+["baekseol",2493931719,3,true,true,130,false,"base",1.019127370376305],
+["baekseol",2493931719,3,true,true,241,true,"talk",1.0199383466746625],
+["baekseol",2493931719,3,true,true,241,false,"base",1.0199383466746625],
+["baekseol",2493931719,3,true,true,1000,true,"talk",1.0031674696752797],
+["baekseol",2493931719,3,true,true,1000,false,"base",1.0031674696752797],
+["baekseol",2493931719,3,true,true,3999,true,"base",1.010516856748372],
+["baekseol",2493931719,3,true,true,3999,false,"base",1.010516856748372],
+["baekseol",2493931719,3,true,true,4129,true,"talk",1.005880806504646],
+["baekseol",2493931719,3,true,true,4129,false,"base",1.005880806504646],
+["baekseol",2493931719,3,true,true,12345.6,true,"blink",1.0025066646712861],
+["baekseol",2493931719,3,true,true,12345.6,false,"blink",1.0025066646712861],
+["baekseol",2493931719,3,true,true,3600000,true,"talk",1.0170322519576638],
+["baekseol",2493931719,3,true,true,3600000,false,"base",1.0170322519576638],
+["baekseol",2493931719,3,true,false,0,true,"base",1.0170322519576638],
+["baekseol",2493931719,3,true,false,0,false,"base",1.0170322519576638],
+["baekseol",2493931719,3,true,false,119,true,"base",1.0189967135856184],
+["baekseol",2493931719,3,true,false,119,false,"base",1.0189967135856184],
+["baekseol",2493931719,3,true,false,120,true,"base",1.0190089585985032],
+["baekseol",2493931719,3,true,false,120,false,"base",1.0190089585985032],
+["baekseol",2493931719,3,true,false,130,true,"base",1.019127370376305],
+["baekseol",2493931719,3,true,false,130,false,"base",1.019127370376305],
+["baekseol",2493931719,3,true,false,241,true,"base",1.0199383466746625],
+["baekseol",2493931719,3,true,false,241,false,"base",1.0199383466746625],
+["baekseol",2493931719,3,true,false,1000,true,"base",1.0031674696752797],
+["baekseol",2493931719,3,true,false,1000,false,"base",1.0031674696752797],
+["baekseol",2493931719,3,true,false,3999,true,"base",1.010516856748372],
+["baekseol",2493931719,3,true,false,3999,false,"base",1.010516856748372],
+["baekseol",2493931719,3,true,false,4129,true,"base",1.005880806504646],
+["baekseol",2493931719,3,true,false,4129,false,"base",1.005880806504646],
+["baekseol",2493931719,3,true,false,12345.6,true,"blink",1.0025066646712861],
+["baekseol",2493931719,3,true,false,12345.6,false,"blink",1.0025066646712861],
+["baekseol",2493931719,3,true,false,3600000,true,"base",1.0170322519576638],
+["baekseol",2493931719,3,true,false,3600000,false,"base",1.0170322519576638],
+["baekseol",2493931719,3,false,true,0,true,"talk",1.0170322519576638],
+["baekseol",2493931719,3,false,true,0,false,"base",1.0170322519576638],
+["baekseol",2493931719,3,false,true,119,true,"talk",1.0189967135856184],
+["baekseol",2493931719,3,false,true,119,false,"base",1.0189967135856184],
+["baekseol",2493931719,3,false,true,120,true,"base",1.0190089585985032],
+["baekseol",2493931719,3,false,true,120,false,"base",1.0190089585985032],
+["baekseol",2493931719,3,false,true,130,true,"base",1.019127370376305],
+["baekseol",2493931719,3,false,true,130,false,"base",1.019127370376305],
+["baekseol",2493931719,3,false,true,241,true,"talk",1.0199383466746625],
+["baekseol",2493931719,3,false,true,241,false,"base",1.0199383466746625],
+["baekseol",2493931719,3,false,true,1000,true,"talk",1.0031674696752797],
+["baekseol",2493931719,3,false,true,1000,false,"base",1.0031674696752797],
+["baekseol",2493931719,3,false,true,3999,true,"base",1.010516856748372],
+["baekseol",2493931719,3,false,true,3999,false,"base",1.010516856748372],
+["baekseol",2493931719,3,false,true,4129,true,"talk",1.005880806504646],
+["baekseol",2493931719,3,false,true,4129,false,"base",1.005880806504646],
+["baekseol",2493931719,3,false,true,12345.6,true,"talk",1.0025066646712861],
+["baekseol",2493931719,3,false,true,12345.6,false,"base",1.0025066646712861],
+["baekseol",2493931719,3,false,true,3600000,true,"talk",1.0170322519576638],
+["baekseol",2493931719,3,false,true,3600000,false,"base",1.0170322519576638],
+["백설",4110650920,0,true,true,0,true,"talk",1],
+["백설",4110650920,0,true,true,0,false,"base",1],
+["백설",4110650920,0,true,true,119,true,"talk",1],
+["백설",4110650920,0,true,true,119,false,"base",1],
+["백설",4110650920,0,true,true,120,true,"base",1],
+["백설",4110650920,0,true,true,120,false,"base",1],
+["백설",4110650920,0,true,true,130,true,"base",1],
+["백설",4110650920,0,true,true,130,false,"base",1],
+["백설",4110650920,0,true,true,241,true,"talk",1],
+["백설",4110650920,0,true,true,241,false,"base",1],
+["백설",4110650920,0,true,true,1000,true,"talk",1],
+["백설",4110650920,0,true,true,1000,false,"base",1],
+["백설",4110650920,0,true,true,3999,true,"base",1],
+["백설",4110650920,0,true,true,3999,false,"base",1],
+["백설",4110650920,0,true,true,4129,true,"talk",1],
+["백설",4110650920,0,true,true,4129,false,"base",1],
+["백설",4110650920,0,true,true,12345.6,true,"talk",1],
+["백설",4110650920,0,true,true,12345.6,false,"base",1],
+["백설",4110650920,0,true,true,3600000,true,"talk",1],
+["백설",4110650920,0,true,true,3600000,false,"base",1],
+["백설",4110650920,0,true,false,0,true,"base",1],
+["백설",4110650920,0,true,false,0,false,"base",1],
+["백설",4110650920,0,true,false,119,true,"base",1],
+["백설",4110650920,0,true,false,119,false,"base",1],
+["백설",4110650920,0,true,false,120,true,"base",1],
+["백설",4110650920,0,true,false,120,false,"base",1],
+["백설",4110650920,0,true,false,130,true,"base",1],
+["백설",4110650920,0,true,false,130,false,"base",1],
+["백설",4110650920,0,true,false,241,true,"base",1],
+["백설",4110650920,0,true,false,241,false,"base",1],
+["백설",4110650920,0,true,false,1000,true,"base",1],
+["백설",4110650920,0,true,false,1000,false,"base",1],
+["백설",4110650920,0,true,false,3999,true,"base",1],
+["백설",4110650920,0,true,false,3999,false,"base",1],
+["백설",4110650920,0,true,false,4129,true,"base",1],
+["백설",4110650920,0,true,false,4129,false,"base",1],
+["백설",4110650920,0,true,false,12345.6,true,"base",1],
+["백설",4110650920,0,true,false,12345.6,false,"base",1],
+["백설",4110650920,0,true,false,3600000,true,"base",1],
+["백설",4110650920,0,true,false,3600000,false,"base",1],
+["백설",4110650920,0,false,true,0,true,"talk",1],
+["백설",4110650920,0,false,true,0,false,"base",1],
+["백설",4110650920,0,false,true,119,true,"talk",1],
+["백설",4110650920,0,false,true,119,false,"base",1],
+["백설",4110650920,0,false,true,120,true,"base",1],
+["백설",4110650920,0,false,true,120,false,"base",1],
+["백설",4110650920,0,false,true,130,true,"base",1],
+["백설",4110650920,0,false,true,130,false,"base",1],
+["백설",4110650920,0,false,true,241,true,"talk",1],
+["백설",4110650920,0,false,true,241,false,"base",1],
+["백설",4110650920,0,false,true,1000,true,"talk",1],
+["백설",4110650920,0,false,true,1000,false,"base",1],
+["백설",4110650920,0,false,true,3999,true,"base",1],
+["백설",4110650920,0,false,true,3999,false,"base",1],
+["백설",4110650920,0,false,true,4129,true,"talk",1],
+["백설",4110650920,0,false,true,4129,false,"base",1],
+["백설",4110650920,0,false,true,12345.6,true,"talk",1],
+["백설",4110650920,0,false,true,12345.6,false,"base",1],
+["백설",4110650920,0,false,true,3600000,true,"talk",1],
+["백설",4110650920,0,false,true,3600000,false,"base",1],
+["백설",4110650920,1,true,true,0,true,"talk",0.9968650086117044],
+["백설",4110650920,1,true,true,0,false,"base",0.9968650086117044],
+["백설",4110650920,1,true,true,119,true,"talk",0.9981346972444036],
+["백설",4110650920,1,true,true,119,false,"base",0.9981346972444036],
+["백설",4110650920,1,true,true,120,true,"base",0.9981458980337503],
+["백설",4110650920,1,true,true,120,false,"base",0.9981458980337503],
+["백설",4110650920,1,true,true,130,true,"base",0.9982582919364732],
+["백설",4110650920,1,true,true,130,false,"base",0.9982582919364732],
+["백설",4110650920,1,true,true,241,true,"talk",0.9995409909811841],
+["백설",4110650920,1,true,true,241,false,"base",0.9995409909811841],
+["백설",4110650920,1,true,true,1000,true,"talk",1.005926130043571],
+["백설",4110650920,1,true,true,1000,false,"base",1.005926130043571],
+["백설",4110650920,1,true,true,3999,true,"base",1.0051096755872992],
+["백설",4110650920,1,true,true,3999,false,"base",1.0051096755872992],
+["백설",4110650920,1,true,true,4129,true,"talk",1.0057382111128914],
+["백설",4110650920,1,true,true,4129,false,"base",1.0057382111128914],
+["백설",4110650920,1,true,true,12345.6,true,"talk",0.9940487998132742],
+["백설",4110650920,1,true,true,12345.6,false,"base",0.9940487998132742],
+["백설",4110650920,1,true,true,3600000,true,"talk",0.9968650086117044],
+["백설",4110650920,1,true,true,3600000,false,"base",0.9968650086117044],
+["백설",4110650920,1,true,false,0,true,"base",0.9968650086117044],
+["백설",4110650920,1,true,false,0,false,"base",0.9968650086117044],
+["백설",4110650920,1,true,false,119,true,"base",0.9981346972444036],
+["백설",4110650920,1,true,false,119,false,"base",0.9981346972444036],
+["백설",4110650920,1,true,false,120,true,"base",0.9981458980337503],
+["백설",4110650920,1,true,false,120,false,"base",0.9981458980337503],
+["백설",4110650920,1,true,false,130,true,"base",0.9982582919364732],
+["백설",4110650920,1,true,false,130,false,"base",0.9982582919364732],
+["백설",4110650920,1,true,false,241,true,"base",0.9995409909811841],
+["백설",4110650920,1,true,false,241,false,"base",0.9995409909811841],
+["백설",4110650920,1,true,false,1000,true,"base",1.005926130043571],
+["백설",4110650920,1,true,false,1000,false,"base",1.005926130043571],
+["백설",4110650920,1,true,false,3999,true,"base",1.0051096755872992],
+["백설",4110650920,1,true,false,3999,false,"base",1.0051096755872992],
+["백설",4110650920,1,true,false,4129,true,"base",1.0057382111128914],
+["백설",4110650920,1,true,false,4129,false,"base",1.0057382111128914],
+["백설",4110650920,1,true,false,12345.6,true,"base",0.9940487998132742],
+["백설",4110650920,1,true,false,12345.6,false,"base",0.9940487998132742],
+["백설",4110650920,1,true,false,3600000,true,"base",0.9968650086117044],
+["백설",4110650920,1,true,false,3600000,false,"base",0.9968650086117044],
+["백설",4110650920,1,false,true,0,true,"talk",0.9968650086117044],
+["백설",4110650920,1,false,true,0,false,"base",0.9968650086117044],
+["백설",4110650920,1,false,true,119,true,"talk",0.9981346972444036],
+["백설",4110650920,1,false,true,119,false,"base",0.9981346972444036],
+["백설",4110650920,1,false,true,120,true,"base",0.9981458980337503],
+["백설",4110650920,1,false,true,120,false,"base",0.9981458980337503],
+["백설",4110650920,1,false,true,130,true,"base",0.9982582919364732],
+["백설",4110650920,1,false,true,130,false,"base",0.9982582919364732],
+["백설",4110650920,1,false,true,241,true,"talk",0.9995409909811841],
+["백설",4110650920,1,false,true,241,false,"base",0.9995409909811841],
+["백설",4110650920,1,false,true,1000,true,"talk",1.005926130043571],
+["백설",4110650920,1,false,true,1000,false,"base",1.005926130043571],
+["백설",4110650920,1,false,true,3999,true,"base",1.0051096755872992],
+["백설",4110650920,1,false,true,3999,false,"base",1.0051096755872992],
+["백설",4110650920,1,false,true,4129,true,"talk",1.0057382111128914],
+["백설",4110650920,1,false,true,4129,false,"base",1.0057382111128914],
+["백설",4110650920,1,false,true,12345.6,true,"talk",0.9940487998132742],
+["백설",4110650920,1,false,true,12345.6,false,"base",0.9940487998132742],
+["백설",4110650920,1,false,true,3600000,true,"talk",0.9968650086117044],
+["백설",4110650920,1,false,true,3600000,false,"base",0.9968650086117044],
+["백설",4110650920,3,true,true,0,true,"talk",0.989550028705681],
+["백설",4110650920,3,true,true,0,false,"base",0.989550028705681],
+["백설",4110650920,3,true,true,119,true,"talk",0.993782324148012],
+["백설",4110650920,3,true,true,119,false,"base",0.993782324148012],
+["백설",4110650920,3,true,true,120,true,"base",0.993819660112501],
+["백설",4110650920,3,true,true,120,false,"base",0.993819660112501],
+["백설",4110650920,3,true,true,130,true,"base",0.9941943064549108],
+["백설",4110650920,3,true,true,130,false,"base",0.9941943064549108],
+["백설",4110650920,3,true,true,241,true,"talk",0.9984699699372803],
+["백설",4110650920,3,true,true,241,false,"base",0.9984699699372803],
+["백설",4110650920,3,true,true,1000,true,"talk",1.0197537668119028],
+["백설",4110650920,3,true,true,1000,false,"base",1.0197537668119028],
+["백설",4110650920,3,true,true,3999,true,"base",1.0170322519576638],
+["백설",4110650920,3,true,true,3999,false,"base",1.0170322519576638],
+["백설",4110650920,3,true,true,4129,true,"talk",1.019127370376305],
+["백설",4110650920,3,true,true,4129,false,"base",1.019127370376305],
+["백설",4110650920,3,true,true,12345.6,true,"talk",0.9801626660442475],
+["백설",4110650920,3,true,true,12345.6,false,"base",0.9801626660442475],
+["백설",4110650920,3,true,true,3600000,true,"talk",0.989550028705681],
+["백설",4110650920,3,true,true,3600000,false,"base",0.989550028705681],
+["백설",4110650920,3,true,false,0,true,"base",0.989550028705681],
+["백설",4110650920,3,true,false,0,false,"base",0.989550028705681],
+["백설",4110650920,3,true,false,119,true,"base",0.993782324148012],
+["백설",4110650920,3,true,false,119,false,"base",0.993782324148012],
+["백설",4110650920,3,true,false,120,true,"base",0.993819660112501],
+["백설",4110650920,3,true,false,120,false,"base",0.993819660112501],
+["백설",4110650920,3,true,false,130,true,"base",0.9941943064549108],
+["백설",4110650920,3,true,false,130,false,"base",0.9941943064549108],
+["백설",4110650920,3,true,false,241,true,"base",0.9984699699372803],
+["백설",4110650920,3,true,false,241,false,"base",0.9984699699372803],
+["백설",4110650920,3,true,false,1000,true,"base",1.0197537668119028],
+["백설",4110650920,3,true,false,1000,false,"base",1.0197537668119028],
+["백설",4110650920,3,true,false,3999,true,"base",1.0170322519576638],
+["백설",4110650920,3,true,false,3999,false,"base",1.0170322519576638],
+["백설",4110650920,3,true,false,4129,true,"base",1.019127370376305],
+["백설",4110650920,3,true,false,4129,false,"base",1.019127370376305],
+["백설",4110650920,3,true,false,12345.6,true,"base",0.9801626660442475],
+["백설",4110650920,3,true,false,12345.6,false,"base",0.9801626660442475],
+["백설",4110650920,3,true,false,3600000,true,"base",0.989550028705681],
+["백설",4110650920,3,true,false,3600000,false,"base",0.989550028705681],
+["백설",4110650920,3,false,true,0,true,"talk",0.989550028705681],
+["백설",4110650920,3,false,true,0,false,"base",0.989550028705681],
+["백설",4110650920,3,false,true,119,true,"talk",0.993782324148012],
+["백설",4110650920,3,false,true,119,false,"base",0.993782324148012],
+["백설",4110650920,3,false,true,120,true,"base",0.993819660112501],
+["백설",4110650920,3,false,true,120,false,"base",0.993819660112501],
+["백설",4110650920,3,false,true,130,true,"base",0.9941943064549108],
+["백설",4110650920,3,false,true,130,false,"base",0.9941943064549108],
+["백설",4110650920,3,false,true,241,true,"talk",0.9984699699372803],
+["백설",4110650920,3,false,true,241,false,"base",0.9984699699372803],
+["백설",4110650920,3,false,true,1000,true,"talk",1.0197537668119028],
+["백설",4110650920,3,false,true,1000,false,"base",1.0197537668119028],
+["백설",4110650920,3,false,true,3999,true,"base",1.0170322519576638],
+["백설",4110650920,3,false,true,3999,false,"base",1.0170322519576638],
+["백설",4110650920,3,false,true,4129,true,"talk",1.019127370376305],
+["백설",4110650920,3,false,true,4129,false,"base",1.019127370376305],
+["백설",4110650920,3,false,true,12345.6,true,"talk",0.9801626660442475],
+["백설",4110650920,3,false,true,12345.6,false,"base",0.9801626660442475],
+["백설",4110650920,3,false,true,3600000,true,"talk",0.989550028705681],
+["백설",4110650920,3,false,true,3600000,false,"base",0.989550028705681],
+["hero-2",2018529258,0,true,true,0,true,"talk",1],
+["hero-2",2018529258,0,true,true,0,false,"base",1],
+["hero-2",2018529258,0,true,true,119,true,"talk",1],
+["hero-2",2018529258,0,true,true,119,false,"base",1],
+["hero-2",2018529258,0,true,true,120,true,"base",1],
+["hero-2",2018529258,0,true,true,120,false,"base",1],
+["hero-2",2018529258,0,true,true,130,true,"base",1],
+["hero-2",2018529258,0,true,true,130,false,"base",1],
+["hero-2",2018529258,0,true,true,241,true,"talk",1],
+["hero-2",2018529258,0,true,true,241,false,"base",1],
+["hero-2",2018529258,0,true,true,1000,true,"talk",1],
+["hero-2",2018529258,0,true,true,1000,false,"base",1],
+["hero-2",2018529258,0,true,true,3999,true,"base",1],
+["hero-2",2018529258,0,true,true,3999,false,"base",1],
+["hero-2",2018529258,0,true,true,4129,true,"talk",1],
+["hero-2",2018529258,0,true,true,4129,false,"base",1],
+["hero-2",2018529258,0,true,true,12345.6,true,"talk",1],
+["hero-2",2018529258,0,true,true,12345.6,false,"base",1],
+["hero-2",2018529258,0,true,true,3600000,true,"talk",1],
+["hero-2",2018529258,0,true,true,3600000,false,"base",1],
+["hero-2",2018529258,0,true,false,0,true,"base",1],
+["hero-2",2018529258,0,true,false,0,false,"base",1],
+["hero-2",2018529258,0,true,false,119,true,"base",1],
+["hero-2",2018529258,0,true,false,119,false,"base",1],
+["hero-2",2018529258,0,true,false,120,true,"base",1],
+["hero-2",2018529258,0,true,false,120,false,"base",1],
+["hero-2",2018529258,0,true,false,130,true,"base",1],
+["hero-2",2018529258,0,true,false,130,false,"base",1],
+["hero-2",2018529258,0,true,false,241,true,"base",1],
+["hero-2",2018529258,0,true,false,241,false,"base",1],
+["hero-2",2018529258,0,true,false,1000,true,"base",1],
+["hero-2",2018529258,0,true,false,1000,false,"base",1],
+["hero-2",2018529258,0,true,false,3999,true,"base",1],
+["hero-2",2018529258,0,true,false,3999,false,"base",1],
+["hero-2",2018529258,0,true,false,4129,true,"base",1],
+["hero-2",2018529258,0,true,false,4129,false,"base",1],
+["hero-2",2018529258,0,true,false,12345.6,true,"base",1],
+["hero-2",2018529258,0,true,false,12345.6,false,"base",1],
+["hero-2",2018529258,0,true,false,3600000,true,"base",1],
+["hero-2",2018529258,0,true,false,3600000,false,"base",1],
+["hero-2",2018529258,0,false,true,0,true,"talk",1],
+["hero-2",2018529258,0,false,true,0,false,"base",1],
+["hero-2",2018529258,0,false,true,119,true,"talk",1],
+["hero-2",2018529258,0,false,true,119,false,"base",1],
+["hero-2",2018529258,0,false,true,120,true,"base",1],
+["hero-2",2018529258,0,false,true,120,false,"base",1],
+["hero-2",2018529258,0,false,true,130,true,"base",1],
+["hero-2",2018529258,0,false,true,130,false,"base",1],
+["hero-2",2018529258,0,false,true,241,true,"talk",1],
+["hero-2",2018529258,0,false,true,241,false,"base",1],
+["hero-2",2018529258,0,false,true,1000,true,"talk",1],
+["hero-2",2018529258,0,false,true,1000,false,"base",1],
+["hero-2",2018529258,0,false,true,3999,true,"base",1],
+["hero-2",2018529258,0,false,true,3999,false,"base",1],
+["hero-2",2018529258,0,false,true,4129,true,"talk",1],
+["hero-2",2018529258,0,false,true,4129,false,"base",1],
+["hero-2",2018529258,0,false,true,12345.6,true,"talk",1],
+["hero-2",2018529258,0,false,true,12345.6,false,"base",1],
+["hero-2",2018529258,0,false,true,3600000,true,"talk",1],
+["hero-2",2018529258,0,false,true,3600000,false,"base",1],
+["hero-2",2018529258,1,true,true,0,true,"talk",1.0037330386009733],
+["hero-2",2018529258,1,true,true,0,false,"base",1.0037330386009733],
+["hero-2",2018529258,1,true,true,119,true,"talk",1.0025440110891246],
+["hero-2",2018529258,1,true,true,119,false,"base",1.0025440110891246],
+["hero-2",2018529258,1,true,true,120,true,"base",1.0025333366208997],
+["hero-2",2018529258,1,true,true,120,false,"base",1.0025333366208997],
+["hero-2",2018529258,1,true,true,130,true,"base",1.0024260615731724],
+["hero-2",2018529258,1,true,true,130,false,"base",1.0024260615731724],
+["hero-2",2018529258,1,true,true,241,true,"talk",1.0011820942726384],
+["hero-2",2018529258,1,true,true,241,false,"base",1.0011820942726384],
+["hero-2",2018529258,1,true,true,1000,true,"talk",0.9942317087565149],
+["hero-2",2018529258,1,true,true,1000,false,"base",0.9942317087565149],
+["hero-2",2018529258,1,true,true,3999,true,"base",0.995310060620604],
+["hero-2",2018529258,1,true,true,3999,false,"base",0.995310060620604],
+["hero-2",2018529258,1,true,true,4129,true,"talk",0.9945171311771976],
+["hero-2",2018529258,1,true,true,4129,false,"base",0.9945171311771976],
+["hero-2",2018529258,1,true,true,12345.6,true,"talk",1.005999895906817],
+["hero-2",2018529258,1,true,true,12345.6,false,"base",1.005999895906817],
+["hero-2",2018529258,1,true,true,3600000,true,"talk",1.0037330386009733],
+["hero-2",2018529258,1,true,true,3600000,false,"base",1.0037330386009733],
+["hero-2",2018529258,1,true,false,0,true,"base",1.0037330386009733],
+["hero-2",2018529258,1,true,false,0,false,"base",1.0037330386009733],
+["hero-2",2018529258,1,true,false,119,true,"base",1.0025440110891246],
+["hero-2",2018529258,1,true,false,119,false,"base",1.0025440110891246],
+["hero-2",2018529258,1,true,false,120,true,"base",1.0025333366208997],
+["hero-2",2018529258,1,true,false,120,false,"base",1.0025333366208997],
+["hero-2",2018529258,1,true,false,130,true,"base",1.0024260615731724],
+["hero-2",2018529258,1,true,false,130,false,"base",1.0024260615731724],
+["hero-2",2018529258,1,true,false,241,true,"base",1.0011820942726384],
+["hero-2",2018529258,1,true,false,241,false,"base",1.0011820942726384],
+["hero-2",2018529258,1,true,false,1000,true,"base",0.9942317087565149],
+["hero-2",2018529258,1,true,false,1000,false,"base",0.9942317087565149],
+["hero-2",2018529258,1,true,false,3999,true,"base",0.995310060620604],
+["hero-2",2018529258,1,true,false,3999,false,"base",0.995310060620604],
+["hero-2",2018529258,1,true,false,4129,true,"base",0.9945171311771976],
+["hero-2",2018529258,1,true,false,4129,false,"base",0.9945171311771976],
+["hero-2",2018529258,1,true,false,12345.6,true,"base",1.005999895906817],
+["hero-2",2018529258,1,true,false,12345.6,false,"base",1.005999895906817],
+["hero-2",2018529258,1,true,false,3600000,true,"base",1.0037330386009733],
+["hero-2",2018529258,1,true,false,3600000,false,"base",1.0037330386009733],
+["hero-2",2018529258,1,false,true,0,true,"talk",1.0037330386009733],
+["hero-2",2018529258,1,false,true,0,false,"base",1.0037330386009733],
+["hero-2",2018529258,1,false,true,119,true,"talk",1.0025440110891246],
+["hero-2",2018529258,1,false,true,119,false,"base",1.0025440110891246],
+["hero-2",2018529258,1,false,true,120,true,"base",1.0025333366208997],
+["hero-2",2018529258,1,false,true,120,false,"base",1.0025333366208997],
+["hero-2",2018529258,1,false,true,130,true,"base",1.0024260615731724],
+["hero-2",2018529258,1,false,true,130,false,"base",1.0024260615731724],
+["hero-2",2018529258,1,false,true,241,true,"talk",1.0011820942726384],
+["hero-2",2018529258,1,false,true,241,false,"base",1.0011820942726384],
+["hero-2",2018529258,1,false,true,1000,true,"talk",0.9942317087565149],
+["hero-2",2018529258,1,false,true,1000,false,"base",0.9942317087565149],
+["hero-2",2018529258,1,false,true,3999,true,"base",0.995310060620604],
+["hero-2",2018529258,1,false,true,3999,false,"base",0.995310060620604],
+["hero-2",2018529258,1,false,true,4129,true,"talk",0.9945171311771976],
+["hero-2",2018529258,1,false,true,4129,false,"base",0.9945171311771976],
+["hero-2",2018529258,1,false,true,12345.6,true,"talk",1.005999895906817],
+["hero-2",2018529258,1,false,true,12345.6,false,"base",1.005999895906817],
+["hero-2",2018529258,1,false,true,3600000,true,"talk",1.0037330386009733],
+["hero-2",2018529258,1,false,true,3600000,false,"base",1.0037330386009733],
+["hero-2",2018529258,3,true,true,0,true,"talk",1.012443462003244],
+["hero-2",2018529258,3,true,true,0,false,"base",1.012443462003244],
+["hero-2",2018529258,3,true,true,119,true,"talk",1.0084800369637488],
+["hero-2",2018529258,3,true,true,119,false,"base",1.0084800369637488],
+["hero-2",2018529258,3,true,true,120,true,"base",1.0084444554029992],
+["hero-2",2018529258,3,true,true,120,false,"base",1.0084444554029992],
+["hero-2",2018529258,3,true,true,130,true,"base",1.0080868719105749],
+["hero-2",2018529258,3,true,true,130,false,"base",1.0080868719105749],
+["hero-2",2018529258,3,true,true,241,true,"talk",1.0039403142421277],
+["hero-2",2018529258,3,true,true,241,false,"base",1.0039403142421277],
+["hero-2",2018529258,3,true,true,1000,true,"talk",0.9807723625217163],
+["hero-2",2018529258,3,true,true,1000,false,"base",0.9807723625217163],
+["hero-2",2018529258,3,true,true,3999,true,"base",0.9843668687353467],
+["hero-2",2018529258,3,true,true,3999,false,"base",0.9843668687353467],
+["hero-2",2018529258,3,true,true,4129,true,"talk",0.981723770590659],
+["hero-2",2018529258,3,true,true,4129,false,"base",0.981723770590659],
+["hero-2",2018529258,3,true,true,12345.6,true,"talk",1.0199996530227236],
+["hero-2",2018529258,3,true,true,12345.6,false,"base",1.0199996530227236],
+["hero-2",2018529258,3,true,true,3600000,true,"talk",1.012443462003244],
+["hero-2",2018529258,3,true,true,3600000,false,"base",1.012443462003244],
+["hero-2",2018529258,3,true,false,0,true,"base",1.012443462003244],
+["hero-2",2018529258,3,true,false,0,false,"base",1.012443462003244],
+["hero-2",2018529258,3,true,false,119,true,"base",1.0084800369637488],
+["hero-2",2018529258,3,true,false,119,false,"base",1.0084800369637488],
+["hero-2",2018529258,3,true,false,120,true,"base",1.0084444554029992],
+["hero-2",2018529258,3,true,false,120,false,"base",1.0084444554029992],
+["hero-2",2018529258,3,true,false,130,true,"base",1.0080868719105749],
+["hero-2",2018529258,3,true,false,130,false,"base",1.0080868719105749],
+["hero-2",2018529258,3,true,false,241,true,"base",1.0039403142421277],
+["hero-2",2018529258,3,true,false,241,false,"base",1.0039403142421277],
+["hero-2",2018529258,3,true,false,1000,true,"base",0.9807723625217163],
+["hero-2",2018529258,3,true,false,1000,false,"base",0.9807723625217163],
+["hero-2",2018529258,3,true,false,3999,true,"base",0.9843668687353467],
+["hero-2",2018529258,3,true,false,3999,false,"base",0.9843668687353467],
+["hero-2",2018529258,3,true,false,4129,true,"base",0.981723770590659],
+["hero-2",2018529258,3,true,false,4129,false,"base",0.981723770590659],
+["hero-2",2018529258,3,true,false,12345.6,true,"base",1.0199996530227236],
+["hero-2",2018529258,3,true,false,12345.6,false,"base",1.0199996530227236],
+["hero-2",2018529258,3,true,false,3600000,true,"base",1.012443462003244],
+["hero-2",2018529258,3,true,false,3600000,false,"base",1.012443462003244],
+["hero-2",2018529258,3,false,true,0,true,"talk",1.012443462003244],
+["hero-2",2018529258,3,false,true,0,false,"base",1.012443462003244],
+["hero-2",2018529258,3,false,true,119,true,"talk",1.0084800369637488],
+["hero-2",2018529258,3,false,true,119,false,"base",1.0084800369637488],
+["hero-2",2018529258,3,false,true,120,true,"base",1.0084444554029992],
+["hero-2",2018529258,3,false,true,120,false,"base",1.0084444554029992],
+["hero-2",2018529258,3,false,true,130,true,"base",1.0080868719105749],
+["hero-2",2018529258,3,false,true,130,false,"base",1.0080868719105749],
+["hero-2",2018529258,3,false,true,241,true,"talk",1.0039403142421277],
+["hero-2",2018529258,3,false,true,241,false,"base",1.0039403142421277],
+["hero-2",2018529258,3,false,true,1000,true,"talk",0.9807723625217163],
+["hero-2",2018529258,3,false,true,1000,false,"base",0.9807723625217163],
+["hero-2",2018529258,3,false,true,3999,true,"base",0.9843668687353467],
+["hero-2",2018529258,3,false,true,3999,false,"base",0.9843668687353467],
+["hero-2",2018529258,3,false,true,4129,true,"talk",0.981723770590659],
+["hero-2",2018529258,3,false,true,4129,false,"base",0.981723770590659],
+["hero-2",2018529258,3,false,true,12345.6,true,"talk",1.0199996530227236],
+["hero-2",2018529258,3,false,true,12345.6,false,"base",1.0199996530227236],
+["hero-2",2018529258,3,false,true,3600000,true,"talk",1.012443462003244],
+["hero-2",2018529258,3,false,true,3600000,false,"base",1.012443462003244]
+],
+"faces":[
+ {
+  "actor": {
+   "id": "a",
+   "portrait": "asset:1111111111111111111111111111111111111111111111111111111111111111",
+   "sprite": "asset:2222222222222222222222222222222222222222222222222222222222222222",
+   "faceMotion": {
+    "breathe": 2,
+    "blink": "asset:3333333333333333333333333333333333333333333333333333333333333333",
+    "talk": "asset:4444444444444444444444444444444444444444444444444444444444444444"
+   },
+   "expressions": [
+    {
+     "id": "smile",
+     "name": "미소",
+     "image": "asset:5555555555555555555555555555555555555555555555555555555555555555",
+     "blink": "asset:6666666666666666666666666666666666666666666666666666666666666666",
+     "talk": ""
+    },
+    {
+     "id": "blank",
+     "name": "빈 그림",
+     "image": ""
+    }
+   ]
+  },
+  "expression": "",
+  "face": {
+   "image": "asset:1111111111111111111111111111111111111111111111111111111111111111",
+   "blink": "asset:3333333333333333333333333333333333333333333333333333333333333333",
+   "talk": "asset:4444444444444444444444444444444444444444444444444444444444444444"
+  }
+ },
+ {
+  "actor": {
+   "id": "a",
+   "portrait": "asset:1111111111111111111111111111111111111111111111111111111111111111",
+   "sprite": "asset:2222222222222222222222222222222222222222222222222222222222222222",
+   "faceMotion": {
+    "breathe": 2,
+    "blink": "asset:3333333333333333333333333333333333333333333333333333333333333333",
+    "talk": "asset:4444444444444444444444444444444444444444444444444444444444444444"
+   },
+   "expressions": [
+    {
+     "id": "smile",
+     "name": "미소",
+     "image": "asset:5555555555555555555555555555555555555555555555555555555555555555",
+     "blink": "asset:6666666666666666666666666666666666666666666666666666666666666666",
+     "talk": ""
+    },
+    {
+     "id": "blank",
+     "name": "빈 그림",
+     "image": ""
+    }
+   ]
+  },
+  "expression": "smile",
+  "face": {
+   "image": "asset:5555555555555555555555555555555555555555555555555555555555555555",
+   "blink": "asset:6666666666666666666666666666666666666666666666666666666666666666",
+   "talk": ""
+  }
+ },
+ {
+  "actor": {
+   "id": "a",
+   "portrait": "asset:1111111111111111111111111111111111111111111111111111111111111111",
+   "sprite": "asset:2222222222222222222222222222222222222222222222222222222222222222",
+   "faceMotion": {
+    "breathe": 2,
+    "blink": "asset:3333333333333333333333333333333333333333333333333333333333333333",
+    "talk": "asset:4444444444444444444444444444444444444444444444444444444444444444"
+   },
+   "expressions": [
+    {
+     "id": "smile",
+     "name": "미소",
+     "image": "asset:5555555555555555555555555555555555555555555555555555555555555555",
+     "blink": "asset:6666666666666666666666666666666666666666666666666666666666666666",
+     "talk": ""
+    },
+    {
+     "id": "blank",
+     "name": "빈 그림",
+     "image": ""
+    }
+   ]
+  },
+  "expression": "blank",
+  "face": {
+   "image": "asset:1111111111111111111111111111111111111111111111111111111111111111",
+   "blink": "asset:3333333333333333333333333333333333333333333333333333333333333333",
+   "talk": "asset:4444444444444444444444444444444444444444444444444444444444444444"
+  }
+ },
+ {
+  "actor": {
+   "id": "a",
+   "portrait": "asset:1111111111111111111111111111111111111111111111111111111111111111",
+   "sprite": "asset:2222222222222222222222222222222222222222222222222222222222222222",
+   "faceMotion": {
+    "breathe": 2,
+    "blink": "asset:3333333333333333333333333333333333333333333333333333333333333333",
+    "talk": "asset:4444444444444444444444444444444444444444444444444444444444444444"
+   },
+   "expressions": [
+    {
+     "id": "smile",
+     "name": "미소",
+     "image": "asset:5555555555555555555555555555555555555555555555555555555555555555",
+     "blink": "asset:6666666666666666666666666666666666666666666666666666666666666666",
+     "talk": ""
+    },
+    {
+     "id": "blank",
+     "name": "빈 그림",
+     "image": ""
+    }
+   ]
+  },
+  "expression": "x",
+  "face": {
+   "image": "asset:1111111111111111111111111111111111111111111111111111111111111111",
+   "blink": "asset:3333333333333333333333333333333333333333333333333333333333333333",
+   "talk": "asset:4444444444444444444444444444444444444444444444444444444444444444"
+  }
+ },
+ {
+  "actor": {
+   "id": "a",
+   "portrait": "asset:1111111111111111111111111111111111111111111111111111111111111111",
+   "sprite": "asset:2222222222222222222222222222222222222222222222222222222222222222",
+   "faceMotion": {
+    "breathe": 2,
+    "blink": "asset:3333333333333333333333333333333333333333333333333333333333333333",
+    "talk": "asset:4444444444444444444444444444444444444444444444444444444444444444"
+   },
+   "expressions": [
+    {
+     "id": "smile",
+     "name": "미소",
+     "image": "asset:5555555555555555555555555555555555555555555555555555555555555555",
+     "blink": "asset:6666666666666666666666666666666666666666666666666666666666666666",
+     "talk": ""
+    },
+    {
+     "id": "blank",
+     "name": "빈 그림",
+     "image": ""
+    }
+   ]
+  },
+  "expression": "y",
+  "face": {
+   "image": "asset:1111111111111111111111111111111111111111111111111111111111111111",
+   "blink": "asset:3333333333333333333333333333333333333333333333333333333333333333",
+   "talk": "asset:4444444444444444444444444444444444444444444444444444444444444444"
+  }
+ },
+ {
+  "actor": {
+   "id": "a",
+   "portrait": "asset:1111111111111111111111111111111111111111111111111111111111111111",
+   "sprite": "asset:2222222222222222222222222222222222222222222222222222222222222222",
+   "faceMotion": {
+    "breathe": 2,
+    "blink": "asset:3333333333333333333333333333333333333333333333333333333333333333",
+    "talk": "asset:4444444444444444444444444444444444444444444444444444444444444444"
+   },
+   "expressions": [
+    {
+     "id": "smile",
+     "name": "미소",
+     "image": "asset:5555555555555555555555555555555555555555555555555555555555555555",
+     "blink": "asset:6666666666666666666666666666666666666666666666666666666666666666",
+     "talk": ""
+    },
+    {
+     "id": "blank",
+     "name": "빈 그림",
+     "image": ""
+    }
+   ]
+  },
+  "expression": "missing",
+  "face": {
+   "image": "asset:1111111111111111111111111111111111111111111111111111111111111111",
+   "blink": "asset:3333333333333333333333333333333333333333333333333333333333333333",
+   "talk": "asset:4444444444444444444444444444444444444444444444444444444444444444"
+  }
+ },
+ {
+  "actor": {
+   "id": "b",
+   "portrait": "",
+   "sprite": "",
+   "expressions": [
+    {
+     "id": "x",
+     "name": "x",
+     "image": ""
+    },
+    {
+     "id": "y",
+     "name": "y",
+     "image": "asset:7777777777777777777777777777777777777777777777777777777777777777",
+     "talk": "asset:8888888888888888888888888888888888888888888888888888888888888888"
+    }
+   ]
+  },
+  "expression": "",
+  "face": {
+   "image": "asset:7777777777777777777777777777777777777777777777777777777777777777",
+   "blink": "",
+   "talk": "asset:8888888888888888888888888888888888888888888888888888888888888888"
+  }
+ },
+ {
+  "actor": {
+   "id": "b",
+   "portrait": "",
+   "sprite": "",
+   "expressions": [
+    {
+     "id": "x",
+     "name": "x",
+     "image": ""
+    },
+    {
+     "id": "y",
+     "name": "y",
+     "image": "asset:7777777777777777777777777777777777777777777777777777777777777777",
+     "talk": "asset:8888888888888888888888888888888888888888888888888888888888888888"
+    }
+   ]
+  },
+  "expression": "smile",
+  "face": {
+   "image": "asset:7777777777777777777777777777777777777777777777777777777777777777",
+   "blink": "",
+   "talk": "asset:8888888888888888888888888888888888888888888888888888888888888888"
+  }
+ },
+ {
+  "actor": {
+   "id": "b",
+   "portrait": "",
+   "sprite": "",
+   "expressions": [
+    {
+     "id": "x",
+     "name": "x",
+     "image": ""
+    },
+    {
+     "id": "y",
+     "name": "y",
+     "image": "asset:7777777777777777777777777777777777777777777777777777777777777777",
+     "talk": "asset:8888888888888888888888888888888888888888888888888888888888888888"
+    }
+   ]
+  },
+  "expression": "blank",
+  "face": {
+   "image": "asset:7777777777777777777777777777777777777777777777777777777777777777",
+   "blink": "",
+   "talk": "asset:8888888888888888888888888888888888888888888888888888888888888888"
+  }
+ },
+ {
+  "actor": {
+   "id": "b",
+   "portrait": "",
+   "sprite": "",
+   "expressions": [
+    {
+     "id": "x",
+     "name": "x",
+     "image": ""
+    },
+    {
+     "id": "y",
+     "name": "y",
+     "image": "asset:7777777777777777777777777777777777777777777777777777777777777777",
+     "talk": "asset:8888888888888888888888888888888888888888888888888888888888888888"
+    }
+   ]
+  },
+  "expression": "x",
+  "face": {
+   "image": "asset:7777777777777777777777777777777777777777777777777777777777777777",
+   "blink": "",
+   "talk": "asset:8888888888888888888888888888888888888888888888888888888888888888"
+  }
+ },
+ {
+  "actor": {
+   "id": "b",
+   "portrait": "",
+   "sprite": "",
+   "expressions": [
+    {
+     "id": "x",
+     "name": "x",
+     "image": ""
+    },
+    {
+     "id": "y",
+     "name": "y",
+     "image": "asset:7777777777777777777777777777777777777777777777777777777777777777",
+     "talk": "asset:8888888888888888888888888888888888888888888888888888888888888888"
+    }
+   ]
+  },
+  "expression": "y",
+  "face": {
+   "image": "asset:7777777777777777777777777777777777777777777777777777777777777777",
+   "blink": "",
+   "talk": "asset:8888888888888888888888888888888888888888888888888888888888888888"
+  }
+ },
+ {
+  "actor": {
+   "id": "b",
+   "portrait": "",
+   "sprite": "",
+   "expressions": [
+    {
+     "id": "x",
+     "name": "x",
+     "image": ""
+    },
+    {
+     "id": "y",
+     "name": "y",
+     "image": "asset:7777777777777777777777777777777777777777777777777777777777777777",
+     "talk": "asset:8888888888888888888888888888888888888888888888888888888888888888"
+    }
+   ]
+  },
+  "expression": "missing",
+  "face": {
+   "image": "asset:7777777777777777777777777777777777777777777777777777777777777777",
+   "blink": "",
+   "talk": "asset:8888888888888888888888888888888888888888888888888888888888888888"
+  }
+ },
+ {
+  "actor": {
+   "id": "c",
+   "portrait": "",
+   "sprite": "asset:9999999999999999999999999999999999999999999999999999999999999999"
+  },
+  "expression": "",
+  "face": {
+   "image": "asset:9999999999999999999999999999999999999999999999999999999999999999",
+   "blink": "",
+   "talk": ""
+  }
+ },
+ {
+  "actor": {
+   "id": "c",
+   "portrait": "",
+   "sprite": "asset:9999999999999999999999999999999999999999999999999999999999999999"
+  },
+  "expression": "smile",
+  "face": {
+   "image": "asset:9999999999999999999999999999999999999999999999999999999999999999",
+   "blink": "",
+   "talk": ""
+  }
+ },
+ {
+  "actor": {
+   "id": "c",
+   "portrait": "",
+   "sprite": "asset:9999999999999999999999999999999999999999999999999999999999999999"
+  },
+  "expression": "blank",
+  "face": {
+   "image": "asset:9999999999999999999999999999999999999999999999999999999999999999",
+   "blink": "",
+   "talk": ""
+  }
+ },
+ {
+  "actor": {
+   "id": "c",
+   "portrait": "",
+   "sprite": "asset:9999999999999999999999999999999999999999999999999999999999999999"
+  },
+  "expression": "x",
+  "face": {
+   "image": "asset:9999999999999999999999999999999999999999999999999999999999999999",
+   "blink": "",
+   "talk": ""
+  }
+ },
+ {
+  "actor": {
+   "id": "c",
+   "portrait": "",
+   "sprite": "asset:9999999999999999999999999999999999999999999999999999999999999999"
+  },
+  "expression": "y",
+  "face": {
+   "image": "asset:9999999999999999999999999999999999999999999999999999999999999999",
+   "blink": "",
+   "talk": ""
+  }
+ },
+ {
+  "actor": {
+   "id": "c",
+   "portrait": "",
+   "sprite": "asset:9999999999999999999999999999999999999999999999999999999999999999"
+  },
+  "expression": "missing",
+  "face": {
+   "image": "asset:9999999999999999999999999999999999999999999999999999999999999999",
+   "blink": "",
+   "talk": ""
+  }
+ }
+]}

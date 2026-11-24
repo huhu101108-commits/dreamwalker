@@ -43,7 +43,7 @@ function drawCharacters() {
     el('p', c.summary || ''),
     profileChips(c),
   );
-  a.append(box('character-card', image, info), expressionSection(c), profileSection(c), heading('스킬 구성'));
+  a.append(box('character-card', image, info), expressionSection(c), faceMotionSection(c), profileSection(c), heading('스킬 구성'));
   const bar = box('slot-tabs');
   selectedSlot = clamp(selectedSlot, 0, c.skills.length - 1);
   c.skills.forEach((s, i) =>

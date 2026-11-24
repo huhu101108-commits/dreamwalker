@@ -98,7 +98,7 @@ function saveInspectionRevision(id,body){
         const cur=read.result;if(!cur)throw Error('검수 사본을 찾을 수 없어요.');
         let next=submitted;
         if(cur.rev!==body.rev){
-          const base=cur.history.find(v=>v.rev===body.rev);
+          const base=cur.history.find(v=>v.rev===body.rev&&v.project);
           if(!body.merge||!base)throw Error('사본 버전이 바뀌었어요. 최신 버전을 열어 변경 내용을 비교하세요.');
           const m=mergeProject(base.project,submitted,cur.project);if(m.conflicts.length)throw Error('검수 사본 충돌 · '+m.conflicts.slice(0,5).join(', '));
           next=m.project;
@@ -114,9 +114,16 @@ function saveInspectionRevision(id,body){
   });
 }
 async function inspectionRequest(path,body){
-  if(path==='project'&&body===undefined)return inspectionRecord();
+  // A copy answers like the team server: the record lists revisions, a revision is read on its own.
+  if(path==='project'&&body===undefined){const r=await inspectionRecord();return {...r,history:r.history.map(({rev,updated})=>({rev,updated}))};}
+  if(path.startsWith('revision?')&&body===undefined){
+    const r=await inspectionRecord(),rev=Number(new URLSearchParams(path.slice(9)).get('rev'));
+    const v=rev===r.rev?r:r.history.find(h=>h.rev===rev&&h.project);
+    if(!v)throw Error('그 버전은 검수 사본에 남아 있지 않아요.');
+    return {rev:v.rev,updated:v.updated,project:v.project};
+  }
   if(path==='runtime'&&body===undefined){const r=await inspectionRecord();return {rev:r.rev,project:r.project};}
-  if(path==='save'&&body)return saveInspectionRevision(inspectionId,body);
+  if(path==='save'&&body){const r=await saveInspectionRevision(inspectionId,body);return {...r,history:r.history.map(({rev,updated})=>({rev,updated}))};}
   if(body!==undefined&&!['owner-session','editor-session','login','logout','studio-gpt','personal-gpt/ask','personal-gpt/export-request','personal-gpt/import','personal-gpt/refresh-models','personal-gpt/cancel'].includes(path)&&!path.startsWith('file-')&&!path.startsWith('net-test/'))
     throw Error('팀 게시·계정 연결은 원본 제작실에서 할 수 있어요. 검수 사본의 변경은 이 기기에 저장돼요.');
 }
@@ -130,12 +137,7 @@ async function visitInspection(id){
 async function flushWorkspaceDraft(){
   clearTimeout(draftTimer);
   if(!dirty||!project||!record)return;
-  const data={when:Date.now(),rev:record.rev,project};
-  if(inspectionId){
-    await inspectionWrite('drafts',inspectionId,data);
-  }else{
-    localStorage.setItem(draftKey,JSON.stringify(data));
-  }
+  await writeDeviceDraft({when:Date.now(),rev:record.rev,project});
 }
 function saveEditorPosition(){
   if(!project||!record||location.pathname!=='/')return;

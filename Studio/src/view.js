@@ -167,23 +167,16 @@ function actorNode(o, character) {
   placeWorld(n, o);
   return n;
 }
-function getActionLabel(key, character) {
+// A button without text of its own: the skill's name, an arrow, or the game's wording for the action (번역 · 언어).
+function getActionLabel(key, character, world = shownWorld()) {
   const i = skillSlot(key);
   if (i >= 0) return character?.skills[i]?.name || INPUTS[key];
-  return (
-    {
-      left: '◀',
-      right: '▶',
-      attack: '베기',
-      jump: '점프',
-      menu: '메뉴',
-      resume: '계속하기',
-      restart: '다시 시작',
-      switch: '캐릭터 교대',
-    }[key] ||
-    INPUTS[key] ||
-    '버튼'
-  );
+  if (key === 'left' || key === 'right') return key === 'left' ? '◀' : '▶';
+  return (has(SYSTEM_TEXT, 'button.' + key) && systemText(world, 'button.' + key)) || INPUTS[key] || '버튼';
+}
+// Editor previews show the base language with the creator's rewording of built-in text.
+function shownWorld(state) {
+  return state?.world || (typeof project !== 'undefined' ? project : null);
 }
 function styleScreen(n, s) {
   n.style.backgroundColor =
@@ -240,7 +233,8 @@ function newWidgetView(w,play=false) {
   if(w.type==='input'){
     styleButton(node,w);node.style.setProperty('--input-accent',w.pressedColor);
     const spec=w.control,field=el(spec.mode==='choice'?'select':'input');
-    if(spec.mode==='choice')for(const option of spec.options)field.add(new Option(option,option));
+    // A translated game shows each choice's label; the stored value stays the creator's original.
+    if(spec.mode==='choice')spec.options.forEach((option,i)=>field.add(new Option(spec.labels?.[i]??option,option)));
     else {
       field.type=({text:'text',number:'number',range:'range',toggle:'checkbox'})[spec.mode];
       if(spec.mode==='text')field.maxLength=spec.limit;
@@ -312,7 +306,7 @@ function connectInput(node,w,run,screenId,render){
   function commit(){
     const raw=spec.mode==='toggle'?String(field.checked):field.value;
     if(spec.validation&&controlValue(spec,raw)===null){
-      field.setCustomValidity(spec.validation.message||'입력 조건을 확인하세요.');field.setAttribute('aria-invalid','true');field.reportValidity();return false;
+      field.setCustomValidity(spec.validation.message||systemText(run.world,'input.invalid'));field.setAttribute('aria-invalid','true');field.reportValidity();return false;
     }
     run.commitInput(w,screenId,raw);showInputValue(node,w,stored());render();return true;
   }
@@ -324,25 +318,25 @@ function connectInput(node,w,run,screenId,render){
   };
 }
 function updateWidget(n, w, state) {
-  const c = state.character;
+  const c = state.character, world = shownWorld(state), say = (name) => systemText(world, name);
   if (w.type === 'hp') {
     n.querySelector('.hp-fill').style.width = clamp((state.hp / c.health) * 100, 0, 100) + '%';
     n.querySelector('.hp-label').textContent = (w.text || c.name) + '　' + Math.ceil(state.hp) + ' / ' + c.health;
   } else if (w.type === 'loading') {
     const percent = Math.round(100 * (state.loading ?? 0.6));
     n.querySelector('.hp-fill').style.width = percent + '%';
-    n.querySelector('.hp-label').textContent = (w.text || '로딩') + ' ' + percent + '%';
+    n.querySelector('.hp-label').textContent = (w.text || say('hud.loading')) + ' ' + percent + '%';
   } else if (w.type === 'energy') {
     const e = state.energy;
     n.querySelector('.hp-fill').style.width = (e ? clamp((e.now / e.max) * 100, 0, 100) : 0) + '%';
-    n.querySelector('.hp-label').textContent = (profileText(w.text, c) || '스킬 게이지') + '　' + (e ? e.now + ' / ' + e.max : '없음');
+    n.querySelector('.hp-label').textContent = (profileText(w.text, c) || say('hud.energy')) + '　' + (e ? e.now + ' / ' + e.max : say('hud.noEnergy'));
     n.classList.toggle('gauge-full', !!e && e.now >= e.max);
   } else if (w.type === 'boss') {
     const b = state.boss;
     n.hidden = !b;
     if (b) {
       n.querySelector('.hp-fill').style.width = clamp((b.hp / b.max) * 100, 0, 100) + '%';
-      n.querySelector('.hp-label').textContent = (w.text || b.label || '보스') + '　' + Math.ceil(b.hp) + ' / ' + b.max;
+      n.querySelector('.hp-label').textContent = (w.text || b.label || say('hud.boss')) + '　' + Math.ceil(b.hp) + ' / ' + b.max;
       n.style.setProperty('--boss-phase', clamp(b.phase, 1, 99) + '%');
     }
   } else if (w.type === 'portrait') {
@@ -354,16 +348,16 @@ function updateWidget(n, w, state) {
   } else if(w.type==='input'){
     const title=n.querySelector('.input-title'),field=n.querySelector('input,select');
     title.textContent=w.text;title.hidden=!w.text;field.setAttribute('aria-label',w.text||w.control.hint||CONTROL_MODES[w.control.mode]);
-  } else if (w.type === 'enemies') n.textContent = (w.text || '남은 적') + ' ' + state.enemies;
+  } else if (w.type === 'enemies') n.textContent = (w.text || say('hud.enemies')) + ' ' + state.enemies;
   else if (w.type === 'character') n.textContent = profileText(w.text, c) || c.name;
   else if (w.type === 'map') n.textContent = w.text || state.map.name;
-  else if (w.type === 'inventory'){n.replaceChildren(el('button','보유 장비 · 장착 변경'));}
-  else if (w.type === 'quests') n.textContent = '의뢰 목록 · 진행 상태';
-  else if (w.type === 'text') n.textContent = profileText(state.inputs?controlText(w.text,state.inputs,state.inputDefaults):w.text, c);
+  else if (w.type === 'inventory'){n.replaceChildren(el('button',say('items.open')));}
+  else if (w.type === 'quests') n.textContent = say('quests.title');
+  else if (w.type === 'text') n.textContent = profileText(walletText(state.inputs?controlText(w.text,state.inputs,state.inputDefaults):w.text, state.wallet), c);
   else if (w.type === 'button'){
     const s=w.states,disabled=n.disabled||state.previewState==='disabled',selected=state.previewState==='selected'||(s?.flag&&state.flags?.has(s.flag));
     const mark=s?(disabled?s.disabledMark:selected?s.selectedMark:''):'';
-    n.textContent=(mark?mark+' ':'')+(profileText(state.inputs?controlText(w.text,state.inputs,state.inputDefaults):w.text,c)||getActionLabel(w.action,c));
+    n.textContent=(mark?mark+' ':'')+(profileText(walletText(state.inputs?controlText(w.text,state.inputs,state.inputDefaults):w.text,state.wallet),c)||getActionLabel(w.action,c,world));
     if(s){
       n.style.backgroundColor=disabled?s.disabled:selected?s.selected:w.background+Math.round(w.opacity*2.55).toString(16).padStart(2,'0');
       if(s.flag)n.setAttribute('aria-pressed',String(!!selected));
@@ -422,12 +416,63 @@ function playCue(kind, volume = 1) {
     };
   } catch {}
 }
+// The built-in store panel above every screen: a banner's probability disclosure, or what a purchase or pull gave.
+function shopPanelView(world, state, close) {
+  const say = (name) => systemText(world, name), p = state.shopPanel, panel = box('shop-panel'), card = box('shop-card');
+  const named2 = (list, id) => (list || []).find((v) => v.id === id);
+  const rewardName = (g) => (g.kind === 'item' ? named2(world.items, g.id)?.name : named2(world.shop?.currencies, g.id)?.name) || g.id;
+  const counted = (g) => rewardName(g) + (g.count > 1 ? ' ×' + g.count : '');
+  panel.setAttribute('role', 'dialog');
+  panel.append(card);
+  if (p.kind === 'odds') {
+    const b = named2(world.shop?.banners, p.banner);
+    if (!b) return panel;
+    const o = gachaOdds(world, b), cur = named2(world.shop.currencies, b.cost.currency), eff = gachaEffective(b);
+    panel.setAttribute('aria-label', b.name + ' · ' + say('gacha.odds'));
+    card.append(el('h2', b.name + ' · ' + say('gacha.odds')), el('p', say('gacha.price').replaceAll('{가격}', b.cost.amount + ' ' + (cur?.name || ''))));
+    if (b.pity) {
+      card.append(el('p', say('gacha.pity').replaceAll('{횟수}', b.pity).replaceAll('{등급}', o.top)),
+        el('p', say('gacha.since').replaceAll('{등급}', o.top).replaceAll('{횟수}', state.pity?.get(b.id) || 0)));
+      if (eff) card.append(el('p', say('gacha.effective').replaceAll('{등급}', o.top).replaceAll('{확률}', eff.percent).replaceAll('{횟수}', eff.pulls)));
+    } else card.append(el('p', say('gacha.noPity')));
+    for (const t of o.tiers) {
+      const table = el('table');
+      table.className = 'odds-table';
+      table.append(el('caption', t.name + ' · ' + t.percent + '%'));
+      for (const e of t.entries) {
+        const tr = el('tr');
+        tr.append(el('td', counted(e)), el('td', e.percent + '%'));
+        table.append(tr);
+      }
+      card.append(table);
+    }
+    const mine = (state.draws || []).filter((d) => d.banner === b.id).slice(0, 10);
+    if (mine.length) {
+      const list = el('ul');
+      for (const d of mine) list.append(el('li', d.tier + ' · ' + counted(d)));
+      card.append(el('h3', say('gacha.history')), list);
+    }
+  } else {
+    panel.setAttribute('aria-label', p.title + ' · ' + say('shop.got'));
+    const list = el('ul');
+    list.className = 'shop-results';
+    for (const g of p.rewards) {
+      const item = el('li', (g.tier ? g.tier + ' · ' : '') + counted(g));
+      if (g.top) item.className = 'top';
+      list.append(item);
+    }
+    card.append(el('h2', p.title + ' · ' + say('shop.got')), list);
+  }
+  card.append(action(say('shop.close'), close));
+  return panel;
+}
 function paintProgressWidget(n, w, run) {
+  const say = (name) => systemText(run.world, name);
   n.replaceChildren();
   if (w.type === 'quests') {
     for (const q of run.world.quests || [])
-      n.append(el('div', (run.rewards.has(q.id) ? '완료 · ' : '진행 · ') + q.name));
-    if (!n.childElementCount) n.textContent = '등록된 의뢰가 없어요.';
+      n.append(el('div', say(run.rewards.has(q.id) ? 'quests.done' : 'quests.active') + ' · ' + q.name));
+    if (!n.childElementCount) n.textContent = say('quests.empty');
   } else {
     for (const [id, count] of run.bag) {
       const item = named(run.world.items || [], id);
@@ -440,16 +485,16 @@ function paintProgressWidget(n, w, run) {
           count +
           ' · ' +
           (current === item
-            ? '장착 해제'
-            : GEAR_SLOTS[item.slot] + ' 공격력 ' + (current?.power || 0) + ' → ' + item.power),
+            ? say('items.unequip')
+            : say('gear.' + item.slot) + ' ' + say('items.power') + ' ' + (current?.power || 0) + ' → ' + item.power),
       );
       b.type = 'button';
       b.onclick = () => {
-        if (!run.equip(id)) b.textContent = '다른 캐릭터가 장착 중이에요.';
+        if (!run.equip(id)) b.textContent = say('items.busy');
       };
       n.append(b);
     }
-    if (!n.childElementCount) n.textContent = '보유한 장비가 없어요.';
+    if (!n.childElementCount) n.textContent = say('items.empty');
   }
 }
 function paintCombatOverlay(canvas,run,spanX=100,spanY=100,floor=82) {

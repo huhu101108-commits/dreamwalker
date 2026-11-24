@@ -22,16 +22,43 @@ const draftKey = inspectionId?'dreamwalker-verification-draft-v1:'+inspectionId:
 let draftTimer,
   dirtyCheckTimer,
   publishedText = '';
-function persistDraft() {
+// The unsaved draft lives in this device's IndexedDB (large projects do not fit localStorage). A draft left in
+// localStorage by an earlier studio is still read, and removed once the IndexedDB copy is written.
+const deviceDraftKey = () => inspectionId || 'team';
+async function writeDeviceDraft(data) {
+  await inspectionWrite('drafts', deviceDraftKey(), data);
+  // A copy written while the page was closing stays only if it is newer than this one.
+  try {
+    const quick = JSON.parse(localStorage.getItem(draftKey) || 'null');
+    if (!quick || (quick.when || 0) <= data.when) localStorage.removeItem(draftKey);
+  } catch {}
+}
+async function readDeviceDraft() {
+  const stored = await inspectionGet('drafts', deviceDraftKey()).catch(() => null);
+  let legacy = null;
+  try { legacy = JSON.parse(localStorage.getItem(draftKey)); } catch {}
+  return (legacy?.when || 0) > (stored?.when || 0) ? legacy : stored;
+}
+async function clearDeviceDraft() {
+  await inspectionWrite('drafts', deviceDraftKey(), null).catch(() => {});
+  try { localStorage.removeItem(draftKey); } catch {}
+}
+// A saved team revision: the open one is at hand, earlier ones are fetched (the server keeps the last 30).
+async function savedRevision(rev, current = record) {
+  if (rev === current.rev) return current;
+  return api('revision?rev=' + rev).catch(() => null);
+}
+function persistDraft(event) {
   clearTimeout(draftTimer);
   if (!dirty || !project || !record) return;
-  try {
-    const now=Date.now();
-    if(inspectionId)flushWorkspaceDraft().catch(err=>note(err.message));
-    localStorage.setItem(draftKey, JSON.stringify({when:now, rev: record.rev, project}));
-  } catch {
-    note('기기 초안을 저장할 공간이 부족해요. 백업을 내보내세요.');
-  }
+  const data = { when: Date.now(), rev: record.rev, project };
+  // Leaving the page: an IndexedDB write may not finish, so a project that fits also goes to localStorage at once.
+  if (event?.type === 'pagehide' || document.hidden)
+    try {
+      const text = JSON.stringify(data);
+      if (text.length < 2500000) localStorage.setItem(draftKey, text);
+    } catch {}
+  writeDeviceDraft(data).catch(() => note('기기 초안을 저장할 공간이 부족해요. 백업을 내보내세요.'));
 }
 window.addEventListener('pagehide',persistDraft);
 window.addEventListener('pagehide',saveEditorPosition);
@@ -150,6 +177,8 @@ function draw() {
     characters: drawCharacters,
     stories: drawStories,
     roadmap: drawRoadmap,
+    locales: drawLocales,
+    shop: drawShop,
     source: drawSource,
     interface: drawInterface,
     network: drawNetwork,
@@ -168,7 +197,7 @@ function draw() {
   if(typeof showWorkReturn==='function')showWorkReturn();
   if(tab==='quality'||tab==='versions')addInspectionWorkspace($('#content .canvas-panel')||$('#content'));
   if(tab==='quality'){
-    const main=$('#content .canvas-panel')||$('#content');addStoryProbe(main);addCapabilityMatrix(main);
+    const main=$('#content .canvas-panel')||$('#content');addStoryProbe(main);addCapabilityMatrix(main);addErrorReports(main);addReleaseCheck(main);
   }
   if(tab==='versions')addRevisionComparison($('#content .canvas-panel')||$('#content'));
   for (const section of document.querySelectorAll('#content details')) {
@@ -335,19 +364,21 @@ async function openEditorAccess() {
 }
 function drawVersions() {
   const [a, b] = panels();
-  a.append(heading('버전 기록', '최근 8개 저장본을 초안으로 복원할 수 있어요.'));
+  a.append(heading('버전 기록', '최근 30개 저장본을 초안으로 복원할 수 있어요.'));
   if (!record.history.length) a.append(el('p', '첫 저장 후 이전 버전이 여기에 표시돼요.'));
   for (const h of record.history)
     a.append(
       row(
         el('strong', 'v' + h.rev),
         el('span', h.updated ? new Date(h.updated).toLocaleString('ko-KR') : '초기 버전'),
-        action('초안으로 복원', () => {
-          if (confirm('선택한 버전을 편집 초안으로 복원할까요?'))
-            edit(() => {
-              project = structuredClone(migrateProject(h.project));
-              sceneId = project.startMap;
-            });
+        action('초안으로 복원', async () => {
+          if (!confirm('선택한 버전을 편집 초안으로 복원할까요?')) return;
+          const saved = await savedRevision(h.rev);
+          if (!saved) throw Error('그 버전은 보관 기간이 지났어요.');
+          edit(() => {
+            project = structuredClone(migrateProject(saved.project));
+            sceneId = project.startMap;
+          });
         }),
       ),
     );
@@ -367,16 +398,15 @@ function drawVersions() {
     }),
   );
   addBuildPanel(b);
-  let local;
-  try {
-    local = JSON.parse(localStorage.getItem(draftKey));
-  } catch {}
-  if (local?.project && !problem(migrateProject(local.project)))
-    b.append(
-      action('기기 초안 복구 · 기준 v' + local.rev, () => {
-        const base = [record, ...record.history].find((h) => h.rev === local.rev);
+  const draftActions = box('device-draft-actions');
+  b.append(draftActions);
+  readDeviceDraft().then((local) => {
+    if (!local?.project || problem(migrateProject(local.project)) || !draftActions.isConnected) return;
+    draftActions.append(
+      action('기기 초안 복구 · 기준 v' + local.rev, async () => {
+        const base = await savedRevision(local.rev);
         if (!base) return note('기준 버전이 기록에서 만료됐어요. 기기 초안을 내려받아 비교하세요.');
-        const merged = mergeProject(base.project, migrateProject(local.project), record.project);
+        const merged = mergeProject(migrateProject(base.project), migrateProject(local.project), record.project);
         if (merged.conflicts.length)
           return note('복구 전 같은 항목을 수정했어요 · ' + merged.conflicts.slice(0, 4).join(', '));
         edit(() => {
@@ -386,6 +416,7 @@ function drawVersions() {
       }),
       action('기기 초안 내려받기', () => download(local.project, 'Dreamwalker-device-draft.json')),
     );
+  });
   b.append(
     action('팀 수정안 검토 요청', async () => {
       const issue = problem(project);
@@ -422,7 +453,7 @@ function drawVersions() {
               action('변경 비교', async () => {
                 const q = await api('reviews/' + entry.id),
                   latest = await api('project');
-                const base = [latest, ...latest.history].find((v) => v.rev === q.rev);
+                const base = await savedRevision(q.rev, latest);
                 if (!base) return note('기준 버전이 만료됐어요. 최신 버전 기준으로 재제출하세요.');
                 const merged = mergeProject(base.project, q.project, latest.project);
                 if (merged.conflicts.length) return note('충돌 · ' + merged.conflicts.slice(0, 4).join(', '));
@@ -498,9 +529,7 @@ function drawVersions() {
     action('로그아웃', async () => {
       if (!dirty || confirm('현재 초안을 닫고 로그아웃할까요?')) {
         await api('logout', {});
-        try {
-          localStorage.removeItem(draftKey);
-        } catch {}
+        await clearDeviceDraft();
         dirty = false;
         if (access.owner || access.approvedEditor) window.top.location.href = '/signout-with-chatgpt?return_to=%2F';
         else location.reload();
@@ -527,10 +556,9 @@ async function openEditor() {
     else if (access.reviewRequired && !access.owner) $('#save').textContent = '소유자 검토 요청';
     if (location.pathname !== '/play')
       try {
-        let local=JSON.parse(localStorage.getItem(draftKey));
-        if(inspectionId){const dbDraft=await inspectionGet('drafts',inspectionId);if((dbDraft?.when||0)>(local?.when||0))local=dbDraft;}
+        const local = await readDeviceDraft();
         if (local?.project) {
-          const base = [r, ...r.history].find((v) => v.rev === local.rev),
+          const base = await savedRevision(local.rev, r),
             draft = migrateProject(local.project);
           if (base && !problem(draft)) {
             const merged = mergeProject(migrateProject(base.project), draft, r.project);
@@ -615,10 +643,7 @@ async function saveEditorProject() {
     }
     const r = await api('save', { rev, project: publication, merge: true });
     if (JSON.stringify(project) === sent) {
-      try {
-        localStorage.removeItem(draftKey);
-        if(inspectionId)await inspectionWrite('drafts',inspectionId,null);
-      } catch {}
+      await clearDeviceDraft();
       loadRecord(r);
     } else {
       record = r;
