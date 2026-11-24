@@ -107,6 +107,7 @@ function drawStories() {
         draw();
       }),
     );
+    a.append(scriptPanel(null));
     b.append(heading('대사 속성'), el('p', '스토리를 추가하면 화자와 대사를 편집할 수 있어요.'));
     return;
   }
@@ -134,6 +135,7 @@ function drawStories() {
       action('스토리 복제', () => add(true)),
     ),
     bindText('스토리 제목', s, 'name'),
+    scriptPanel(s),
     row(
       heading('대사 순서'),
       action('▶ 대화 미리보기', () => previewStory(s)),

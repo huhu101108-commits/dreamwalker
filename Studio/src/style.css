@@ -1440,3 +1440,9 @@ body { font-size:16px; }
 .shop-preview{position:relative;min-height:120px;container-type:inline-size}
 .shop-preview .shop-panel{position:relative;inset:auto;background:none;padding:0}
 .shop-preview .shop-card{width:100%;max-height:none}
+/* 출시 점검 */
+.release-list{display:grid;gap:8px;margin-top:8px}
+.release-item{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 12px;align-items:center;background:#1d2c40;border:1px solid #35475c;border-left-width:4px;border-radius:8px;padding:8px 12px}
+.release-item strong{grid-column:1;font-size:.88em}.release-item span{grid-column:1;overflow-wrap:anywhere}
+.release-item button{grid-column:2;grid-row:1/span 2}
+.release-item.error{border-left-color:#ff8f80}.release-item.warn{border-left-color:#ffcf8a}.release-item.info{border-left-color:#7fb8d6}

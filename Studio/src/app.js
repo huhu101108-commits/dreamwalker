@@ -197,7 +197,7 @@ function draw() {
   if(typeof showWorkReturn==='function')showWorkReturn();
   if(tab==='quality'||tab==='versions')addInspectionWorkspace($('#content .canvas-panel')||$('#content'));
   if(tab==='quality'){
-    const main=$('#content .canvas-panel')||$('#content');addStoryProbe(main);addCapabilityMatrix(main);addErrorReports(main);
+    const main=$('#content .canvas-panel')||$('#content');addStoryProbe(main);addCapabilityMatrix(main);addErrorReports(main);addReleaseCheck(main);
   }
   if(tab==='versions')addRevisionComparison($('#content .canvas-panel')||$('#content'));
   for (const section of document.querySelectorAll('#content details')) {

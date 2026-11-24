@@ -125,6 +125,11 @@ function openWorkFinder(){
     }));
   }
   for(const a of project.characters)add('캐릭터',a.name,()=>goTool('characters',a.id));
+  for(const it of project.items||[])add('아이템',it.name,()=>goTool('rpg'));
+  for(const q of project.quests||[])add('의뢰',q.name,()=>goTool('rpg'));
+  for(const c of project.shop?.currencies||[])add('재화',c.name,()=>goTool('shop'));
+  for(const p of project.shop?.products||[])add('상품',p.name,()=>goTool('shop'));
+  for(const b of project.shop?.banners||[])add('뽑기',b.name,()=>{shopView.banner=b.id;goTool('shop');});
   for(const r of project.combatRules)add('전투 규칙',r.name,()=>goTool('rules',r.id));
   for(const r of project.eventRules||[])add('이벤트 규칙',r.name,()=>{
     goTool('eventRules',r.id);const editor=document.querySelector('[data-persist="general-rule-editor"]');if(editor)editor.open=true;
