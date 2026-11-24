@@ -98,6 +98,7 @@ public static class Verify
         PortraitMotion.Run();
         Locale.Run();
         Gacha.Run();
+        Menus.Run();
         return "PASS bidirectional sweep at tick 10 and saved state";
     }
     public static async System.Threading.Tasks.Task Main(string[] args)

@@ -80,7 +80,8 @@ internal sealed class StudioScreenFlow
                 if (r.@event != signal || (!string.IsNullOrEmpty(r.mapId) && r.mapId != map) ||
                     (!string.IsNullOrEmpty(r.actorId) && r.actorId != actor) ||
                     (!string.IsNullOrEmpty(r.key) && r.key != key) || !Matches(r.flag, r.flagState) ||
-                    (signal == "elapsed" && (previous >= r.seconds || clock < r.seconds)) ||
+                    // clock: the map clock for elapsed, the seconds without input for idle (standby screens).
+                    ((signal == "elapsed" || signal == "idle") && (previous >= r.seconds || clock < r.seconds)) ||
                     (signal == "lowHp" && (previous <= r.threshold || hp > r.threshold)))
                     continue;
                 string id = l.id + ":" + r.id;

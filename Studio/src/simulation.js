@@ -8,14 +8,18 @@ class DialogueCursor {
     const c=this.node?.choices[index];return !!c&&(!c.flag||this.flags.has(c.flag)===(c.on!==false));
   }
   resetTrack(){
-    this.timedLine=this.node;this.ticks=0;this.nextCue=0;this.sounds.length=0;
+    this.timedLine=this.node;this.ticks=0;this.waited=0;this.nextCue=0;this.sounds.length=0;
     this.cues=[...(this.node?.stageTrack?.cues||[])].sort((a,b)=>a.at-b.at);
     this.layers={changes:new Map(),camera:null};this.glyphs=this.node?.stageTrack?.rate?Array.from(this.node.text||''):null;
   }
   applyFlag(c){if(c.key){if(c.on)this.flags.add(c.key);else this.flags.delete(c.key);}}
-  step(dt){
+  // speed: the player's typing speed (1 = as authored). auto: the player's auto lines, which move on once a line has
+  // been readable for a while, unless the line asks for a choice.
+  step(dt,speed=this.speed??1,auto=false){
     if(this.timedLine!==this.node)this.resetTrack();
-    const t=this.node?.stageTrack;if(!t)return false;
+    this.speed=speed;this.waited+=Math.max(0,dt)*60;
+    const t=this.node?.stageTrack;
+    if(!t)return auto && !!this.node && !this.node.choices.length && this.waited+.00001>=this.autoWait();
     this.ticks+=Math.max(0,dt)*60;
     let visual=false;
     while(this.nextCue<this.cues.length && this.cues[this.nextCue].at<=this.ticks+.00001){
@@ -23,10 +27,16 @@ class DialogueCursor {
       if(c.kind==='flag')this.applyFlag(c);else if(c.kind==='sound' && c.sound)this.sounds.push(c.sound);else visual=true;
     }
     if(visual)this.layers=stageLayers(this.node,this.ticks+.00001);
-    return t.autoTick>0 && this.ticks+.00001>=t.autoTick && !this.node.choices.length;
+    if(this.node.choices.length)return false;
+    return (t.autoTick>0 && this.ticks+.00001>=t.autoTick) || (auto && this.waited+.00001>=this.autoWait());
+  }
+  // Ticks an auto line waits: typing at the player's speed, then 1.2 s and 0.05 s per character to read.
+  autoWait(){
+    const t=this.node?.stageTrack,chars=Array.from(this.node?.text||'').length;
+    return (t?.rate?chars*60/(t.rate*(this.speed||1)):0)+72+3*chars;
   }
   visibleText(){
-    const t=this.node?.stageTrack;return this.glyphs?this.glyphs.slice(0,Math.floor((this.ticks+.00001)*t.rate/60)).join(''):this.node?.text||'';
+    const t=this.node?.stageTrack;return this.glyphs?this.glyphs.slice(0,Math.floor((this.ticks+.00001)*t.rate*(this.speed||1)/60)).join(''):this.node?.text||'';
   }
   advance(choice,skip=false) {
     if(this.timedLine!==this.node)this.resetTrack();
@@ -118,6 +128,10 @@ class FieldRun {
     this.stickAxis = 0;
     this.inputValues = new Map();
     this.inputDefaults = controlDefaults(world);
+    // Seconds without player input (standby screens) and the device's player settings, which the host keeps.
+    this.idle = 0;
+    this.settings = defaultSettings();
+    this.settingsSerial = 0;
     this.rulesByEvent = new Map();
     for (const layout of world.layouts)
       for (const rule of layout.rules) {
@@ -172,8 +186,7 @@ class FieldRun {
       screenId=this.world.frontScreens.entry;
       if(screenId==='$field')return;
     }
-    const roles = ['title', 'roster', 'loading'];
-    const role = roles.find(k => this.world.frontScreens?.[k] && (!screenId || this.world.frontScreens[k] === screenId));
+    const role = FRONT_ORDER.find(k => this.world.frontScreens?.[k] && (!screenId || this.world.frontScreens[k] === screenId));
     if (role) this.present(role);
     else if (screenId) this.openScreen(screenId);
   }
@@ -269,8 +282,10 @@ class FieldRun {
     });
   }
   checkpoint() {
+    // The home screen keeps saving: the map behind it is at rest and the player spends time there.
+    const atHome = this.presentation?.role === 'home' && this.layers.length <= this.presentation.depth;
     if (
-      this.presentation || this.hero.hp <= 0 || this.hero.y < 0 ||
+      (this.presentation && !atHome) || this.hero.hp <= 0 || this.hero.y < 0 ||
       this.dialogue ||
       this.evade || this.sequence || this.cast ||
       this.pendingTravel ||
@@ -585,6 +600,7 @@ class FieldRun {
       )
         continue;
       if (event === 'elapsed' && (before >= rule.seconds || this.clock < rule.seconds)) continue;
+      if (event === 'idle' && (before >= rule.seconds || this.idle < rule.seconds)) continue;
       if (
         event === 'lowHp' &&
         (before <= rule.threshold || (this.hero.hp / this.character.health) * 100 > rule.threshold)
@@ -604,6 +620,11 @@ class FieldRun {
     if(w.type!=='input'||this.screen?.id!==screenId||!w.visible||(w.showFlag&&this.flags.has(w.showFlag)!==w.showValue)||
       (w.enableFlag&&this.flags.has(w.enableFlag)!==w.enableValue))return false;
     const value=controlValue(w.control,raw);if(value===null)return false;
+    this.idle=0;
+    if(w.control.setting){
+      if(this.setSetting(w.control.setting,settingValue(w.control,value))&&w.control.signal)this.fire('signal',w.control.signal);
+      return true;
+    }
     const key=controlKey(w,screenId);if(this.inputValues.get(key)===value)return true;
     this.inputValues.set(key,value);this.progressVersion++;
     if(w.control.signal)this.fire('signal',w.control.signal);
@@ -660,12 +681,59 @@ class FieldRun {
     const id=this.screen?.navigation?.[key];if(!id)return false;
     this.present('');this.layers.length=0;this.menu='';
     if(id!=='$field'){
-      const role=Object.keys(FRONT_SCREENS).find(k=>this.world.frontScreens?.[k]===id);
+      const role=frontRole(this.world,id);
       if(role)this.present(role);else this.openScreen(id);
     }else this.finishOverlay();
     this.serial++;return true;
   }
+  // The host reports player input that is not a game action (a touch, a key) so standby screens wait again.
+  touch() { this.idle = 0; }
+  // The next front screen in the start order: title → character choice → home → loading → the map. A confirmed
+  // character always moves on past the character choice.
+  nextFront(action) {
+    const f = this.world.frontScreens || {}, front = this.presentation;
+    let at = front && this.layers.length <= front.depth ? FRONT_ORDER.indexOf(front.role) : 0;
+    if (action === 'confirmActor') at = Math.max(at, FRONT_ORDER.indexOf('roster'));
+    return FRONT_ORDER.slice(at + 1).find((k) => f[k]) || '';
+  }
+  // 홈 화면으로: the home screen above everything (the title screen when there is no home screen); the map waits
+  // behind it. A trip that waited for the closed screens goes on first.
+  goHome() {
+    const f = this.world.frontScreens || {}, role = f.home ? 'home' : f.title ? 'title' : '';
+    if (!role) return;
+    this.present('');
+    this.layers.length = 0;
+    this.menu = '';
+    this.finishOverlay();
+    this.present(role);
+  }
+  // 플레이 시작: from the front and overlay screens to the map, through the loading screen when there is one. A map
+  // that has ended (cleared or lost) starts again.
+  play() {
+    this.present('');
+    this.layers.length = 0;
+    this.menu = '';
+    if (this.result) {
+      this.mapMemory.delete(this.map.id);
+      this.enter(this.map.id, 'restart');
+    } else this.finishOverlay();
+    if (this.world.frontScreens?.loading && this.presentationEnabled && !this.presentation) this.present('loading');
+    this.serial++;
+  }
+  // A settings control changed: the run applies the setting at once; the host keeps it on the device.
+  setSetting(name, value) {
+    const next = deviceSettings({ ...this.settings, [name]: value });
+    if (next[name] === this.settings[name]) return false;
+    this.settings = next;
+    this.settingsSerial++;
+    this.serial++;
+    return true;
+  }
+  useSettings(saved) { this.settings = deviceSettings(saved); }
+  // What an input control shows: its setting for a settings control, else its value in this run.
+  shownControl(w, screenId) { return w.control.setting ? settingText(w.control, this.settings) : readControl(w, screenId, this.inputValues); }
   press(action, target = '') {
+    this.idle = 0;
     // The built-in shop panel sits above every screen and closes first.
     if (this.shopPanel && (action === 'back' || action === 'resume' || action === 'closePanel')) { this.shopPanel = null; this.serial++; return; }
     if(this.dispatchProgram('input',action)?.consumed)return false;
@@ -696,9 +764,17 @@ class FieldRun {
       this.setLanguage(target || codes[(codes.indexOf(this.language) + 1) % codes.length]);
       return;
     }
+    // Progress saves, the device save, quitting and outside links belong to the host.
+    if (['saveGame', 'loadGame', 'quitGame', 'openLink'].includes(action)) {
+      (this.hostRequests ??= []).push({ action, target, value: '' });
+      this.serial++;
+      return;
+    }
+    if (action === 'home') { this.goHome(); return; }
+    if (action === 'play') { this.play(); return; }
     const front = this.presentation;
     if (action === 'beginGame' || action === 'confirmActor') {
-      this.present(action === 'beginGame' && this.world.frontScreens?.roster ? 'roster' : 'loading');
+      this.present(this.nextFront(action));
       return;
     }
     if (action === 'previousActor' || (action === 'switch' && front)) {
@@ -707,6 +783,8 @@ class FieldRun {
       return;
     }
     if (front && this.layers.length <= front.depth && (action === 'back' || action === 'resume')) {
+      // Back on the home screen goes to the title screen when there is one, never to the map.
+      if (action === 'back' && front.role === 'home') { if (this.world.frontScreens?.title) this.present('title'); return; }
       this.present(action === 'back' && front.role === 'roster' && this.world.frontScreens?.title ? 'title' : '');
       return;
     }
@@ -731,7 +809,7 @@ class FieldRun {
       return;
     }
     if (action === 'open') {
-      const role = Object.keys(FRONT_SCREENS).find(k => this.world.frontScreens?.[k] === target);
+      const role = frontRole(this.world, target);
       if (role) this.present(role); else this.openScreen(target);
       return;
     }
@@ -743,8 +821,8 @@ class FieldRun {
       this.finishOverlay();
       return;
     }
-    if (action === 'flagOn' || action === 'flagOff') {
-      if (action === 'flagOn') this.flags.add(target);
+    if (action === 'flagOn' || action === 'flagOff' || action === 'flagToggle') {
+      if (action === 'flagOn' || (action === 'flagToggle' && !this.flags.has(target))) this.flags.add(target);
       else this.flags.delete(target);
       this.serial++;
       return;
@@ -1115,7 +1193,12 @@ class FieldRun {
       if (this.loadingFraction >= 1 || this.presentation.time >= Math.max(8, this.world.frontScreens.seconds || 0)) {if(!this.followScreenRoute('next'))this.present('');}
       return;
     }
-    if(this.dialogue && !this.customScreen && !this.presentation && this.dialogue.step(dt))this.advance();
+    // Standby screens: seconds without input, counted on every screen, also while the game is paused.
+    const priorIdle = this.idle;
+    this.idle += dt;
+    if (this.rulesByEvent.has('idle')) this.screenEvent('idle', this.screen?.id || '', priorIdle);
+    if(this.dialogue && !this.customScreen && !this.presentation &&
+      this.dialogue.step(dt,this.settings.textSpeed/100,this.settings.autoAdvance))this.advance();
     if (this.paused) return;
     if(this.cast){
       const c=this.cast;

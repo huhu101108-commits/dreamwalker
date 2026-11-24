@@ -227,8 +227,8 @@ function drawSource() {
     bindText('프로젝트 확장 데이터', project, 'customJson', 160000, true),
   );
   b.append(ext);
-  if (sourceFilter === 'Web/')
-    b.append(
+  // Both outputs stay in reach whichever files are listed.
+  const webOutput = [
       heading('웹 게임 실행'),
       el(
         'p',
@@ -237,16 +237,16 @@ function drawSource() {
       action('▶ 소스 적용 플레이', () => playCustom(project, activeMap().id), 'accent'),
       action('초안 → 오프라인 게임 HTML', exportWebGame),
       action('저장본 → 오프라인 게임 HTML',exportSavedWebGame),
-    );
-  else
-    b.append(
+  ];
+  const unityOutput = [
       heading('Unity 프로젝트'),
       el(
         'p',
         'C#·셰이더·프리팹·설정을 편집한 뒤 공유 버전을 저장하세요. ZIP에 변경된 소스와 콘텐츠가 함께 들어가요. C# 변경은 Unity에서 빌드하면 적용돼요.',
       ),
       action('저장본 → 전체 Unity 프로젝트', () => exportUnityPack(true), 'accent'),
-    );
+  ];
+  b.append(...(sourceFilter === 'Web/' ? [...webOutput, ...unityOutput] : [...unityOutput, ...webOutput]));
 }
 // relay: the studio page that hosts the frame forwards the game's server requests (cloud saves, error reports, online
 // match); 'published' when that page is the public play link. Offline HTML has no relay and no network.
@@ -382,10 +382,10 @@ function playProject(mapId, screenId = '', inspection = false) {
     : launchGame(mapId, screenId, inspection);
 }
 // The device values a game frame reads (see deviceValue in game.js), and the only keys it may change.
-const DEVICE_KEYS = /^dreamwalker-(?:cloud|reports|language)-v1:[\w-]{1,60}$/;
+const DEVICE_KEYS = /^dreamwalker-(?:cloud|reports|language|settings)-v1:[\w-]{1,60}$/;
 function frameDeviceValues(doc, relay) {
   const game = doc.saveId || doc.startMap, values = {};
-  for (const key of ['dreamwalker-language-v1:' + game, 'dreamwalker-reports-v1:' + game,
+  for (const key of ['dreamwalker-language-v1:' + game, 'dreamwalker-reports-v1:' + game, 'dreamwalker-settings-v1:' + game,
     'dreamwalker-cloud-v1:' + ((relay === 'preview' ? 'preview-' : '') + game).slice(0, 50)])
     try { const v = localStorage.getItem(key); if (v !== null) values[key] = v; } catch {}
   return values;
@@ -394,8 +394,10 @@ function frameDeviceValues(doc, relay) {
 const RELAYED = /^\/api\/(?:arena\/(?:session|saves|save|transfer|claim)|reports(?:\/session)?)(?:\?[\w=&%.-]*)?$/;
 async function relayGameRequest(frame, m) {
   if (m?.dreamwalker === 'open-arena') { window.open('/arena', '_blank', 'noopener'); return; }
+  // A link button of the game: only web pages and mail addresses, in a new tab without access back to the studio.
+  if (m?.dreamwalker === 'open-link') { if (linkTarget(m.url)) window.open(m.url, '_blank', 'noopener,noreferrer'); return; }
   if (m?.dreamwalker === 'device-value') {
-    if (typeof m.key === 'string' && DEVICE_KEYS.test(m.key) && typeof m.value === 'string' && m.value.length <= 20)
+    if (typeof m.key === 'string' && DEVICE_KEYS.test(m.key) && typeof m.value === 'string' && m.value.length <= 200)
       try { localStorage.setItem(m.key, m.value); } catch {}
     return;
   }

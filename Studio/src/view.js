@@ -299,7 +299,7 @@ function showInputValue(node,w,value){
 }
 function connectInput(node,w,run,screenId,render){
   const field=node.querySelector('input, select'),spec=w.control;
-  const stored=()=>readControl(w,screenId,run.inputValues);
+  const stored=()=>run.shownControl(w,screenId);
   showInputValue(node,w,stored());field.disabled=!!(w.enableFlag&&run.flags.has(w.enableFlag)!==w.enableValue);
   field.onfocus=()=>{run.keys.clear();};
   field.oninput=()=>{field.setCustomValidity('');field.removeAttribute('aria-invalid');if(spec.mode==='range')node.querySelector('output').textContent=field.value;};
@@ -367,6 +367,9 @@ function updateWidget(n, w, state) {
 const defaultMix = () => ({music:65,fx:85,voice:100});
 function gameAudio(world,host) {
   const mix=world.mix || defaultMix(), tracks=new Map();let speechToken;
+  // The player's settings scale the creator's mix per channel; muting silences every channel.
+  let scale={music:1,fx:1,voice:1};
+  const volume=channel=>clamp((mix[channel]??100)/100*scale[channel],0,1);
   function tryPlay(track) {
     if(!document.hidden && !track.player.ended) track.player.play().catch(()=>{});
   }
@@ -381,14 +384,19 @@ function gameAudio(world,host) {
     stop(kind);
     // A skill shout uses the voice volume but always plays once.
     const channel=kind==='stageFx'?'fx':kind==='castVoice'?'voice':kind,mode=mix[channel+'Mode'];
-    const player=new Audio(imageUrl(ref));player.loop=kind!=='castVoice'&&(mode==='loop'||(mode!=='once'&&kind==='music'));player.volume=(mix[channel]??100)/100;
-    const t={player,token}; tracks.set(kind,t); tryPlay(t);
+    const player=new Audio(imageUrl(ref));player.loop=kind!=='castVoice'&&(mode==='loop'||(mode!=='once'&&kind==='music'));player.volume=volume(channel);
+    const t={player,token,channel}; tracks.set(kind,t); tryPlay(t);
   }
   const resume=()=>{for(const t of tracks.values()) if(t.player.paused) tryPlay(t);};
   const visibility=()=>{if(document.hidden) for(const t of tracks.values()) t.player.pause();else resume();};
   host.addEventListener('pointerdown',resume,true);host.addEventListener('keydown',resume,true);
   document.addEventListener('visibilitychange',visibility);
-  return {track,endFx:()=>stop('fx'),fx(ref,cue,channel='fx'){if(ref)track(channel,ref,{});else playCue(cue,mix.fx/100);},
+  return {track,endFx:()=>stop('fx'),fx(ref,cue,channel='fx'){if(ref)track(channel,ref,{});else playCue(cue,volume('fx'));},
+    levels(settings){
+      scale=settings.mute?{music:0,fx:0,voice:0}:{music:settings.music/100,fx:settings.fx/100,voice:settings.voice/100};
+      for(const t of tracks.values())t.player.volume=volume(t.channel);
+    },
+    volume,
     close(){ for(const kind of [...tracks.keys()]) stop(kind); host.removeEventListener('pointerdown',resume,true);
       host.removeEventListener('keydown',resume,true);document.removeEventListener('visibilitychange',visibility); } };
 }

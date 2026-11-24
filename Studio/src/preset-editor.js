@@ -70,7 +70,17 @@ function inputInspector(w,parent){
   const c=w.control,fields=box('control-grid');
   parent.append(heading('입력 설정'),selectField('입력 방식',c.mode,CONTROL_MODES,v=>edit(()=>{
     const values=newInputSpec(v);Object.assign(values,{key:c.key,signal:c.signal,hint:c.hint});w.control=values;
-  })),bindText('입력값 이름',c,'key'),el('small','같은 이름의 입력값을 화면끼리 공유해요. 텍스트에 {입력:별명}처럼 적으면 입력값이 표시돼요.'));
+  })));
+  // A settings control stands for a player setting of the device (sound, line speed, auto lines) instead of a value.
+  parent.append(selectField('기기 설정 연결',c.setting||'',{'':'연결 안 함 · 입력값으로 저장',...DEVICE_SETTINGS},v=>edit(()=>{
+    if(!v){delete c.setting;return;}
+    const next={...newInputSpec(SETTING_MODES[v]),hint:c.hint,signal:c.signal,setting:v};
+    if(SETTING_RANGES[v])Object.assign(next,v==='textSpeed'?{min:50,max:300,step:25,initial:'100'}:{min:0,max:100,step:5,initial:'100'});
+    w.control=next;
+  })));
+  if(c.setting)parent.append(el('small','«'+DEVICE_SETTINGS[c.setting]+'» 설정을 바로 바꿔요. 저장 기록·클라우드와 별도로 이 기기에 남아요.'+
+    (SETTING_RANGES[c.setting]?' 값 범위 '+SETTING_RANGES[c.setting].join('~')+(c.setting==='textSpeed'?'% (100 = 작성한 속도)':'%')+' 안에서 정하세요.':'')));
+  else parent.append(bindText('입력값 이름',c,'key'),el('small','같은 이름의 입력값을 화면끼리 공유해요. 텍스트에 {입력:별명}처럼 적으면 입력값이 표시돼요.'));
   if(c.mode==='text'||c.mode==='number')parent.append(bindText('입력 안내 문구',c,'hint',120));
   if(c.mode==='text'){
     parent.append(numberField('최대 글자 수',c.limit,1,160,1,v=>edit(()=>{c.limit=v;c.initial=c.initial.slice(0,v);},false)),

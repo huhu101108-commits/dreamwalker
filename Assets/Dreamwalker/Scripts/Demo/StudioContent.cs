@@ -272,9 +272,10 @@ public class StudioStageTrack
     public bool completeOnSkip;
     public string skipTo;
     public StudioStageCue[] cues;
-    public string Visible(string text,int tick){
+    // speed: the player's typing speed in percent of the authored speed.
+    public string Visible(string text,int tick,int speed=100){
         if(rate<=0 || string.IsNullOrEmpty(text))return text;
-        int count=tick*rate/60,index=0;
+        int count=(int)Math.Min(int.MaxValue,(long)tick*rate*speed/6000),index=0;
         while(index<text.Length && count-->0)index+=char.IsSurrogatePair(text,index)?2:1;
         return text.Substring(0,index);
     }
@@ -341,7 +342,8 @@ public class StudioChoice
 [Serializable]
 public class StudioLayout
 {
-    public string id, name, kind, purpose, tint, skin;
+    // music: played instead of the map's music while this screen shows (a title or home screen).
+    public string id, name, kind, purpose, tint, skin, music;
     public float shade;
     public bool pauseGame;
     public StudioRule[] rules;
@@ -414,7 +416,8 @@ public sealed class StudioInputGestureClock
 [Serializable] public class StudioTextValidation {public int minLength;public string format,message;}
 [Serializable] public class StudioControlSpec
 {
-    public string mode, key, hint, initial, signal;
+    // setting: a player setting of the device this control stands for (music, fx, voice, mute, textSpeed, autoAdvance).
+    public string mode, key, hint, initial, signal, setting;
     public StudioTextValidation validation;
     public int limit, min, max, step;
     public string[] options;

@@ -25,7 +25,7 @@ function actionFields(owner, chained = false, prefix = '') {
     selectField(prefix+(chained ? '실행 동작' : '버튼 동작'), owner.action, choices, (k) =>
       edit(() => {
         owner.action = k;
-        owner.target = targetsFor(k)?.[0]?.id || (['flagOn', 'flagOff', 'signal'].includes(k) ? '상태1' : k === 'transferClaim' ? '이전코드' : '');
+        owner.target = targetsFor(k)?.[0]?.id || (['flagOn', 'flagOff', 'flagToggle', 'signal'].includes(k) ? '상태1' : k === 'transferClaim' ? '이전코드' : k === 'openLink' ? 'https://example.com/' : '');
       }),
     ),
   );
@@ -41,10 +41,12 @@ function actionFields(owner, chained = false, prefix = '') {
         optionMap(targets),
       ),
     );
-  if (['flagOn', 'flagOff', 'signal'].includes(owner.action))
+  if (['flagOn', 'flagOff', 'flagToggle', 'signal'].includes(owner.action))
     root.append(
       bindText(prefix+(owner.action === 'signal' ? '보낼 이벤트 이름' : '변경할 상태 이름'), owner, 'target', 50),
     );
+  // Links leave the game: a web page (https://) or a mail address (mailto:), such as terms, privacy or support.
+  if (owner.action === 'openLink') root.append(bindText(prefix+'열 링크 (https:// 또는 mailto:)', owner, 'target', 300));
   // Cloud saves: what to do when another device saved later; a claim reads the code from an input control's key.
   if (owner.action === 'cloudSave')
     root.append(bindSelect(prefix+'다른 기기에 더 최근 저장이 있을 때', owner, 'target', { '': '저장하지 않고 알리기', overwrite: '이 기기 진행으로 덮어쓰기' }));
@@ -146,6 +148,7 @@ function drawScreenFlow(l, a) {
       bindNumber('배경 덮기 (%)', l, 'shade', 0, 100, 1),
     ),
     assetField('화면 배경 이미지', l.skin, (v) => edit(() => (l.skin = v)), true),
+    soundField('화면 배경음 (보이는 동안 맵 배경음 대신)', l, 'music'),
   );
   a.append(props);
   const group = box('flow-rules', heading('이 화면을 표시할 때'));
@@ -165,6 +168,7 @@ function drawScreenFlow(l, a) {
         edit(() => {
           r.event = v;
           r.key = v === 'signal' ? '이벤트1' : '';
+          if (v === 'idle' && r.seconds < 10) r.seconds = 30;
         }),
       ),
       box(
@@ -174,6 +178,10 @@ function drawScreenFlow(l, a) {
       ),
     );
     if (r.event === 'elapsed') detail.append(bindNumber('경과 시간 (초)', r, 'seconds', 0.1, 3600, 0.1));
+    // Standby: how long without a touch or key, and on which screen (any screen when left empty).
+    if (r.event === 'idle')
+      detail.append(bindNumber('입력 없이 기다릴 시간 (초)', r, 'seconds', 0.1, 3600, 0.1),
+        bindSelect('기다릴 화면', r, 'key', { '': '어느 화면에서나', ...optionMap(project.layouts.filter((v) => v.id !== l.id)) }));
     if (r.event === 'lowHp') detail.append(bindNumber('이 체력 이하 (%)', r, 'threshold', 1, 100, 1));
     if (r.event === 'signal') detail.append(bindText('수신할 이벤트 이름', r, 'key', 50));
     if (r.event === 'skill')

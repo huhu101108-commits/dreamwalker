@@ -115,7 +115,11 @@ function startLanguage(doc, chosen = '') {
   const editor = relayedFrame ? GAME_DATA.relay === 'preview' : typeof GAME_DATA === 'undefined' ? location.pathname !== '/play' : !!GAME_DATA.inspection;
   return pickLanguage(localeCodes(doc), [chosen, deviceValue(languageKey(doc)) || '', ...(editor ? [] : navigator.languages || [navigator.language])]);
 }
+// The game in the window, until it has shut down. A window closed a moment ago delivers its close event later, after a
+// new game may have started in it, so a new game finishes the earlier one first and ignores that late event.
+let endGame = null;
 function launchGame(mapId, screenId = '', inspection = false) {
+  endGame?.();
   const direct=inspection && typeof inspection==='object' && !inspection.fromStart && (inspection.storyId||inspection.objectId||inspection.screenId);
   const ruleCapture=inspection?.traceRules&&!inspection.resume&&typeof FieldRuleCapture==='function'?new FieldRuleCapture():null;
   const chosenLanguage = inspection && typeof inspection === 'object' ? inspection.language || '' : '';
@@ -124,7 +128,14 @@ function launchGame(mapId, screenId = '', inspection = false) {
     stage = $('#arena'),
     layer = $('#overlay'),
     actors = $('#actors');
+  let ended = false;
   const audioBus=gameAudio(run.world,modal);
+  // Player settings (sound, line speed, auto lines) are kept per game on this device, like the language. Test plays
+  // started for inspection keep the defaults.
+  const settingsKey = 'dreamwalker-settings-v1:' + (run.world.saveId || run.world.startMap);
+  if (!inspection) try { run.useSettings(JSON.parse(deviceValue(settingsKey) || 'null')); } catch {}
+  audioBus.levels(run.settings);
+  let settingsSeen = run.settingsSerial;
   const sceneFade=el('div');sceneFade.setAttribute('aria-hidden','true');
   sceneFade.style.cssText='position:absolute;inset:0;pointer-events:none;z-index:9';stage.append(sceneFade);
   const castView=makeCastView();stage.append(castView.root);
@@ -491,7 +502,8 @@ function launchGame(mapId, screenId = '', inspection = false) {
   let coveredByShot=false;
   function rebuild() {
     serial = run.serial;
-    audioBus.track('music',run.presentation ? '' : run.map.music);
+    // A screen with its own music (a title or home screen) plays it instead of the map's.
+    audioBus.track('music',run.screen?.music || (run.presentation ? '' : run.map.music));
     const speaking=run.dialogue && !run.customScreen && !run.presentation ? run.dialogue.node : null;
     const composed=speaking?.shot && typeof makeShotView==='function';
     coveredByShot=composed && shotCoversField(speaking);
@@ -636,14 +648,35 @@ function launchGame(mapId, screenId = '', inspection = false) {
     }
     window.open('/arena', '_blank', 'noopener');
   }
-  function render() {
-    if ((run.onlineRequests || 0) !== onlineSeen) { onlineSeen = run.onlineRequests || 0; openOnlineMatch(); }
+  // Outside links open in a new tab; a game frame asks its page, which checks the address again.
+  function openLink(url) {
+    if (!linkTarget(url)) return;
+    if (relayedFrame) { parent.postMessage({ dreamwalker: 'open-link', url }, '*'); return; }
+    if (typeof window.open !== 'function') { say(systemText(run.world, 'app.link')); return; }
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
+  // Host requests run after the screen is rebuilt, so the notices they show stay up. Returns false when the game closed.
+  function serveRequests() {
     for (const r of run.hostRequests?.splice(0) || [])
       if (r.action === 'reports') setReports(r.target);
       else if (r.action === 'say') say(systemText(run.world, r.target));
       else if (r.action === 'store') buyWithMoney(r.target);
       else if (r.action === 'shopSaved') persistShop();
+      else if (r.action === 'saveGame') saveProgress(true);
+      else if (r.action === 'loadGame') {
+        if (continueProgress(true)) { rebuild(); hudStamp = ''; say(systemText(run.world, 'save.loaded')); }
+      } else if (r.action === 'quitGame') { saveProgress(); modal.close(); return false; }
+      else if (r.action === 'openLink') openLink(r.target);
       else cloud(r.action, r.target, r.value);
+    return true;
+  }
+  function render() {
+    if ((run.onlineRequests || 0) !== onlineSeen) { onlineSeen = run.onlineRequests || 0; openOnlineMatch(); }
+    if (run.settingsSerial !== settingsSeen) {
+      settingsSeen = run.settingsSerial;
+      audioBus.levels(run.settings);
+      if (!inspection) keepDeviceValue(settingsKey, JSON.stringify(run.settings));
+    }
     if (run.languageSerial !== languageSeen) {
       languageSeen = run.languageSerial;
       // Only a choice the player made is remembered; until then the browser's languages decide.
@@ -659,6 +692,7 @@ function launchGame(mapId, screenId = '', inspection = false) {
       rebuild();
       hudStamp = '';
     }
+    if (run.hostRequests?.length && !serveRequests()) return;
     if (!hitCanvas.hidden) paintCombatOverlay(hitCanvas, run);
     if(run.dialogue && !run.customScreen && !run.presentation && typeof paintDialogueTime==='function')paintDialogueTime(layer,run.dialogue,audioBus);
     if(!coveredByShot) paintField();
@@ -773,7 +807,7 @@ function launchGame(mapId, screenId = '', inspection = false) {
       // Values the host shows but saves never keep ({입력:기기이전코드}, {입력:오류보고}) join only when repainting.
       if (run.hostInputs?.size) state.inputs = new Map([...run.inputValues, ...run.hostInputs]);
       for (const { w, n } of widgets)
-        if(w.type==='input'){if(!n.contains(document.activeElement))showInputValue(n,w,readControl(w,run.screen.id,run.inputValues));}
+        if(w.type==='input'){if(!n.contains(document.activeElement))showInputValue(n,w,run.shownControl(w,run.screen.id));}
         else if (w.type === 'inventory' || w.type === 'quests') paintProgressWidget(n, w, run);
         else if (w.type !== 'dialogue' && w.type !== 'panel' && w.type !== 'image') updateWidget(n, w, state);
       hudStamp = stamp;
@@ -845,10 +879,12 @@ function launchGame(mapId, screenId = '', inspection = false) {
       acc -= 1 / 60;
     }
     render();
-    frame = requestAnimationFrame(loop);
+    // A button can end the game during render (게임 종료); a closed game asks for no more frames.
+    if (!ended && modal.open) frame = requestAnimationFrame(loop);
   }
   const down = (e) => {
     if(replay)return;
+    run.touch();
     if(e.isComposing||e.altKey||e.ctrlKey||e.metaKey||e.target?.closest?.('input,textarea,select,[contenteditable=true]'))return;
     const custom=widgets.find(({w,n})=>w.type==='button'&&!n.disabled&&w.shortcut===e.code);
     if(custom){e.preventDefault();if(e.repeat)return;
@@ -894,12 +930,13 @@ function launchGame(mapId, screenId = '', inspection = false) {
   };
   $('#stop').onclick = () => modal.close();
   $('#controls').hidden = true;
+  let unbindReplay=null;
   if(replay){
     const stopInput=e=>{if(stage.contains(e.target)||$('#controls').contains(e.target)||e.target.closest('button')!==$('#stop')&&e.target.closest('.bar')){
       e.preventDefault();e.stopImmediatePropagation();
     }};
     for(const type of ['pointerdown','click','input'])modal.addEventListener(type,stopInput,true);
-    modal.addEventListener('close',()=>{for(const type of ['pointerdown','click','input'])modal.removeEventListener(type,stopInput,true);},{once:true});
+    unbindReplay=()=>{for(const type of ['pointerdown','click','input'])modal.removeEventListener(type,stopInput,true);};
   }
   const sizeObserver=new ResizeObserver(()=>{for(const {w,n} of widgets)if(w.anchor)setWidgetGeometry(n,w,layer.clientWidth,layer.clientHeight);});
   sizeObserver.observe(layer);modal.showModal();
@@ -907,12 +944,19 @@ function launchGame(mapId, screenId = '', inspection = false) {
   frame = requestAnimationFrame(loop);
   const focusField=e=>{if(e.target.matches('input,textarea,select,[contenteditable=true]')){clearControls();for(const release of releaseSticks)release();}};
   modal.addEventListener('focusin',focusField);
+  // Any touch in the game counts as input for standby screens.
+  const wake = () => run.touch();
+  modal.addEventListener('pointerdown', wake, true);
   window.addEventListener('keydown', down);
   window.addEventListener('keyup', up);
   window.addEventListener('blur', blur);
   const storeOnHide=()=>{if(document.hidden){saveProgress();metrics?.record(performance.now(),run.map.id,false);}};
   const storeOnExit=()=>saveProgress();window.addEventListener('pagehide',storeOnExit);document.addEventListener('visibilitychange',storeOnHide);
-  modal.onclose = () => {
+  function shutDown() {
+    if (ended) return;
+    ended = true;
+    if (endGame === shutDown) endGame = null;
+    unbindReplay?.();
     window.removeEventListener('pagehide',storeOnExit);document.removeEventListener('visibilitychange',storeOnHide);
     if(take){
       if(replay){if(take.done)sample.replayResult=take.final;}
@@ -931,12 +975,16 @@ function launchGame(mapId, screenId = '', inspection = false) {
     hitCanvas.remove();
     extra.forEach((n) => n.remove());
     modal.removeEventListener('focusin',focusField);
+    modal.removeEventListener('pointerdown', wake, true);
     window.removeEventListener('keydown', down);
     window.removeEventListener('keyup', up);
     window.removeEventListener('blur', blur);
     actors.replaceChildren();
     layer.replaceChildren();
     if (location.pathname === '/play') document.body.classList.remove('game-only');
-  };
+  }
+  endGame = shutDown;
+  // Only a close of this game's window: a late event from an earlier game arrives while this one is open.
+  modal.onclose = () => { if (!modal.open) shutDown(); };
   return modal;
 }

@@ -162,6 +162,13 @@ Object.assign(INPUTS, {
   draw: '뽑기 1회',
   drawMulti: '연속 뽑기',
   odds: '확률 정보 보기',
+  home: '홈 화면으로',
+  play: '플레이 시작 (로딩 후 맵)',
+  saveGame: '진행 저장',
+  loadGame: '저장한 진행 불러오기',
+  quitGame: '게임 종료',
+  openLink: '웹 링크 열기',
+  flagToggle: '상태 전환',
 });
 const screenActions = () => INPUTS;
 const UI_EVENTS = {
@@ -178,6 +185,7 @@ const UI_EVENTS = {
   storyStart: '대화 시작',
   storyEnd: '대화 종료',
   signal: '지정 이벤트 수신',
+  idle: '입력 없이 시간 경과 (대기)',
 };
 const newRule = (id) => ({
   id,
@@ -212,6 +220,9 @@ const screenDefaults = (kind) => ({
   skin: '',
   rules: [],
 });
+// The same rule as StudioMenuRules.LinkTarget in Unity: explicit character classes, so both regex engines agree.
+const linkTarget = (v) => typeof v === 'string' && v.length <= 300 &&
+  (/^https:\/\/[A-Za-z0-9.-]{1,190}(?::[0-9]{1,5})?(?:[/?#][^\x00-\x20\x7f-\x9f"'<>\\`\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff]*)?$/.test(v) || /^mailto:[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,190}$/.test(v));
 const signalKey = (s, optional = false) =>
   (optional && s === '') || (typeof s === 'string' && /^[a-zA-Z0-9_가-힣-]{1,50}$/.test(s));
 function actionRefOK(d, action, target) {
@@ -220,7 +231,9 @@ function actionRefOK(d, action, target) {
   if (action === 'gotoMap') return !!named(d.scenes, target);
   if (action === 'startStory') return !!named(d.stories, target);
   if (action === 'selectActor') return !!named(d.characters, target);
-  if (['flagOn', 'flagOff', 'signal'].includes(action)) return signalKey(target);
+  if (['flagOn', 'flagOff', 'flagToggle', 'signal'].includes(action)) return signalKey(target);
+  // A web page (https) or a support mail address, opened outside the game.
+  if (action === 'openLink') return linkTarget(target);
   // '' moves to the next language; a code picks that language.
   if (action === 'language') return target === '' || localeCodes(d).includes(target);
   // overwrite: keep this device's progress over a newer cloud copy. A claim names the input that holds the code.
@@ -294,6 +307,12 @@ function resetUIReferences(d, type, id, fallback = '') {
     if (type === 'map' || type === 'character') {
       const key = type === 'map' ? 'mapId' : 'actorId';
       l.rules = l.rules.filter((r) => r[key] !== id);
+    }
+    // A standby rule that waited on a removed screen waits on its replacement; without one it goes too, so it never
+    // starts covering every screen.
+    if (type === 'screen') {
+      l.rules = l.rules.filter((r) => !(r.event === 'idle' && r.key === id && !fallback));
+      for (const r of l.rules) if (r.event === 'idle' && r.key === id) r.key = fallback;
     }
     if (type === 'story')
       l.rules = l.rules.filter((r) => !(['storyStart', 'storyEnd'].includes(r.event) && r.key === id));
@@ -404,6 +423,12 @@ function newScreen(id, name, kind) {
   return { id, name, kind, elements, ...screenDefaults(kind) };
 }
 const FRONT_SCREENS = { title: '시작 화면', loading: '로딩 화면', roster: '캐릭터 선택 화면' };
+// The start order of the front screens. The home (lobby) screen is optional: the game comes back to it with the
+// 홈 화면으로 action and leaves it with 플레이 시작. Older projects could point it at any screen, so it is checked
+// only for existing, unlike the custom screens of the other three.
+const FRONT_ORDER = ['title', 'roster', 'home', 'loading'];
+const FRONT_NAMES = { title: '시작 화면', roster: '캐릭터 선택 화면', home: '홈 화면 (로비)', loading: '로딩 화면' };
+const frontRole = (doc, id) => (id && FRONT_ORDER.find((k) => doc.frontScreens?.[k] === id)) || '';
 const BUTTON_SHAPES = { rect: '사각형', round: '타원', pill: '캡슐', diamond: '마름모', hex: '육각형', custom: '직접 그린 모양' };
 const shapePoints = {
   diamond: [{x:50,y:0},{x:100,y:50},{x:50,y:100},{x:0,y:50}],
@@ -423,7 +448,7 @@ function joystickWidget(id) {
   return widget(id, 'joystick', 2, 65, 17, 32, { background: '#132b42', color: '#c5eef1', opacity: 65 });
 }
 function frontScreen(id, role, title) {
-  const s = newScreen(id, FRONT_SCREENS[role], 'custom');
+  const s = newScreen(id, FRONT_NAMES[role], 'custom');
   s.shade = 94;
   const titleAt = (msg) => widget('heading', 'text', 8, 12, 84, 18, { text: msg, fontSize: 32, opacity: 0 });
   const button = (id, text, action, x, y, w) => widget(id, 'button', x, y, w, 14, { text, action, shape: 'pill' });
@@ -434,6 +459,51 @@ function frontScreen(id, role, title) {
     button('prev','이전','previousActor',8,43,18), button('next-actor','다음','switch',74,43,18),
     button('confirm','이 캐릭터로 시작','confirmActor',29,77,42)];
   if (role === 'loading') s.elements = [titleAt('불러오는 중'), widget('progress', 'loading', 20, 60, 60, 10)];
+  // A lobby: the chosen character on the left, the ways on from here on the right.
+  if (role === 'home') s.elements = [
+    widget('heading', 'text', 4, 4, 52, 12, { text: title, fontSize: 28, opacity: 0, align: 'left' }),
+    widget('face', 'portrait', 4, 18, 40, 66, { opacity: 0 }),
+    widget('name', 'character', 4, 86, 40, 9, { opacity: 0 }),
+    widget('play', 'button', 58, 18, 36, 16, { text: '출격', action: 'play', shape: 'pill', fontSize: 22 }),
+    button('next-actor', '캐릭터 교대', 'switch', 58, 38, 36),
+    button('save', '진행 저장', 'saveGame', 58, 56, 36),
+    button('to-title', '시작 화면으로', 'back', 58, 74, 36)];
+  return s;
+}
+// A settings screen of device settings: sound, line speed and auto lines, language and error report consent.
+function settingsScreen(id) {
+  const s = newScreen(id, '설정', 'custom');
+  s.purpose = '플레이어가 소리·대사·언어 설정을 바꾸는 화면';
+  s.shade = 90;
+  const control = (key, label, setting, y, extra = {}) => widget(key, 'input', 8, y, 54, 10,
+    { text: label, align: 'left', control: { ...newInputSpec(SETTING_MODES[setting]), setting, ...extra } });
+  const volume = { min: 0, max: 100, step: 5, initial: '100' };
+  s.elements = [
+    widget('heading', 'text', 8, 4, 84, 12, { text: '설정', fontSize: 30, opacity: 0, align: 'left' }),
+    control('music', '배경음', 'music', 19, volume),
+    control('fx', '효과음', 'fx', 31, volume),
+    control('voice', '음성', 'voice', 43, volume),
+    control('mute', '모든 소리 끄기', 'mute', 55),
+    control('speed', '대사 속도', 'textSpeed', 67, { min: 50, max: 300, step: 25, initial: '100' }),
+    control('auto', '대사 자동 진행', 'autoAdvance', 79),
+    widget('language', 'button', 68, 19, 26, 12, { text: '언어', action: 'language', shape: 'pill' }),
+    widget('reports', 'button', 68, 34, 26, 12, { text: '오류 보고', action: 'reports', shape: 'pill' }),
+    widget('back', 'button', 68, 79, 26, 12, { text: '돌아가기', action: 'back', shape: 'pill' }),
+  ];
+  return s;
+}
+// A standby screen: after a while without input it covers the screen it waits on (any screen when none is given)
+// with the chosen character, and the first touch anywhere closes it.
+function standbyScreen(id, waitOn = '', seconds = 30) {
+  const s = newScreen(id, '대기 화면', 'custom');
+  s.purpose = '입력이 없을 때 캐릭터를 크게 보여 주는 화면';
+  s.shade = 100;
+  s.rules = [{ ...newRule('idle'), event: 'idle', key: waitOn, seconds, once: 'always' }];
+  s.elements = [
+    widget('face', 'portrait', 18, 2, 64, 88, { opacity: 0 }),
+    widget('hint', 'text', 20, 90, 60, 8, { text: '화면을 누르면 돌아가요', fontSize: 15, opacity: 0 }),
+    widget('wake', 'button', 0, 0, 100, 100, { text: '대기 화면 닫기', action: 'back', hotspot: true, opacity: 0 }),
+  ];
   return s;
 }
 function defaultScreens() {
@@ -896,6 +966,7 @@ function problem(d) {
       !num(l.shade, 0, 100) ||
       !color(l.tint) ||
       !imageRef(l.skin) ||
+      !soundRef(l.music ?? '') ||
       !rows(l.rules, 0, 32) ||
       l.rules.some(
         (r) =>
@@ -910,6 +981,8 @@ function problem(d) {
           !num(r.seconds, 0.1, 3600) ||
           !textValue(r.key, 50) ||
           (r.event === 'signal' && !signalKey(r.key)) ||
+          // A standby rule may wait on one screen only.
+          (r.event === 'idle' && r.key !== '' && !named(d.layouts, r.key)) ||
           (r.event === 'skill' && r.key !== '' && skillSlot(r.key) < 0) ||
           (['storyStart', 'storyEnd'].includes(r.event) && !story(r.key)),
       )
@@ -1089,7 +1162,7 @@ function inspectScreens(doc) {
     destinations = new Set();
   for (const scene of doc.scenes)
     for (const id of [scene.hudId, scene.menuId, scene.dialogueId]) destinations.add(id);
-  for (const role of [...Object.keys(FRONT_SCREENS),'entry']) if (doc.frontScreens?.[role]) destinations.add(doc.frontScreens[role]);
+  for (const role of [...FRONT_ORDER,'entry']) if (doc.frontScreens?.[role]) destinations.add(doc.frontScreens[role]);
   for (const s of doc.stories) for (const n of s.nodes) if (n.layout) destinations.add(n.layout);
   const transitions = w => {
     const button=boundMenuButton(doc,w);
@@ -1118,7 +1191,7 @@ function inspectScreens(doc) {
   }
   const safe = new Set(doc.layouts.filter((l) => !l.pauseGame).map((l) => l.id));
   if (doc.frontScreens?.loading) safe.add(doc.frontScreens.loading);
-  const exit = new Set(['beginGame', 'confirmActor', 'back', 'resume', 'restart', 'newRun', 'gotoMap', 'startStory', 'skip', 'nextLine']);
+  const exit = new Set(['beginGame', 'confirmActor', 'back', 'resume', 'restart', 'newRun', 'gotoMap', 'startStory', 'skip', 'nextLine', 'play', 'home']);
   for (let changed = true; changed;) {
     changed = false;
     for (const l of doc.layouts) {
@@ -1579,6 +1652,35 @@ function spriteCells(width,height,cols,rowsCount,first,last) {
 
 // Input values belong to one running game. Only the design belongs to the project.
 const CONTROL_MODES={text:'글자 입력',number:'숫자 입력',toggle:'체크박스',range:'슬라이더',choice:'선택 목록'};
+// Player settings an input control can stand for. They belong to the device, not to the save or the cloud copy, and
+// apply at once: volumes in percent, the typing speed of lines in percent of the authored speed.
+const DEVICE_SETTINGS={music:'배경음 음량',fx:'효과음 음량',voice:'음성 음량',mute:'모든 소리 끄기',textSpeed:'대사 글자 속도',autoAdvance:'대사 자동 진행'};
+const SETTING_MODES={music:'range',fx:'range',voice:'range',mute:'toggle',textSpeed:'range',autoAdvance:'toggle'};
+const SETTING_RANGES={music:[0,100],fx:[0,100],voice:[0,100],textSpeed:[10,1000]};
+const defaultSettings=()=>({music:100,fx:100,voice:100,mute:false,textSpeed:100,autoAdvance:false});
+// A stored settings object as a complete, bounded one; anything unknown or out of place takes the default.
+function deviceSettings(saved){
+  const out=defaultSettings();
+  if(!saved||typeof saved!=='object'||Array.isArray(saved))return out;
+  for(const k of Object.keys(out)){
+    const v=saved[k];
+    if(typeof out[k]==='boolean'){if(typeof v==='boolean')out[k]=v;}
+    else if(Number.isFinite(v))out[k]=clamp(Math.round(v),SETTING_RANGES[k][0],SETTING_RANGES[k][1]);
+  }
+  return out;
+}
+// The control's value for a setting, and the setting a committed control value gives.
+function settingText(spec,settings){
+  const v=settings[spec.setting];
+  return typeof v==='boolean'?String(v):String(clamp(v,spec.min,spec.max));
+}
+const settingValue=(spec,value)=>SETTING_MODES[spec.setting]==='toggle'?value==='true':Number(value);
+function inputSettingOK(c){
+  if(c.setting===undefined)return true;
+  if(!has(DEVICE_SETTINGS,c.setting)||SETTING_MODES[c.setting]!==c.mode||c.key!=='')return false;
+  const r=SETTING_RANGES[c.setting];
+  return !r||(c.min>=r[0]&&c.max<=r[1]);
+}
 function newInputSpec(mode='text'){
   return {mode,key:'',hint:'',initial:({toggle:'false',number:'0',range:'50',choice:'선택 1'})[mode]||'',
     limit:60,min:0,max:100,step:1,options:['선택 1','선택 2'],signal:''};
@@ -1607,7 +1709,7 @@ function validInputSpec(c){
     Array.isArray(c.options) && c.options.length>=1 && c.options.length<=16 &&
     c.options.every(v=>textValue(v,60,true)) && new Set(c.options).size===c.options.length &&
     (!c.validation||(c.mode==='text'&&integer(c.validation.minLength,0,c.limit)&&['any','digits','word'].includes(c.validation.format)&&textValue(c.validation.message,100)))&&
-    ((c.mode==='text'&&c.initial===''&&!!c.validation)||controlValue(c,c.initial)===c.initial);
+    ((c.mode==='text'&&c.initial===''&&!!c.validation)||controlValue(c,c.initial)===c.initial)&&inputSettingOK(c);
 }
 function controlKey(w,screenId){return w.control.key||screenId+'/'+w.id;}
 function readControl(w,screenId,values){return controlValue(w.control,values.get(controlKey(w,screenId))??w.control.initial)??w.control.initial;}
@@ -2190,6 +2292,8 @@ const SYSTEM_TEXT={
   'button.signal':'이벤트','button.online':'온라인 친선전','button.language':'언어',
   'button.cloudSave':'클라우드 저장','button.cloudLoad':'클라우드 불러오기','button.transferIssue':'기기 이전 코드','button.transferClaim':'코드로 이전',
   'button.reports':'오류 보고','button.buy':'구매','button.draw':'뽑기','button.drawMulti':'연속 뽑기','button.odds':'확률 정보',
+  'button.home':'홈','button.play':'플레이','button.saveGame':'저장','button.loadGame':'이어하기','button.quitGame':'게임 종료',
+  'button.openLink':'링크 열기','button.flagToggle':'상태 전환',
   'hud.loading':'로딩','hud.enemies':'남은 적','hud.energy':'스킬 게이지','hud.noEnergy':'없음','hud.boss':'보스',
   'dialogue.narrator':'내레이션','dialogue.next':'다음 대사 →','dialogue.end':'대화 마치기','dialogue.nextShort':'다음','dialogue.choice':'선택',
   'roadmap.read':'대화 읽기','roadmap.continue':'계속','roadmap.finish':'스토리 마치기',
@@ -2203,6 +2307,7 @@ const SYSTEM_TEXT={
   'status.exit':'출구로 이동하면 다음 맵으로 이어져요.',
   'save.unavailable':'이 실행 환경은 기기 저장소를 사용할 수 없어요.','save.busy':'대화나 전투 동작이 끝난 뒤 저장할 수 있어요.',
   'save.done':'이 기기에 진행 상황을 저장했어요.','save.failed':'기기 저장 공간을 사용할 수 없어요.','save.none':'이 기기에 호환되는 저장 기록이 없어요.',
+  'save.loaded':'저장한 진행을 불러왔어요.','app.link':'이 실행 환경에서는 링크를 열 수 없어요.',
   'bar.close':'화면 닫기','bar.save':'진행 저장','bar.continue':'이어하기','bar.stick':'조이스틱','bar.stats':'성능','bar.hitboxes':'판정 표시',
   'bar.assist':'보조 조작','bar.stop':'편집기로','bar.replay':'다시 플레이',
   'input.invalid':'입력 조건을 확인하세요.','online.unavailable':'온라인 친선전은 스튜디오 사이트나 Unity 앱에서 열 수 있어요.',
@@ -2220,7 +2325,7 @@ const SYSTEM_TEXT={
   'gacha.history':'최근 뽑기',
 };
 const SYSTEM_GROUPS={shop:'상점',gacha:'뽑기 확률 정보',cloud:'클라우드 저장·기기 이전',reports:'오류 보고',button:'버튼 기본 문구',hud:'HUD',dialogue:'대화',roadmap:'스토리 로드맵',items:'장비',gear:'장비 부위',quests:'의뢰',
-  result:'결과 화면',status:'진행 안내',save:'진행 저장',bar:'웹 플레이 막대',input:'입력 컨트롤',online:'온라인'};
+  result:'결과 화면',status:'진행 안내',save:'진행 저장',app:'외부 링크',bar:'웹 플레이 막대',input:'입력 컨트롤',online:'온라인'};
 const LOCALE_GROUPS={character:'캐릭터',map:'맵',story:'대사',screen:'UI 화면',item:'아이템 · 의뢰',quest:'아이템 · 의뢰',shop:'상점 · 뽑기',system:'게임 기본 문구',title:'게임 제목'};
 const plainObject=v=>!!v&&typeof v==='object'&&!Array.isArray(v);
 const localeHash=text=>motionSeed(String(text)).toString(16).padStart(8,'0');
