@@ -291,6 +291,48 @@ async function importProject(file) {
   });
   note('백업을 초안으로 열었어요.');
 }
+async function openEditorAccess() {
+  const initial = await api('editors');
+  const dialog = el('dialog'), form = el('form'), input = el('input'), list = box('group');
+  const submit = el('button', '편집 허용'), status = el('output');
+  dialog.setAttribute('aria-label', '편집자 관리');
+  Object.assign(input, { type: 'email', required: true, maxLength: 254, autocomplete: 'off' });
+  submit.type = 'submit';
+  status.setAttribute('aria-live', 'polite');
+  function show(editors) {
+    list.replaceChildren();
+    if (!editors.length) list.append(el('p', '허용된 편집자가 아직 없어요.'));
+    for (const email of editors) {
+      const revoke = action('편집 해제', () => change('revoke', email));
+      revoke.setAttribute('aria-label', email + ' 편집 해제');
+      list.append(row(el('span', email), revoke));
+    }
+  }
+  async function change(operation, email) {
+    if (submit.disabled) return;
+    submit.disabled = true;
+    for (const button of list.querySelectorAll('button')) button.disabled = true;
+    try {
+      show((await api('editors', { action: operation, email })).editors);
+      if (operation === 'grant') input.value = '';
+      status.textContent = operation === 'grant' ? '편집을 허용했어요.' : '편집 권한을 해제했어요.';
+    } catch (error) {
+      status.textContent = error.message;
+      try { show((await api('editors')).editors); } catch {}
+    } finally {
+      submit.disabled = false;
+      for (const button of list.querySelectorAll('button')) button.disabled = false;
+    }
+  }
+  form.onsubmit = event => { event.preventDefault(); change('grant', input.value); };
+  form.append(titled('ChatGPT 계정 이메일', input), submit);
+  dialog.append(heading('편집자 관리', '사이트를 공유한 뒤 같은 이메일을 등록하세요. 그 계정으로 로그인하면 제작실이 열려요.'),
+    form, list, status, action('닫기', () => dialog.close()));
+  dialog.onclose = () => dialog.remove();
+  show(initial.editors);
+  document.body.append(dialog);
+  dialog.showModal();
+}
 function drawVersions() {
   const [a, b] = panels();
   a.append(heading('버전 기록', '최근 8개 저장본을 초안으로 복원할 수 있어요.'));
@@ -412,6 +454,7 @@ function drawVersions() {
   a.append(heading('화면 흐름 검사'));
   for (const issue of [...diagnostics.errors, ...diagnostics.warnings]) a.append(el('p', issue));
   if (!diagnostics.errors.length && !diagnostics.warnings.length) a.append(el('p', '화면 연결 검사 통과'));
+  if (access.owner && !inspectionId) b.append(action('편집자 관리', openEditorAccess));
   if (access.owner)
     b.append(
       action(access.configured ? '팀 암호 변경' : '팀 암호 설정', () => {
@@ -459,7 +502,7 @@ function drawVersions() {
           localStorage.removeItem(draftKey);
         } catch {}
         dirty = false;
-        if (access.owner) window.top.location.href = '/signout-with-chatgpt?return_to=%2F';
+        if (access.owner || access.approvedEditor) window.top.location.href = '/signout-with-chatgpt?return_to=%2F';
         else location.reload();
       }
     }),
@@ -467,10 +510,10 @@ function drawVersions() {
 }
 async function openEditor() {
   access = await api('status');
-  if (access.owner && !access.ok) {
-    await api('owner-session', {});
+  if ((access.owner && !access.ok) || (access.approvedEditor && !access.editorSession)) {
+    await api(access.owner ? 'owner-session' : 'editor-session', {});
     access = await api('status');
-    if (!access.ok) throw Error('소유자 로그인 세션을 열 수 없어요. 브라우저의 쿠키 설정을 확인하세요.');
+    if (!access.ok) throw Error('편집 세션을 열 수 없어요. 브라우저의 쿠키 설정을 확인하세요.');
   }
   if (access.ok) {
     const r = await api('project');
@@ -511,13 +554,15 @@ async function openEditor() {
   } else {
     $('#team-password').hidden = $('#enter').hidden = !access.configured;
     $('#pw').disabled = $('#enter').disabled = !access.configured;
-    $('#owner-login').hidden = access.signedIn;
-    $('#owner-login').href = '/signin-with-chatgpt?return_to=' + encodeURIComponent(location.pathname + location.search);
-    $('#intro').textContent = access.configured
-      ? '팀에서 정한 암호로 프로젝트를 여세요.'
-      : access.signedIn
-        ? '현재 계정의 소유자 권한을 확인할 수 없어요. 스튜디오를 만든 ChatGPT 계정으로 다시 열어 주세요.'
-        : '소유자 계정으로 로그인하면 편집기가 열려요.';
+    const accountLink = $('#owner-login');
+    accountLink.hidden = false;
+    accountLink.textContent = access.signedIn ? '다른 계정으로 열기' : 'ChatGPT 계정으로 열기';
+    accountLink.href = (access.signedIn ? '/signout-with-chatgpt' : '/signin-with-chatgpt') +
+      '?return_to=' + encodeURIComponent(location.pathname + location.search);
+    $('#intro').textContent = (access.signedIn
+      ? '이 계정에는 편집 권한이 없어요. 소유자에게 편집을 요청하세요.'
+      : '소유자 또는 편집이 허용된 ChatGPT 계정으로 로그인하세요.') +
+      (access.configured ? ' 팀 암호로도 입장할 수 있어요.' : '');
   }
 }
 $('#login').onsubmit = async (e) => {

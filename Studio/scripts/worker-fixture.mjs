@@ -35,13 +35,13 @@ export const BUCKET = {
 const origin = 'https://studio.test';
 export const previewOwnerHeaders = { 'oai-authenticated-user-email': owner };
 export const ownerHeaders = { ...previewOwnerHeaders, 'oai-authenticated-user-id': 'test-owner' };
-export async function call(path, data, headers = {}) {
+export async function call(path, data, headers = {}, env = {}) {
   return worker.fetch(
     new Request(origin + '/api/' + path, {
       method: data === undefined ? 'GET' : 'POST',
       headers: { 'Content-Type': 'application/json', ...headers },
       body: data === undefined ? undefined : JSON.stringify(data),
     }),
-    { BUCKET, STUDIO_OWNER_EMAIL_SHA256: ownerDigest },
+    { BUCKET, STUDIO_OWNER_EMAIL_SHA256: ownerDigest, ...env },
   );
 }
