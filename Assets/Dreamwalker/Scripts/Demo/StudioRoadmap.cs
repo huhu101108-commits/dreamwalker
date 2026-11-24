@@ -45,8 +45,8 @@ public class StudioRoadmap
         if (!string.IsNullOrEmpty(episode.summary))
             labels.Add(episode.summary);
         lines.Add(new StudioLine { id = prefix, speaker = "", text = string.Join("\n", labels),
-                                   choices = new[] { source == null ? Choice("계속", end)
-                                                                    : Choice("대화 읽기",
+                                   choices = new[] { source == null ? Choice(StudioLocalization.Text("roadmap.continue"), end)
+                                                                    : Choice(StudioLocalization.Text("roadmap.read"),
                                                                              prefix + source.nodes[0].id) } });
         if (source != null)
         {
@@ -55,7 +55,7 @@ public class StudioRoadmap
                 var line = source.nodes[i];
                 var answers =
                     line.choices.Length == 0
-                        ? new[] { Choice(string.IsNullOrEmpty(line.nextLabel) ? "다음" : line.nextLabel,
+                        ? new[] { Choice(string.IsNullOrEmpty(line.nextLabel) ? StudioLocalization.Text("dialogue.nextShort") : line.nextLabel,
                                          i + 1 < source.nodes.Length ? prefix + source.nodes[i + 1].id : end) }
                         : Array.ConvertAll(
                               line.choices,
@@ -67,7 +67,7 @@ public class StudioRoadmap
         }
         lines.Add(new StudioLine { id = end, speaker = "", text = episode.title,
                                    choices = episode.links.Length == 0
-                                                 ? new[] { Choice("스토리 마치기", "") }
+                                                 ? new[] { Choice(StudioLocalization.Text("roadmap.finish"), "") }
                                                  : Array.ConvertAll(episode.links,
                                                                     c => Choice(c.label, c.to + ":")) });
     }

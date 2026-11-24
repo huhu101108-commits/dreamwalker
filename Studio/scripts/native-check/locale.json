@@ -1,0 +1,2700 @@
+{
+ "project": {
+  "title": "설원 횡단",
+  "startMap": "mine",
+  "saveId": "mine",
+  "locale": {
+   "base": "ko",
+   "baseName": "한국어",
+   "keys": [
+    "title",
+    "character/baekseol/name",
+    "character/baekseol/profile/unit",
+    "character/baekseol/skill/0/caption",
+    "character/baekseol/skill/0/line",
+    "character/baekseol/episode/meet/title",
+    "character/baekseol/episode/meet/link/1",
+    "map/mine/name",
+    "map/mine/object/e1/label",
+    "story/prologue/line/n1/text",
+    "story/prologue/line/n1/next",
+    "story/prologue/line/n1/layer/place",
+    "story/prologue/line/n2/speaker",
+    "story/prologue/line/n2/choice/0",
+    "screen/default-menu/callsign/hint",
+    "screen/default-menu/callsign/message",
+    "screen/default-menu/level/option/1",
+    "screen/default-menu/swap/text",
+    "item/sword/name",
+    "quest/first/name",
+    "system/button.jump",
+    "system/result.clear",
+    "system/dialogue.next",
+    "story/prologue/line/n2/text"
+   ],
+   "languages": [
+    {
+     "code": "en",
+     "name": "English",
+     "values": [
+      "Snowfield Crossing",
+      "Baekseol",
+      "Snow Guard",
+      "Frost Flash",
+      "Freeze!",
+      "First Meeting",
+      "Go back",
+      "Mine Station",
+      "Frost Wolf",
+      "This station speaks {언어}.",
+      "Keep listening",
+      "Mine station · dawn",
+      "Announcement",
+      "North",
+      "Enter a name",
+      "Use one word.",
+      "Normal",
+      "Language: {언어}",
+      "Frost Sword",
+      "First Job",
+      "Jump",
+      "Explored",
+      "Next →",
+      ""
+     ]
+    },
+    {
+     "code": "ja",
+     "name": "日本語",
+     "values": [
+      "",
+      "白雪",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "古い原文の訳"
+     ]
+    }
+   ],
+   "system": [
+    {
+     "key": "result.clear",
+     "text": "탐험 성공"
+    }
+   ]
+  },
+  "characters": [
+   {
+    "id": "baekseol",
+    "name": "백설",
+    "region": "북쪽 설원",
+    "summary": "단검과 서리로 적을 추격한다.",
+    "profile": [
+     {
+      "id": "unit",
+      "label": "소속",
+      "value": "설산 경비대"
+     },
+     {
+      "id": "empty",
+      "label": "생일",
+      "value": ""
+     }
+    ],
+    "skills": [
+     {
+      "name": "설풍보",
+      "cast": {
+       "cutin": true,
+       "image": "",
+       "ticks": 48,
+       "color": "#1d3b57",
+       "caption": "서리 일섬",
+       "line": "얼어붙어라!",
+       "voice": "",
+       "freeze": true
+      }
+     },
+     {
+      "name": "빙화연격"
+     },
+     {
+      "name": "설영난무"
+     },
+     {
+      "name": "절대영도"
+     }
+    ],
+    "roadmap": {
+     "entry": "meet",
+     "episodes": [
+      {
+       "id": "meet",
+       "title": "첫 만남",
+       "summary": "광산역에서 만난다.",
+       "storyId": "",
+       "mapId": "",
+       "links": [
+        {
+         "label": "따라간다",
+         "to": "chase"
+        },
+        {
+         "label": "돌아간다",
+         "to": "chase"
+        }
+       ]
+      },
+      {
+       "id": "chase",
+       "title": "추적",
+       "summary": "",
+       "storyId": "",
+       "mapId": "",
+       "links": []
+      }
+     ]
+    }
+   }
+  ],
+  "scenes": [
+   {
+    "id": "mine",
+    "name": "설산 광산역",
+    "objects": [
+     {
+      "id": "start",
+      "type": "spawn"
+     },
+     {
+      "id": "e1",
+      "type": "enemy",
+      "label": "서리 늑대"
+     },
+     {
+      "id": "e2",
+      "type": "enemy",
+      "label": ""
+     },
+     {
+      "id": "e3",
+      "type": "enemy",
+      "label": ""
+     },
+     {
+      "id": "p1",
+      "type": "platform"
+     },
+     {
+      "id": "end",
+      "type": "exit"
+     },
+     {
+      "id": "sign",
+      "type": "prop",
+      "label": "낡은 표지판"
+     }
+    ]
+   }
+  ],
+  "stories": [
+   {
+    "id": "prologue",
+    "name": "프롤로그",
+    "nodes": [
+     {
+      "id": "n1",
+      "speaker": "baekseol",
+      "text": "여기는 {언어}로 말하는 역이야.",
+      "nextLabel": "계속 듣기",
+      "choices": [],
+      "shot": {
+       "layers": [
+        {
+         "id": "0000000100004000",
+         "kind": "backdrop",
+         "caption": ""
+        },
+        {
+         "id": "0000000200004000",
+         "kind": "portrait",
+         "caption": ""
+        },
+        {
+         "id": "0000000300004000",
+         "kind": "panel",
+         "caption": ""
+        },
+        {
+         "id": "0000000400004000",
+         "kind": "name",
+         "caption": ""
+        },
+        {
+         "id": "0000000500004000",
+         "kind": "text",
+         "caption": ""
+        },
+        {
+         "id": "0000000600004000",
+         "kind": "choices",
+         "caption": ""
+        },
+        {
+         "id": "place",
+         "kind": "caption",
+         "caption": "설산 광산역 · 새벽"
+        }
+       ]
+      }
+     },
+     {
+      "id": "n2",
+      "speaker": "",
+      "text": "어디로 갈까요?",
+      "speakerName": "안내 방송",
+      "choices": [
+       {
+        "label": "북쪽",
+        "to": ""
+       },
+       {
+        "label": "남쪽",
+        "to": ""
+       }
+      ]
+     }
+    ]
+   }
+  ],
+  "layouts": [
+   {
+    "id": "default-hud",
+    "name": "기본 전투 HUD",
+    "kind": "hud",
+    "elements": [
+     {
+      "id": "hp",
+      "type": "hp",
+      "text": "",
+      "action": "attack",
+      "target": ""
+     },
+     {
+      "id": "enemies",
+      "type": "enemies",
+      "text": "",
+      "action": "attack",
+      "target": ""
+     },
+     {
+      "id": "menu",
+      "type": "button",
+      "text": "메뉴",
+      "action": "menu",
+      "target": ""
+     },
+     {
+      "id": "jump",
+      "type": "button",
+      "text": "",
+      "action": "jump",
+      "target": ""
+     },
+     {
+      "id": "attack",
+      "type": "button",
+      "text": "",
+      "action": "attack",
+      "target": ""
+     },
+     {
+      "id": "skill1",
+      "type": "button",
+      "text": "",
+      "action": "skill1",
+      "target": ""
+     },
+     {
+      "id": "skill2",
+      "type": "button",
+      "text": "",
+      "action": "skill2",
+      "target": ""
+     },
+     {
+      "id": "skill3",
+      "type": "button",
+      "text": "",
+      "action": "skill3",
+      "target": ""
+     },
+     {
+      "id": "skill4",
+      "type": "button",
+      "text": "",
+      "action": "skill4",
+      "target": ""
+     },
+     {
+      "id": "move-stick",
+      "type": "joystick",
+      "text": "",
+      "action": "attack",
+      "target": ""
+     }
+    ]
+   },
+   {
+    "id": "default-menu",
+    "name": "일시정지 메뉴",
+    "kind": "menu",
+    "elements": [
+     {
+      "id": "name",
+      "type": "character",
+      "text": "",
+      "action": "attack",
+      "target": ""
+     },
+     {
+      "id": "switch",
+      "type": "button",
+      "text": "캐릭터 교대",
+      "action": "switch",
+      "target": ""
+     },
+     {
+      "id": "restart",
+      "type": "button",
+      "text": "맵 재시작",
+      "action": "restart",
+      "target": ""
+     },
+     {
+      "id": "resume",
+      "type": "button",
+      "text": "계속하기",
+      "action": "resume",
+      "target": ""
+     },
+     {
+      "id": "callsign",
+      "type": "input",
+      "text": "호출 부호",
+      "action": "attack",
+      "target": "",
+      "control": {
+       "mode": "text",
+       "key": "callsign",
+       "hint": "이름을 입력",
+       "initial": "",
+       "limit": 60,
+       "min": 0,
+       "max": 100,
+       "step": 1,
+       "options": [
+        "선택 1",
+        "선택 2"
+       ],
+       "signal": "",
+       "validation": {
+        "minLength": 1,
+        "format": "word",
+        "message": "한 단어로 적어 주세요."
+       }
+      }
+     },
+     {
+      "id": "level",
+      "type": "input",
+      "text": "난이도",
+      "action": "attack",
+      "target": "",
+      "control": {
+       "mode": "choice",
+       "key": "level",
+       "hint": "",
+       "initial": "쉬움",
+       "limit": 60,
+       "min": 0,
+       "max": 100,
+       "step": 1,
+       "options": [
+        "쉬움",
+        "보통"
+       ],
+       "signal": ""
+      }
+     },
+     {
+      "id": "swap",
+      "type": "button",
+      "text": "언어: {언어}",
+      "action": "language",
+      "target": ""
+     }
+    ]
+   },
+   {
+    "id": "default-dialogue",
+    "name": "기본 대화창",
+    "kind": "dialogue",
+    "elements": [
+     {
+      "id": "dialogue",
+      "type": "dialogue",
+      "text": "",
+      "action": "attack",
+      "target": ""
+     }
+    ]
+   },
+   {
+    "id": "result-clear",
+    "name": "탐험 완료",
+    "kind": "custom",
+    "elements": [
+     {
+      "id": "heading",
+      "type": "text",
+      "text": "탐험 완료",
+      "action": "attack",
+      "target": ""
+     },
+     {
+      "id": "again",
+      "type": "button",
+      "text": "이 맵 다시 시작",
+      "action": "restart",
+      "target": ""
+     }
+    ]
+   },
+   {
+    "id": "result-defeat",
+    "name": "전투 종료",
+    "kind": "custom",
+    "elements": [
+     {
+      "id": "heading",
+      "type": "text",
+      "text": "전투 종료",
+      "action": "attack",
+      "target": ""
+     },
+     {
+      "id": "again",
+      "type": "button",
+      "text": "이 맵 다시 시작",
+      "action": "restart",
+      "target": ""
+     }
+    ]
+   },
+   {
+    "id": "front-title",
+    "name": "시작 화면",
+    "kind": "custom",
+    "elements": [
+     {
+      "id": "heading",
+      "type": "text",
+      "text": "Dreamwalker",
+      "action": "attack",
+      "target": ""
+     },
+     {
+      "id": "start",
+      "type": "button",
+      "text": "게임 시작",
+      "action": "beginGame",
+      "target": ""
+     }
+    ]
+   },
+   {
+    "id": "front-loading",
+    "name": "로딩 화면",
+    "kind": "custom",
+    "elements": [
+     {
+      "id": "heading",
+      "type": "text",
+      "text": "불러오는 중",
+      "action": "attack",
+      "target": ""
+     },
+     {
+      "id": "progress",
+      "type": "loading",
+      "text": "",
+      "action": "attack",
+      "target": ""
+     }
+    ]
+   },
+   {
+    "id": "front-roster",
+    "name": "캐릭터 선택 화면",
+    "kind": "custom",
+    "elements": [
+     {
+      "id": "heading",
+      "type": "text",
+      "text": "캐릭터 선택",
+      "action": "attack",
+      "target": ""
+     },
+     {
+      "id": "face",
+      "type": "portrait",
+      "text": "",
+      "action": "attack",
+      "target": ""
+     },
+     {
+      "id": "name",
+      "type": "character",
+      "text": "",
+      "action": "attack",
+      "target": ""
+     },
+     {
+      "id": "prev",
+      "type": "button",
+      "text": "이전",
+      "action": "previousActor",
+      "target": ""
+     },
+     {
+      "id": "next-actor",
+      "type": "button",
+      "text": "다음",
+      "action": "switch",
+      "target": ""
+     },
+     {
+      "id": "confirm",
+      "type": "button",
+      "text": "이 캐릭터로 시작",
+      "action": "confirmActor",
+      "target": ""
+     }
+    ]
+   }
+  ],
+  "items": [
+   {
+    "id": "sword",
+    "name": "서리검",
+    "slot": "weapon",
+    "power": 3
+   }
+  ],
+  "quests": [
+   {
+    "id": "first",
+    "name": "첫 의뢰",
+    "kind": "clear",
+    "target": "mine",
+    "reward": "sword",
+    "count": 1
+   }
+  ]
+ },
+ "keys": [
+  [
+   "title",
+   "설원 횡단"
+  ],
+  [
+   "character/baekseol/name",
+   "백설"
+  ],
+  [
+   "character/baekseol/region",
+   "북쪽 설원"
+  ],
+  [
+   "character/baekseol/summary",
+   "단검과 서리로 적을 추격한다."
+  ],
+  [
+   "character/baekseol/profile/unit",
+   "설산 경비대"
+  ],
+  [
+   "character/baekseol/skill/0/name",
+   "설풍보"
+  ],
+  [
+   "character/baekseol/skill/0/caption",
+   "서리 일섬"
+  ],
+  [
+   "character/baekseol/skill/0/line",
+   "얼어붙어라!"
+  ],
+  [
+   "character/baekseol/skill/1/name",
+   "빙화연격"
+  ],
+  [
+   "character/baekseol/skill/2/name",
+   "설영난무"
+  ],
+  [
+   "character/baekseol/skill/3/name",
+   "절대영도"
+  ],
+  [
+   "character/baekseol/episode/meet/title",
+   "첫 만남"
+  ],
+  [
+   "character/baekseol/episode/meet/summary",
+   "광산역에서 만난다."
+  ],
+  [
+   "character/baekseol/episode/meet/link/0",
+   "따라간다"
+  ],
+  [
+   "character/baekseol/episode/meet/link/1",
+   "돌아간다"
+  ],
+  [
+   "character/baekseol/episode/chase/title",
+   "추적"
+  ],
+  [
+   "map/mine/name",
+   "설산 광산역"
+  ],
+  [
+   "map/mine/object/e1/label",
+   "서리 늑대"
+  ],
+  [
+   "map/mine/object/sign/label",
+   "낡은 표지판"
+  ],
+  [
+   "story/prologue/name",
+   "프롤로그"
+  ],
+  [
+   "story/prologue/line/n1/text",
+   "여기는 {언어}로 말하는 역이야."
+  ],
+  [
+   "story/prologue/line/n1/next",
+   "계속 듣기"
+  ],
+  [
+   "story/prologue/line/n1/layer/place",
+   "설산 광산역 · 새벽"
+  ],
+  [
+   "story/prologue/line/n2/text",
+   "어디로 갈까요?"
+  ],
+  [
+   "story/prologue/line/n2/speaker",
+   "안내 방송"
+  ],
+  [
+   "story/prologue/line/n2/choice/0",
+   "북쪽"
+  ],
+  [
+   "story/prologue/line/n2/choice/1",
+   "남쪽"
+  ],
+  [
+   "screen/default-hud/name",
+   "기본 전투 HUD"
+  ],
+  [
+   "screen/default-menu/name",
+   "일시정지 메뉴"
+  ],
+  [
+   "screen/default-dialogue/name",
+   "기본 대화창"
+  ],
+  [
+   "screen/result-clear/name",
+   "탐험 완료"
+  ],
+  [
+   "screen/result-defeat/name",
+   "전투 종료"
+  ],
+  [
+   "screen/front-title/name",
+   "시작 화면"
+  ],
+  [
+   "screen/front-loading/name",
+   "로딩 화면"
+  ],
+  [
+   "screen/front-roster/name",
+   "캐릭터 선택 화면"
+  ],
+  [
+   "screen/default-hud/menu/text",
+   "메뉴"
+  ],
+  [
+   "screen/default-menu/switch/text",
+   "캐릭터 교대"
+  ],
+  [
+   "screen/default-menu/restart/text",
+   "맵 재시작"
+  ],
+  [
+   "screen/default-menu/resume/text",
+   "계속하기"
+  ],
+  [
+   "screen/default-menu/callsign/text",
+   "호출 부호"
+  ],
+  [
+   "screen/default-menu/callsign/hint",
+   "이름을 입력"
+  ],
+  [
+   "screen/default-menu/callsign/message",
+   "한 단어로 적어 주세요."
+  ],
+  [
+   "screen/default-menu/level/text",
+   "난이도"
+  ],
+  [
+   "screen/default-menu/level/option/0",
+   "쉬움"
+  ],
+  [
+   "screen/default-menu/level/option/1",
+   "보통"
+  ],
+  [
+   "screen/default-menu/swap/text",
+   "언어: {언어}"
+  ],
+  [
+   "screen/result-clear/heading/text",
+   "탐험 완료"
+  ],
+  [
+   "screen/result-clear/again/text",
+   "이 맵 다시 시작"
+  ],
+  [
+   "screen/result-defeat/heading/text",
+   "전투 종료"
+  ],
+  [
+   "screen/result-defeat/again/text",
+   "이 맵 다시 시작"
+  ],
+  [
+   "screen/front-title/heading/text",
+   "Dreamwalker"
+  ],
+  [
+   "screen/front-title/start/text",
+   "게임 시작"
+  ],
+  [
+   "screen/front-loading/heading/text",
+   "불러오는 중"
+  ],
+  [
+   "screen/front-roster/heading/text",
+   "캐릭터 선택"
+  ],
+  [
+   "screen/front-roster/prev/text",
+   "이전"
+  ],
+  [
+   "screen/front-roster/next-actor/text",
+   "다음"
+  ],
+  [
+   "screen/front-roster/confirm/text",
+   "이 캐릭터로 시작"
+  ],
+  [
+   "item/sword/name",
+   "서리검"
+  ],
+  [
+   "quest/first/name",
+   "첫 의뢰"
+  ]
+ ],
+ "applied": {
+  "en": {
+   "values": [
+    [
+     "title",
+     "Snowfield Crossing"
+    ],
+    [
+     "character/baekseol/name",
+     "Baekseol"
+    ],
+    [
+     "character/baekseol/region",
+     "북쪽 설원"
+    ],
+    [
+     "character/baekseol/summary",
+     "단검과 서리로 적을 추격한다."
+    ],
+    [
+     "character/baekseol/profile/unit",
+     "Snow Guard"
+    ],
+    [
+     "character/baekseol/skill/0/name",
+     "설풍보"
+    ],
+    [
+     "character/baekseol/skill/0/caption",
+     "Frost Flash"
+    ],
+    [
+     "character/baekseol/skill/0/line",
+     "Freeze!"
+    ],
+    [
+     "character/baekseol/skill/1/name",
+     "빙화연격"
+    ],
+    [
+     "character/baekseol/skill/2/name",
+     "설영난무"
+    ],
+    [
+     "character/baekseol/skill/3/name",
+     "절대영도"
+    ],
+    [
+     "character/baekseol/episode/meet/title",
+     "First Meeting"
+    ],
+    [
+     "character/baekseol/episode/meet/summary",
+     "광산역에서 만난다."
+    ],
+    [
+     "character/baekseol/episode/meet/link/0",
+     "따라간다"
+    ],
+    [
+     "character/baekseol/episode/meet/link/1",
+     "Go back"
+    ],
+    [
+     "character/baekseol/episode/chase/title",
+     "추적"
+    ],
+    [
+     "map/mine/name",
+     "Mine Station"
+    ],
+    [
+     "map/mine/object/e1/label",
+     "Frost Wolf"
+    ],
+    [
+     "map/mine/object/sign/label",
+     "낡은 표지판"
+    ],
+    [
+     "story/prologue/name",
+     "프롤로그"
+    ],
+    [
+     "story/prologue/line/n1/text",
+     "This station speaks English."
+    ],
+    [
+     "story/prologue/line/n1/next",
+     "Keep listening"
+    ],
+    [
+     "story/prologue/line/n1/layer/place",
+     "Mine station · dawn"
+    ],
+    [
+     "story/prologue/line/n2/text",
+     "어디로 갈까요?"
+    ],
+    [
+     "story/prologue/line/n2/speaker",
+     "Announcement"
+    ],
+    [
+     "story/prologue/line/n2/choice/0",
+     "North"
+    ],
+    [
+     "story/prologue/line/n2/choice/1",
+     "남쪽"
+    ],
+    [
+     "screen/default-hud/name",
+     "기본 전투 HUD"
+    ],
+    [
+     "screen/default-menu/name",
+     "일시정지 메뉴"
+    ],
+    [
+     "screen/default-dialogue/name",
+     "기본 대화창"
+    ],
+    [
+     "screen/result-clear/name",
+     "탐험 완료"
+    ],
+    [
+     "screen/result-defeat/name",
+     "전투 종료"
+    ],
+    [
+     "screen/front-title/name",
+     "시작 화면"
+    ],
+    [
+     "screen/front-loading/name",
+     "로딩 화면"
+    ],
+    [
+     "screen/front-roster/name",
+     "캐릭터 선택 화면"
+    ],
+    [
+     "screen/default-hud/menu/text",
+     "메뉴"
+    ],
+    [
+     "screen/default-menu/switch/text",
+     "캐릭터 교대"
+    ],
+    [
+     "screen/default-menu/restart/text",
+     "맵 재시작"
+    ],
+    [
+     "screen/default-menu/resume/text",
+     "계속하기"
+    ],
+    [
+     "screen/default-menu/callsign/text",
+     "호출 부호"
+    ],
+    [
+     "screen/default-menu/callsign/hint",
+     "Enter a name"
+    ],
+    [
+     "screen/default-menu/callsign/message",
+     "Use one word."
+    ],
+    [
+     "screen/default-menu/level/text",
+     "난이도"
+    ],
+    [
+     "screen/default-menu/level/option/0",
+     "쉬움"
+    ],
+    [
+     "screen/default-menu/level/option/1",
+     "Normal"
+    ],
+    [
+     "screen/default-menu/swap/text",
+     "Language: English"
+    ],
+    [
+     "screen/result-clear/heading/text",
+     "탐험 완료"
+    ],
+    [
+     "screen/result-clear/again/text",
+     "이 맵 다시 시작"
+    ],
+    [
+     "screen/result-defeat/heading/text",
+     "전투 종료"
+    ],
+    [
+     "screen/result-defeat/again/text",
+     "이 맵 다시 시작"
+    ],
+    [
+     "screen/front-title/heading/text",
+     "Dreamwalker"
+    ],
+    [
+     "screen/front-title/start/text",
+     "게임 시작"
+    ],
+    [
+     "screen/front-loading/heading/text",
+     "불러오는 중"
+    ],
+    [
+     "screen/front-roster/heading/text",
+     "캐릭터 선택"
+    ],
+    [
+     "screen/front-roster/prev/text",
+     "이전"
+    ],
+    [
+     "screen/front-roster/next-actor/text",
+     "다음"
+    ],
+    [
+     "screen/front-roster/confirm/text",
+     "이 캐릭터로 시작"
+    ],
+    [
+     "item/sword/name",
+     "Frost Sword"
+    ],
+    [
+     "quest/first/name",
+     "First Job"
+    ]
+   ],
+   "system": [
+    [
+     "button.dodge",
+     "회피"
+    ],
+    [
+     "button.jump",
+     "Jump"
+    ],
+    [
+     "button.attack",
+     "베기"
+    ],
+    [
+     "button.menu",
+     "메뉴"
+    ],
+    [
+     "button.open",
+     "화면 열기"
+    ],
+    [
+     "button.resume",
+     "계속하기"
+    ],
+    [
+     "button.restart",
+     "다시 시작"
+    ],
+    [
+     "button.switch",
+     "캐릭터 교대"
+    ],
+    [
+     "button.skip",
+     "건너뛰기"
+    ],
+    [
+     "button.nextLine",
+     "다음 대사"
+    ],
+    [
+     "button.roadmap",
+     "캐릭터 스토리"
+    ],
+    [
+     "button.beginGame",
+     "게임 시작"
+    ],
+    [
+     "button.confirmActor",
+     "선택 확정"
+    ],
+    [
+     "button.previousActor",
+     "이전 캐릭터"
+    ],
+    [
+     "button.newRun",
+     "게임 처음부터"
+    ],
+    [
+     "button.back",
+     "뒤로"
+    ],
+    [
+     "button.gotoMap",
+     "맵 이동"
+    ],
+    [
+     "button.startStory",
+     "대화"
+    ],
+    [
+     "button.selectActor",
+     "캐릭터 선택"
+    ],
+    [
+     "button.flagOn",
+     "상태 켜기"
+    ],
+    [
+     "button.flagOff",
+     "상태 끄기"
+    ],
+    [
+     "button.signal",
+     "이벤트"
+    ],
+    [
+     "button.online",
+     "온라인 친선전"
+    ],
+    [
+     "button.language",
+     "언어"
+    ],
+    [
+     "hud.loading",
+     "로딩"
+    ],
+    [
+     "hud.enemies",
+     "남은 적"
+    ],
+    [
+     "hud.energy",
+     "스킬 게이지"
+    ],
+    [
+     "hud.noEnergy",
+     "없음"
+    ],
+    [
+     "hud.boss",
+     "보스"
+    ],
+    [
+     "dialogue.narrator",
+     "내레이션"
+    ],
+    [
+     "dialogue.next",
+     "Next →"
+    ],
+    [
+     "dialogue.end",
+     "대화 마치기"
+    ],
+    [
+     "dialogue.nextShort",
+     "다음"
+    ],
+    [
+     "dialogue.choice",
+     "선택"
+    ],
+    [
+     "roadmap.read",
+     "대화 읽기"
+    ],
+    [
+     "roadmap.continue",
+     "계속"
+    ],
+    [
+     "roadmap.finish",
+     "스토리 마치기"
+    ],
+    [
+     "items.open",
+     "보유 장비 · 장착 변경"
+    ],
+    [
+     "items.empty",
+     "보유한 장비가 없어요."
+    ],
+    [
+     "items.unequip",
+     "장착 해제"
+    ],
+    [
+     "items.power",
+     "공격력"
+    ],
+    [
+     "items.busy",
+     "다른 캐릭터가 장착 중이에요."
+    ],
+    [
+     "gear.weapon",
+     "무기"
+    ],
+    [
+     "gear.head",
+     "머리"
+    ],
+    [
+     "gear.top",
+     "상의"
+    ],
+    [
+     "gear.bottom",
+     "하의"
+    ],
+    [
+     "gear.feet",
+     "신발"
+    ],
+    [
+     "gear.extra1",
+     "추가 장비 1"
+    ],
+    [
+     "gear.extra2",
+     "추가 장비 2"
+    ],
+    [
+     "gear.extra3",
+     "추가 장비 3"
+    ],
+    [
+     "quests.title",
+     "의뢰 목록 · 진행 상태"
+    ],
+    [
+     "quests.empty",
+     "등록된 의뢰가 없어요."
+    ],
+    [
+     "quests.done",
+     "완료"
+    ],
+    [
+     "quests.active",
+     "진행"
+    ],
+    [
+     "result.clear",
+     "Explored"
+    ],
+    [
+     "result.over",
+     "전투 종료"
+    ],
+    [
+     "result.again",
+     "이 맵 다시 시작"
+    ],
+    [
+     "status.paused",
+     "일시정지"
+    ],
+    [
+     "status.ended",
+     "플레이 종료"
+    ],
+    [
+     "status.clearFirst",
+     "적을 모두 처치한 뒤 출구로 이동하세요."
+    ],
+    [
+     "status.exit",
+     "출구로 이동하면 다음 맵으로 이어져요."
+    ],
+    [
+     "save.unavailable",
+     "이 실행 환경은 기기 저장소를 사용할 수 없어요."
+    ],
+    [
+     "save.busy",
+     "대화나 전투 동작이 끝난 뒤 저장할 수 있어요."
+    ],
+    [
+     "save.done",
+     "이 기기에 진행 상황을 저장했어요."
+    ],
+    [
+     "save.failed",
+     "기기 저장 공간을 사용할 수 없어요."
+    ],
+    [
+     "save.none",
+     "이 기기에 호환되는 저장 기록이 없어요."
+    ],
+    [
+     "bar.close",
+     "화면 닫기"
+    ],
+    [
+     "bar.save",
+     "진행 저장"
+    ],
+    [
+     "bar.continue",
+     "이어하기"
+    ],
+    [
+     "bar.stick",
+     "조이스틱"
+    ],
+    [
+     "bar.stats",
+     "성능"
+    ],
+    [
+     "bar.hitboxes",
+     "판정 표시"
+    ],
+    [
+     "bar.assist",
+     "보조 조작"
+    ],
+    [
+     "bar.stop",
+     "편집기로"
+    ],
+    [
+     "bar.replay",
+     "다시 플레이"
+    ],
+    [
+     "input.invalid",
+     "입력 조건을 확인하세요."
+    ],
+    [
+     "online.unavailable",
+     "온라인 친선전은 스튜디오 사이트나 Unity 앱에서 열 수 있어요."
+    ]
+   ]
+  },
+  "ja": {
+   "values": [
+    [
+     "title",
+     "설원 횡단"
+    ],
+    [
+     "character/baekseol/name",
+     "白雪"
+    ],
+    [
+     "character/baekseol/region",
+     "북쪽 설원"
+    ],
+    [
+     "character/baekseol/summary",
+     "단검과 서리로 적을 추격한다."
+    ],
+    [
+     "character/baekseol/profile/unit",
+     "설산 경비대"
+    ],
+    [
+     "character/baekseol/skill/0/name",
+     "설풍보"
+    ],
+    [
+     "character/baekseol/skill/0/caption",
+     "서리 일섬"
+    ],
+    [
+     "character/baekseol/skill/0/line",
+     "얼어붙어라!"
+    ],
+    [
+     "character/baekseol/skill/1/name",
+     "빙화연격"
+    ],
+    [
+     "character/baekseol/skill/2/name",
+     "설영난무"
+    ],
+    [
+     "character/baekseol/skill/3/name",
+     "절대영도"
+    ],
+    [
+     "character/baekseol/episode/meet/title",
+     "첫 만남"
+    ],
+    [
+     "character/baekseol/episode/meet/summary",
+     "광산역에서 만난다."
+    ],
+    [
+     "character/baekseol/episode/meet/link/0",
+     "따라간다"
+    ],
+    [
+     "character/baekseol/episode/meet/link/1",
+     "돌아간다"
+    ],
+    [
+     "character/baekseol/episode/chase/title",
+     "추적"
+    ],
+    [
+     "map/mine/name",
+     "설산 광산역"
+    ],
+    [
+     "map/mine/object/e1/label",
+     "서리 늑대"
+    ],
+    [
+     "map/mine/object/sign/label",
+     "낡은 표지판"
+    ],
+    [
+     "story/prologue/name",
+     "프롤로그"
+    ],
+    [
+     "story/prologue/line/n1/text",
+     "여기는 日本語로 말하는 역이야."
+    ],
+    [
+     "story/prologue/line/n1/next",
+     "계속 듣기"
+    ],
+    [
+     "story/prologue/line/n1/layer/place",
+     "설산 광산역 · 새벽"
+    ],
+    [
+     "story/prologue/line/n2/text",
+     "古い原文の訳"
+    ],
+    [
+     "story/prologue/line/n2/speaker",
+     "안내 방송"
+    ],
+    [
+     "story/prologue/line/n2/choice/0",
+     "북쪽"
+    ],
+    [
+     "story/prologue/line/n2/choice/1",
+     "남쪽"
+    ],
+    [
+     "screen/default-hud/name",
+     "기본 전투 HUD"
+    ],
+    [
+     "screen/default-menu/name",
+     "일시정지 메뉴"
+    ],
+    [
+     "screen/default-dialogue/name",
+     "기본 대화창"
+    ],
+    [
+     "screen/result-clear/name",
+     "탐험 완료"
+    ],
+    [
+     "screen/result-defeat/name",
+     "전투 종료"
+    ],
+    [
+     "screen/front-title/name",
+     "시작 화면"
+    ],
+    [
+     "screen/front-loading/name",
+     "로딩 화면"
+    ],
+    [
+     "screen/front-roster/name",
+     "캐릭터 선택 화면"
+    ],
+    [
+     "screen/default-hud/menu/text",
+     "메뉴"
+    ],
+    [
+     "screen/default-menu/switch/text",
+     "캐릭터 교대"
+    ],
+    [
+     "screen/default-menu/restart/text",
+     "맵 재시작"
+    ],
+    [
+     "screen/default-menu/resume/text",
+     "계속하기"
+    ],
+    [
+     "screen/default-menu/callsign/text",
+     "호출 부호"
+    ],
+    [
+     "screen/default-menu/callsign/hint",
+     "이름을 입력"
+    ],
+    [
+     "screen/default-menu/callsign/message",
+     "한 단어로 적어 주세요."
+    ],
+    [
+     "screen/default-menu/level/text",
+     "난이도"
+    ],
+    [
+     "screen/default-menu/level/option/0",
+     "쉬움"
+    ],
+    [
+     "screen/default-menu/level/option/1",
+     "보통"
+    ],
+    [
+     "screen/default-menu/swap/text",
+     "언어: 日本語"
+    ],
+    [
+     "screen/result-clear/heading/text",
+     "탐험 완료"
+    ],
+    [
+     "screen/result-clear/again/text",
+     "이 맵 다시 시작"
+    ],
+    [
+     "screen/result-defeat/heading/text",
+     "전투 종료"
+    ],
+    [
+     "screen/result-defeat/again/text",
+     "이 맵 다시 시작"
+    ],
+    [
+     "screen/front-title/heading/text",
+     "Dreamwalker"
+    ],
+    [
+     "screen/front-title/start/text",
+     "게임 시작"
+    ],
+    [
+     "screen/front-loading/heading/text",
+     "불러오는 중"
+    ],
+    [
+     "screen/front-roster/heading/text",
+     "캐릭터 선택"
+    ],
+    [
+     "screen/front-roster/prev/text",
+     "이전"
+    ],
+    [
+     "screen/front-roster/next-actor/text",
+     "다음"
+    ],
+    [
+     "screen/front-roster/confirm/text",
+     "이 캐릭터로 시작"
+    ],
+    [
+     "item/sword/name",
+     "서리검"
+    ],
+    [
+     "quest/first/name",
+     "첫 의뢰"
+    ]
+   ],
+   "system": [
+    [
+     "button.dodge",
+     "회피"
+    ],
+    [
+     "button.jump",
+     "점프"
+    ],
+    [
+     "button.attack",
+     "베기"
+    ],
+    [
+     "button.menu",
+     "메뉴"
+    ],
+    [
+     "button.open",
+     "화면 열기"
+    ],
+    [
+     "button.resume",
+     "계속하기"
+    ],
+    [
+     "button.restart",
+     "다시 시작"
+    ],
+    [
+     "button.switch",
+     "캐릭터 교대"
+    ],
+    [
+     "button.skip",
+     "건너뛰기"
+    ],
+    [
+     "button.nextLine",
+     "다음 대사"
+    ],
+    [
+     "button.roadmap",
+     "캐릭터 스토리"
+    ],
+    [
+     "button.beginGame",
+     "게임 시작"
+    ],
+    [
+     "button.confirmActor",
+     "선택 확정"
+    ],
+    [
+     "button.previousActor",
+     "이전 캐릭터"
+    ],
+    [
+     "button.newRun",
+     "게임 처음부터"
+    ],
+    [
+     "button.back",
+     "뒤로"
+    ],
+    [
+     "button.gotoMap",
+     "맵 이동"
+    ],
+    [
+     "button.startStory",
+     "대화"
+    ],
+    [
+     "button.selectActor",
+     "캐릭터 선택"
+    ],
+    [
+     "button.flagOn",
+     "상태 켜기"
+    ],
+    [
+     "button.flagOff",
+     "상태 끄기"
+    ],
+    [
+     "button.signal",
+     "이벤트"
+    ],
+    [
+     "button.online",
+     "온라인 친선전"
+    ],
+    [
+     "button.language",
+     "언어"
+    ],
+    [
+     "hud.loading",
+     "로딩"
+    ],
+    [
+     "hud.enemies",
+     "남은 적"
+    ],
+    [
+     "hud.energy",
+     "스킬 게이지"
+    ],
+    [
+     "hud.noEnergy",
+     "없음"
+    ],
+    [
+     "hud.boss",
+     "보스"
+    ],
+    [
+     "dialogue.narrator",
+     "내레이션"
+    ],
+    [
+     "dialogue.next",
+     "다음 대사 →"
+    ],
+    [
+     "dialogue.end",
+     "대화 마치기"
+    ],
+    [
+     "dialogue.nextShort",
+     "다음"
+    ],
+    [
+     "dialogue.choice",
+     "선택"
+    ],
+    [
+     "roadmap.read",
+     "대화 읽기"
+    ],
+    [
+     "roadmap.continue",
+     "계속"
+    ],
+    [
+     "roadmap.finish",
+     "스토리 마치기"
+    ],
+    [
+     "items.open",
+     "보유 장비 · 장착 변경"
+    ],
+    [
+     "items.empty",
+     "보유한 장비가 없어요."
+    ],
+    [
+     "items.unequip",
+     "장착 해제"
+    ],
+    [
+     "items.power",
+     "공격력"
+    ],
+    [
+     "items.busy",
+     "다른 캐릭터가 장착 중이에요."
+    ],
+    [
+     "gear.weapon",
+     "무기"
+    ],
+    [
+     "gear.head",
+     "머리"
+    ],
+    [
+     "gear.top",
+     "상의"
+    ],
+    [
+     "gear.bottom",
+     "하의"
+    ],
+    [
+     "gear.feet",
+     "신발"
+    ],
+    [
+     "gear.extra1",
+     "추가 장비 1"
+    ],
+    [
+     "gear.extra2",
+     "추가 장비 2"
+    ],
+    [
+     "gear.extra3",
+     "추가 장비 3"
+    ],
+    [
+     "quests.title",
+     "의뢰 목록 · 진행 상태"
+    ],
+    [
+     "quests.empty",
+     "등록된 의뢰가 없어요."
+    ],
+    [
+     "quests.done",
+     "완료"
+    ],
+    [
+     "quests.active",
+     "진행"
+    ],
+    [
+     "result.clear",
+     "탐험 성공"
+    ],
+    [
+     "result.over",
+     "전투 종료"
+    ],
+    [
+     "result.again",
+     "이 맵 다시 시작"
+    ],
+    [
+     "status.paused",
+     "일시정지"
+    ],
+    [
+     "status.ended",
+     "플레이 종료"
+    ],
+    [
+     "status.clearFirst",
+     "적을 모두 처치한 뒤 출구로 이동하세요."
+    ],
+    [
+     "status.exit",
+     "출구로 이동하면 다음 맵으로 이어져요."
+    ],
+    [
+     "save.unavailable",
+     "이 실행 환경은 기기 저장소를 사용할 수 없어요."
+    ],
+    [
+     "save.busy",
+     "대화나 전투 동작이 끝난 뒤 저장할 수 있어요."
+    ],
+    [
+     "save.done",
+     "이 기기에 진행 상황을 저장했어요."
+    ],
+    [
+     "save.failed",
+     "기기 저장 공간을 사용할 수 없어요."
+    ],
+    [
+     "save.none",
+     "이 기기에 호환되는 저장 기록이 없어요."
+    ],
+    [
+     "bar.close",
+     "화면 닫기"
+    ],
+    [
+     "bar.save",
+     "진행 저장"
+    ],
+    [
+     "bar.continue",
+     "이어하기"
+    ],
+    [
+     "bar.stick",
+     "조이스틱"
+    ],
+    [
+     "bar.stats",
+     "성능"
+    ],
+    [
+     "bar.hitboxes",
+     "판정 표시"
+    ],
+    [
+     "bar.assist",
+     "보조 조작"
+    ],
+    [
+     "bar.stop",
+     "편집기로"
+    ],
+    [
+     "bar.replay",
+     "다시 플레이"
+    ],
+    [
+     "input.invalid",
+     "입력 조건을 확인하세요."
+    ],
+    [
+     "online.unavailable",
+     "온라인 친선전은 스튜디오 사이트나 Unity 앱에서 열 수 있어요."
+    ]
+   ]
+  },
+  "ko": {
+   "values": [
+    [
+     "title",
+     "설원 횡단"
+    ],
+    [
+     "character/baekseol/name",
+     "백설"
+    ],
+    [
+     "character/baekseol/region",
+     "북쪽 설원"
+    ],
+    [
+     "character/baekseol/summary",
+     "단검과 서리로 적을 추격한다."
+    ],
+    [
+     "character/baekseol/profile/unit",
+     "설산 경비대"
+    ],
+    [
+     "character/baekseol/skill/0/name",
+     "설풍보"
+    ],
+    [
+     "character/baekseol/skill/0/caption",
+     "서리 일섬"
+    ],
+    [
+     "character/baekseol/skill/0/line",
+     "얼어붙어라!"
+    ],
+    [
+     "character/baekseol/skill/1/name",
+     "빙화연격"
+    ],
+    [
+     "character/baekseol/skill/2/name",
+     "설영난무"
+    ],
+    [
+     "character/baekseol/skill/3/name",
+     "절대영도"
+    ],
+    [
+     "character/baekseol/episode/meet/title",
+     "첫 만남"
+    ],
+    [
+     "character/baekseol/episode/meet/summary",
+     "광산역에서 만난다."
+    ],
+    [
+     "character/baekseol/episode/meet/link/0",
+     "따라간다"
+    ],
+    [
+     "character/baekseol/episode/meet/link/1",
+     "돌아간다"
+    ],
+    [
+     "character/baekseol/episode/chase/title",
+     "추적"
+    ],
+    [
+     "map/mine/name",
+     "설산 광산역"
+    ],
+    [
+     "map/mine/object/e1/label",
+     "서리 늑대"
+    ],
+    [
+     "map/mine/object/sign/label",
+     "낡은 표지판"
+    ],
+    [
+     "story/prologue/name",
+     "프롤로그"
+    ],
+    [
+     "story/prologue/line/n1/text",
+     "여기는 한국어로 말하는 역이야."
+    ],
+    [
+     "story/prologue/line/n1/next",
+     "계속 듣기"
+    ],
+    [
+     "story/prologue/line/n1/layer/place",
+     "설산 광산역 · 새벽"
+    ],
+    [
+     "story/prologue/line/n2/text",
+     "어디로 갈까요?"
+    ],
+    [
+     "story/prologue/line/n2/speaker",
+     "안내 방송"
+    ],
+    [
+     "story/prologue/line/n2/choice/0",
+     "북쪽"
+    ],
+    [
+     "story/prologue/line/n2/choice/1",
+     "남쪽"
+    ],
+    [
+     "screen/default-hud/name",
+     "기본 전투 HUD"
+    ],
+    [
+     "screen/default-menu/name",
+     "일시정지 메뉴"
+    ],
+    [
+     "screen/default-dialogue/name",
+     "기본 대화창"
+    ],
+    [
+     "screen/result-clear/name",
+     "탐험 완료"
+    ],
+    [
+     "screen/result-defeat/name",
+     "전투 종료"
+    ],
+    [
+     "screen/front-title/name",
+     "시작 화면"
+    ],
+    [
+     "screen/front-loading/name",
+     "로딩 화면"
+    ],
+    [
+     "screen/front-roster/name",
+     "캐릭터 선택 화면"
+    ],
+    [
+     "screen/default-hud/menu/text",
+     "메뉴"
+    ],
+    [
+     "screen/default-menu/switch/text",
+     "캐릭터 교대"
+    ],
+    [
+     "screen/default-menu/restart/text",
+     "맵 재시작"
+    ],
+    [
+     "screen/default-menu/resume/text",
+     "계속하기"
+    ],
+    [
+     "screen/default-menu/callsign/text",
+     "호출 부호"
+    ],
+    [
+     "screen/default-menu/callsign/hint",
+     "이름을 입력"
+    ],
+    [
+     "screen/default-menu/callsign/message",
+     "한 단어로 적어 주세요."
+    ],
+    [
+     "screen/default-menu/level/text",
+     "난이도"
+    ],
+    [
+     "screen/default-menu/level/option/0",
+     "쉬움"
+    ],
+    [
+     "screen/default-menu/level/option/1",
+     "보통"
+    ],
+    [
+     "screen/default-menu/swap/text",
+     "언어: 한국어"
+    ],
+    [
+     "screen/result-clear/heading/text",
+     "탐험 완료"
+    ],
+    [
+     "screen/result-clear/again/text",
+     "이 맵 다시 시작"
+    ],
+    [
+     "screen/result-defeat/heading/text",
+     "전투 종료"
+    ],
+    [
+     "screen/result-defeat/again/text",
+     "이 맵 다시 시작"
+    ],
+    [
+     "screen/front-title/heading/text",
+     "Dreamwalker"
+    ],
+    [
+     "screen/front-title/start/text",
+     "게임 시작"
+    ],
+    [
+     "screen/front-loading/heading/text",
+     "불러오는 중"
+    ],
+    [
+     "screen/front-roster/heading/text",
+     "캐릭터 선택"
+    ],
+    [
+     "screen/front-roster/prev/text",
+     "이전"
+    ],
+    [
+     "screen/front-roster/next-actor/text",
+     "다음"
+    ],
+    [
+     "screen/front-roster/confirm/text",
+     "이 캐릭터로 시작"
+    ],
+    [
+     "item/sword/name",
+     "서리검"
+    ],
+    [
+     "quest/first/name",
+     "첫 의뢰"
+    ]
+   ],
+   "system": [
+    [
+     "button.dodge",
+     "회피"
+    ],
+    [
+     "button.jump",
+     "점프"
+    ],
+    [
+     "button.attack",
+     "베기"
+    ],
+    [
+     "button.menu",
+     "메뉴"
+    ],
+    [
+     "button.open",
+     "화면 열기"
+    ],
+    [
+     "button.resume",
+     "계속하기"
+    ],
+    [
+     "button.restart",
+     "다시 시작"
+    ],
+    [
+     "button.switch",
+     "캐릭터 교대"
+    ],
+    [
+     "button.skip",
+     "건너뛰기"
+    ],
+    [
+     "button.nextLine",
+     "다음 대사"
+    ],
+    [
+     "button.roadmap",
+     "캐릭터 스토리"
+    ],
+    [
+     "button.beginGame",
+     "게임 시작"
+    ],
+    [
+     "button.confirmActor",
+     "선택 확정"
+    ],
+    [
+     "button.previousActor",
+     "이전 캐릭터"
+    ],
+    [
+     "button.newRun",
+     "게임 처음부터"
+    ],
+    [
+     "button.back",
+     "뒤로"
+    ],
+    [
+     "button.gotoMap",
+     "맵 이동"
+    ],
+    [
+     "button.startStory",
+     "대화"
+    ],
+    [
+     "button.selectActor",
+     "캐릭터 선택"
+    ],
+    [
+     "button.flagOn",
+     "상태 켜기"
+    ],
+    [
+     "button.flagOff",
+     "상태 끄기"
+    ],
+    [
+     "button.signal",
+     "이벤트"
+    ],
+    [
+     "button.online",
+     "온라인 친선전"
+    ],
+    [
+     "button.language",
+     "언어"
+    ],
+    [
+     "hud.loading",
+     "로딩"
+    ],
+    [
+     "hud.enemies",
+     "남은 적"
+    ],
+    [
+     "hud.energy",
+     "스킬 게이지"
+    ],
+    [
+     "hud.noEnergy",
+     "없음"
+    ],
+    [
+     "hud.boss",
+     "보스"
+    ],
+    [
+     "dialogue.narrator",
+     "내레이션"
+    ],
+    [
+     "dialogue.next",
+     "다음 대사 →"
+    ],
+    [
+     "dialogue.end",
+     "대화 마치기"
+    ],
+    [
+     "dialogue.nextShort",
+     "다음"
+    ],
+    [
+     "dialogue.choice",
+     "선택"
+    ],
+    [
+     "roadmap.read",
+     "대화 읽기"
+    ],
+    [
+     "roadmap.continue",
+     "계속"
+    ],
+    [
+     "roadmap.finish",
+     "스토리 마치기"
+    ],
+    [
+     "items.open",
+     "보유 장비 · 장착 변경"
+    ],
+    [
+     "items.empty",
+     "보유한 장비가 없어요."
+    ],
+    [
+     "items.unequip",
+     "장착 해제"
+    ],
+    [
+     "items.power",
+     "공격력"
+    ],
+    [
+     "items.busy",
+     "다른 캐릭터가 장착 중이에요."
+    ],
+    [
+     "gear.weapon",
+     "무기"
+    ],
+    [
+     "gear.head",
+     "머리"
+    ],
+    [
+     "gear.top",
+     "상의"
+    ],
+    [
+     "gear.bottom",
+     "하의"
+    ],
+    [
+     "gear.feet",
+     "신발"
+    ],
+    [
+     "gear.extra1",
+     "추가 장비 1"
+    ],
+    [
+     "gear.extra2",
+     "추가 장비 2"
+    ],
+    [
+     "gear.extra3",
+     "추가 장비 3"
+    ],
+    [
+     "quests.title",
+     "의뢰 목록 · 진행 상태"
+    ],
+    [
+     "quests.empty",
+     "등록된 의뢰가 없어요."
+    ],
+    [
+     "quests.done",
+     "완료"
+    ],
+    [
+     "quests.active",
+     "진행"
+    ],
+    [
+     "result.clear",
+     "탐험 성공"
+    ],
+    [
+     "result.over",
+     "전투 종료"
+    ],
+    [
+     "result.again",
+     "이 맵 다시 시작"
+    ],
+    [
+     "status.paused",
+     "일시정지"
+    ],
+    [
+     "status.ended",
+     "플레이 종료"
+    ],
+    [
+     "status.clearFirst",
+     "적을 모두 처치한 뒤 출구로 이동하세요."
+    ],
+    [
+     "status.exit",
+     "출구로 이동하면 다음 맵으로 이어져요."
+    ],
+    [
+     "save.unavailable",
+     "이 실행 환경은 기기 저장소를 사용할 수 없어요."
+    ],
+    [
+     "save.busy",
+     "대화나 전투 동작이 끝난 뒤 저장할 수 있어요."
+    ],
+    [
+     "save.done",
+     "이 기기에 진행 상황을 저장했어요."
+    ],
+    [
+     "save.failed",
+     "기기 저장 공간을 사용할 수 없어요."
+    ],
+    [
+     "save.none",
+     "이 기기에 호환되는 저장 기록이 없어요."
+    ],
+    [
+     "bar.close",
+     "화면 닫기"
+    ],
+    [
+     "bar.save",
+     "진행 저장"
+    ],
+    [
+     "bar.continue",
+     "이어하기"
+    ],
+    [
+     "bar.stick",
+     "조이스틱"
+    ],
+    [
+     "bar.stats",
+     "성능"
+    ],
+    [
+     "bar.hitboxes",
+     "판정 표시"
+    ],
+    [
+     "bar.assist",
+     "보조 조작"
+    ],
+    [
+     "bar.stop",
+     "편집기로"
+    ],
+    [
+     "bar.replay",
+     "다시 플레이"
+    ],
+    [
+     "input.invalid",
+     "입력 조건을 확인하세요."
+    ],
+    [
+     "online.unavailable",
+     "온라인 친선전은 스튜디오 사이트나 Unity 앱에서 열 수 있어요."
+    ]
+   ]
+  }
+ },
+ "picks": [
+  [
+   [
+    "ko",
+    "en",
+    "ja",
+    "zh-Hans",
+    "zh-Hant",
+    "pt-BR"
+   ],
+   [
+    "en-US"
+   ],
+   "en"
+  ],
+  [
+   [
+    "ko",
+    "en",
+    "ja",
+    "zh-Hans",
+    "zh-Hant",
+    "pt-BR"
+   ],
+   [
+    "zh-TW"
+   ],
+   "zh-Hant"
+  ],
+  [
+   [
+    "ko",
+    "en",
+    "ja",
+    "zh-Hans",
+    "zh-Hant",
+    "pt-BR"
+   ],
+   [
+    "zh-CN"
+   ],
+   "zh-Hans"
+  ],
+  [
+   [
+    "ko",
+    "en",
+    "ja",
+    "zh-Hans",
+    "zh-Hant",
+    "pt-BR"
+   ],
+   [
+    "zh"
+   ],
+   "zh-Hans"
+  ],
+  [
+   [
+    "ko",
+    "en",
+    "ja",
+    "zh-Hans",
+    "zh-Hant",
+    "pt-BR"
+   ],
+   [
+    "pt-PT"
+   ],
+   "pt-BR"
+  ],
+  [
+   [
+    "ko",
+    "en",
+    "ja",
+    "zh-Hans",
+    "zh-Hant",
+    "pt-BR"
+   ],
+   [
+    "fr",
+    "ja-JP"
+   ],
+   "ja"
+  ],
+  [
+   [
+    "ko",
+    "en",
+    "ja",
+    "zh-Hans",
+    "zh-Hant",
+    "pt-BR"
+   ],
+   [
+    "",
+    ""
+   ],
+   "ko"
+  ],
+  [
+   [
+    "ko",
+    "en",
+    "ja",
+    "zh-Hans",
+    "zh-Hant",
+    "pt-BR"
+   ],
+   [
+    "de"
+   ],
+   "ko"
+  ],
+  [
+   [
+    "ko",
+    "en",
+    "ja",
+    "zh-Hans",
+    "zh-Hant",
+    "pt-BR"
+   ],
+   [
+    "ZH-hant-HK"
+   ],
+   "zh-Hant"
+  ],
+  [
+   [
+    "ko",
+    "en",
+    "ja",
+    "zh-Hans",
+    "zh-Hant",
+    "pt-BR"
+   ],
+   [
+    "en_GB"
+   ],
+   "en"
+  ],
+  [
+   [
+    "ko",
+    "en",
+    "ja",
+    "zh-Hans",
+    "zh-Hant",
+    "pt-BR"
+   ],
+   [
+    "zh-Hant"
+   ],
+   "zh-Hant"
+  ],
+  [
+   [
+    "ko",
+    "en",
+    "ja",
+    "zh-Hans",
+    "zh-Hant",
+    "pt-BR"
+   ],
+   [
+    "zh-SG"
+   ],
+   "zh-Hans"
+  ],
+  [
+   [
+    "ko",
+    "en",
+    "ja",
+    "zh-Hans",
+    "zh-Hant",
+    "pt-BR"
+   ],
+   [
+    "zh-MO"
+   ],
+   "zh-Hant"
+  ]
+ ]
+}

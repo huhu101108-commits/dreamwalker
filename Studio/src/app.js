@@ -177,6 +177,7 @@ function draw() {
     characters: drawCharacters,
     stories: drawStories,
     roadmap: drawRoadmap,
+    locales: drawLocales,
     source: drawSource,
     interface: drawInterface,
     network: drawNetwork,

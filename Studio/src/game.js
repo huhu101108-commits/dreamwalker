@@ -73,10 +73,18 @@ function makeCastView() {
   return { root, paint };
 }
 
+// The player's language is kept per game on this device; the first visit follows the browser's languages.
+const languageKey = (doc) => 'dreamwalker-language-v1:' + (doc.saveId || doc.startMap);
+function startLanguage(doc, chosen = '') {
+  let saved = '';
+  try { saved = localStorage.getItem(languageKey(doc)) || ''; } catch {}
+  return pickLanguage(localeCodes(doc), [chosen, saved, ...(navigator.languages || [navigator.language])]);
+}
 function launchGame(mapId, screenId = '', inspection = false) {
   const direct=inspection && typeof inspection==='object' && !inspection.fromStart && (inspection.storyId||inspection.objectId||inspection.screenId);
   const ruleCapture=inspection?.traceRules&&!inspection.resume&&typeof FieldRuleCapture==='function'?new FieldRuleCapture():null;
-  const run = new FieldRun(structuredClone(project), mapId,!!direct,ruleCapture),
+  const chosenLanguage = inspection && typeof inspection === 'object' ? inspection.language || '' : '';
+  const run = new FieldRun(structuredClone(project), mapId,!!direct,ruleCapture,startLanguage(project, chosenLanguage)),
     modal = $('#game'),
     stage = $('#arena'),
     layer = $('#overlay'),
@@ -120,20 +128,20 @@ function launchGame(mapId, screenId = '', inspection = false) {
   function saveProgress(show = false) {
     const data = run.checkpoint();
     if (!saveStore) {
-      if (show) say('이 실행 환경은 기기 저장소를 사용할 수 없어요.');
+      if (show) say(systemText(run.world, 'save.unavailable'));
       return;
     }
     if (!data) {
-      if (show) say('대화나 전투 동작이 끝난 뒤 저장할 수 있어요.');
+      if (show) say(systemText(run.world, 'save.busy'));
       return;
     }
     try {
       const text = JSON.stringify(data);
       if (text !== lastSaved) saveStore.setItem(saveKey, text);
       lastSaved = text;
-      if (show) say('이 기기에 진행 상황을 저장했어요.');
+      if (show) say(systemText(run.world, 'save.done'));
     } catch {
-      if (show) say('기기 저장 공간을 사용할 수 없어요.');
+      if (show) say(systemText(run.world, 'save.failed'));
     }
   }
   function continueProgress(show = false) {
@@ -144,7 +152,7 @@ function launchGame(mapId, screenId = '', inspection = false) {
         return true;
       }
     } catch {}
-    if (show) say('이 기기에 호환되는 저장 기록이 없어요.');
+    if (show) say(systemText(run.world, 'save.none'));
     return false;
   }
   if (!inspection && !screenId && (location.pathname === '/play' || typeof GAME_DATA !== 'undefined')) continueProgress();
@@ -177,24 +185,33 @@ function launchGame(mapId, screenId = '', inspection = false) {
   diagnostics.className = 'perf-readout';
   stage.append(diagnostics);
   const extra = [];
-  function barButton(label, fn) {
-    const n = action(label, fn);
+  // Bar buttons carry the game's wording and follow a language change.
+  const barWords = [];
+  function barButton(name, fn) {
+    const n = action(systemText(run.world, name), fn);
     $('#assist').parentNode.insertBefore(n, $('#assist'));
     extra.push(n);
+    barWords.push([n, name]);
     return n;
   }
-  const exitOverlay = barButton('화면 닫기', () => {
+  const fixedBar = [['#assist', 'bar.assist'], ['#restart', 'button.restart'], ['#stop', 'bar.stop'], ['#replay', 'bar.replay']];
+  function wordBar() {
+    for (const [n, name] of barWords) n.textContent = systemText(run.world, name);
+    for (const [selector, name] of fixedBar) { const n = $(selector); if (n) n.textContent = systemText(run.world, name); }
+    modal.lang = run.language;
+  }
+  const exitOverlay = barButton('bar.close', () => {
     run.press(run.dialogue && !run.customScreen ? 'skip' : 'back');
     render();
   });
-  barButton('진행 저장', () => saveProgress(true));
-  barButton('이어하기', () => {
+  barButton('bar.save', () => saveProgress(true));
+  barButton('bar.continue', () => {
     if (continueProgress(true)) render();
   });
-  const stickToggle = barButton('조이스틱', () => {
+  const stickToggle = barButton('bar.stick', () => {
     extraStick = !extraStick; run.serial++; render();
   });
-  barButton('성능', () => {
+  barButton('bar.stats', () => {
     enabledStats = !enabledStats;
     diagnostics.hidden = !enabledStats;
   });
@@ -204,7 +221,7 @@ function launchGame(mapId, screenId = '', inspection = false) {
   hitCanvas.hidden = true;
   hitCanvas.setAttribute('aria-hidden', 'true');
   stage.append(hitCanvas);
-  barButton('판정 표시', () => {
+  barButton('bar.hitboxes', () => {
     hitCanvas.hidden = !hitCanvas.hidden;
   });
   const controls = () => [
@@ -382,17 +399,17 @@ function launchGame(mapId, screenId = '', inspection = false) {
     styleScreen(layer, screen);
     layer.className = run.dialogue ? 'reading' : '';
     if (run.result && !run.customScreen) {
-      const title = run.result === 'clear' ? '맵 탐험 완료' : run.character.name + ' 전투 종료';
+      const title = run.result === 'clear' ? systemText(run.world, 'result.clear') : run.character.name + ' ' + systemText(run.world, 'result.over');
       layer.append(
         box(
           'results',
           el('h2', title),
-          action('이 맵 다시 시작', () => {
+          action(systemText(run.world, 'result.again'), () => {
             run.press('restart');
             render();
           }),
           '',
-          action('편집기로', () => modal.close()),
+          action(systemText(run.world, 'bar.stop'), () => modal.close()),
         ),
       );
     } else if(composed) {
@@ -427,7 +444,7 @@ function launchGame(mapId, screenId = '', inspection = false) {
       }
     $('#controls').replaceChildren();
     for (const key of controls()) {
-      const b = el('button', getActionLabel(key, run.character));
+      const b = el('button', getActionLabel(key, run.character, run.world));
       bindAction(b, key);
       $('#controls').append(b);
     }
@@ -437,12 +454,12 @@ function launchGame(mapId, screenId = '', inspection = false) {
       : run.dialogue
         ? run.dialogue.story.name
         : run.menu
-          ? '일시정지'
+          ? systemText(run.world, 'status.paused')
           : run.result
-            ? '플레이 종료'
+            ? systemText(run.world, 'status.ended')
             : run.map.requireClear
-              ? '적을 모두 처치한 뒤 출구로 이동하세요.'
-              : '출구로 이동하면 다음 맵으로 이어져요.';
+              ? systemText(run.world, 'status.clearFirst')
+              : systemText(run.world, 'status.exit');
     say(notice);
   }
   function say(text) {
@@ -454,16 +471,22 @@ function launchGame(mapId, screenId = '', inspection = false) {
   let backgroundStamp = '';
   let hudStamp = '';
   // An offline HTML build has no server to play against; the studio site opens its match page.
-  let onlineSeen = 0;
+  let onlineSeen = 0, languageSeen = -1;
   function openOnlineMatch() {
     if (typeof GAME_DATA !== 'undefined' || location.protocol === 'file:') {
-      $('#gameNote').textContent = lastNotice = '온라인 친선전은 스튜디오 사이트나 Unity 앱에서 열 수 있어요.';
+      $('#gameNote').textContent = lastNotice = systemText(run.world, 'online.unavailable');
       return;
     }
     window.open('/arena', '_blank', 'noopener');
   }
   function render() {
     if ((run.onlineRequests || 0) !== onlineSeen) { onlineSeen = run.onlineRequests || 0; openOnlineMatch(); }
+    if (run.languageSerial !== languageSeen) {
+      languageSeen = run.languageSerial;
+      // Only a choice the player made is remembered; until then the browser's languages decide.
+      if (!inspection && run.languageSerial > 0) try { localStorage.setItem(languageKey(project), run.language); } catch {}
+      wordBar();
+    }
     const fade=run.map.camera?.frame;
     const alpha=fade?.fadeTicks && !run.presentation ? 1-run.sceneAge/fade.fadeTicks : 0;
     sceneFade.hidden=!(alpha>0);
@@ -579,7 +602,7 @@ function launchGame(mapId, screenId = '', inspection = false) {
       }
   }
   function paintHUD() {
-    const state = { flags:run.flags,inputs:run.inputValues, inputDefaults:run.inputDefaults, character: run.character, hp: run.hero.hp, map: run.map, enemies: run.enemiesLeft, loading: run.loadingFraction, energy: run.energy, boss: run.boss };
+    const state = { world: run.world, flags:run.flags,inputs:run.inputValues, inputDefaults:run.inputDefaults, character: run.character, hp: run.hero.hp, map: run.map, enemies: run.enemiesLeft, loading: run.loadingFraction, energy: run.energy, boss: run.boss };
     const stamp = state.hp + '|' + state.enemies + '|' + run.progressVersion + '|' + Math.round(100 * state.loading) + '|' +
       (state.energy ? state.energy.now + '/' + state.energy.max : '') + '|' + (state.boss ? state.boss.id + ':' + state.boss.hp : '');
     if (hudStamp !== stamp) {

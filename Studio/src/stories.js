@@ -12,15 +12,15 @@ function dialogueContent(world, cursor, advance) {
     wrap.append(img);
   }
   const body = box('dialogue-copy'),
-    speaker = el('strong', n.speakerName || c?.name || '내레이션');
+    speaker = el('strong', n.speakerName || c?.name || systemText(world, 'dialogue.narrator'));
   speaker.style.color = c?.color || '#cbe6ef';
   const words=el('p',n.text||'…');words.dataset.stageWords='';body.append(speaker,words);
   const answers = box('answers');
   if (n.choices.length)
-    n.choices.forEach((choice,i)=>{const b=action(choice.label||'선택',()=>advance(i));b.dataset.stageChoice=i;b.disabled=!cursor.allowed(i);answers.append(b);});
+    n.choices.forEach((choice,i)=>{const b=action(choice.label||systemText(world,'dialogue.choice'),()=>advance(i));b.dataset.stageChoice=i;b.disabled=!cursor.allowed(i);answers.append(b);});
   else
     answers.append(
-      action(n.nextLabel || (cursor.index === cursor.story.nodes.length - 1 ? '대화 마치기' : '다음 대사 →'), () => advance()),
+      action(n.nextLabel || systemText(world, cursor.index === cursor.story.nodes.length - 1 ? 'dialogue.end' : 'dialogue.next'), () => advance()),
     );
   body.append(answers);
   wrap.append(body);

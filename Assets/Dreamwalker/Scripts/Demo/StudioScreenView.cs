@@ -303,6 +303,7 @@ internal sealed partial class StudioScreenView
             ui.Label(new Rect(Screen.width * .06f, Screen.height * .5f, Screen.width * .5f, Screen.height * .1f), cast.line,
                      new StudioText(Clamped(Screen.width * .022f, 12, 30), StudioAlign.Left, new Color(1, 1, 1, alpha)));
     }
+    private static string ChoiceLabel(StudioChoice c) => string.IsNullOrEmpty(c.label) ? StudioLocalization.Text("dialogue.choice") : c.label;
     private string Label(StudioWidget w)
     {
         string value = w.type=="text" || w.type=="button" ? world.FieldText(w.text) : w.text;
@@ -312,19 +313,19 @@ internal sealed partial class StudioScreenView
         if (w.type == "hp")
             return (string.IsNullOrEmpty(value) ? world.Actor.name : value) + "   " + world.Health + " / " +
                    world.Actor.health;
-        if (w.type == "loading") return (string.IsNullOrEmpty(value) ? "로딩" : value) + " " + Mathf.RoundToInt(100 * world.LoadingFraction) + "%";
+        if (w.type == "loading") return (string.IsNullOrEmpty(value) ? StudioLocalization.Text("hud.loading") : value) + " " + Mathf.RoundToInt(100 * world.LoadingFraction) + "%";
         if (w.type == "enemies")
-            return (string.IsNullOrEmpty(value) ? "남은 적" : value) + " " + world.Remaining;
+            return (string.IsNullOrEmpty(value) ? StudioLocalization.Text("hud.enemies") : value) + " " + world.Remaining;
         if (w.type == "energy")
         {
             string title = world.Actor.ProfileText(value);
-            return (string.IsNullOrEmpty(title) ? "스킬 게이지" : title) + "   " +
-                   (world.Actor.HasEnergy ? world.Energy + " / " + world.Actor.energy.max : "없음");
+            return (string.IsNullOrEmpty(title) ? StudioLocalization.Text("hud.energy") : title) + "   " +
+                   (world.Actor.HasEnergy ? world.Energy + " / " + world.Actor.energy.max : StudioLocalization.Text("hud.noEnergy"));
         }
         if (w.type == "boss")
         {
             world.Boss(out string bossName, out int bossHp, out int bossMax, out _);
-            return (!string.IsNullOrEmpty(value) ? value : !string.IsNullOrEmpty(bossName) ? bossName : "보스") + "   " + bossHp + " / " + bossMax;
+            return (!string.IsNullOrEmpty(value) ? value : !string.IsNullOrEmpty(bossName) ? bossName : StudioLocalization.Text("hud.boss")) + "   " + bossHp + " / " + bossMax;
         }
         if (w.type == "character" && !string.IsNullOrEmpty(value))
             value = world.Actor.ProfileText(value);
@@ -339,56 +340,10 @@ internal sealed partial class StudioScreenView
         if (w.action.StartsWith("skill", StringComparison.Ordinal) &&
             int.TryParse(w.action.Substring(5), out int slot) && slot >= 1 && slot <= world.Actor.skills.Length)
             return world.Actor.skills[slot - 1].name;
-        switch (w.action)
-        {
-        case "left":
-            return "◀";
-        case "right":
-            return "▶";
-        case "jump":
-            return "점프";
-        case "attack":
-            return "베기";
-        case "menu":
-            return "메뉴";
-        case "restart":
-            return "다시 시작";
-        case "resume":
-            return "계속하기";
-        case "switch":
-            return "캐릭터 교대";
-        case "previousActor": return "이전 캐릭터";
-        case "beginGame": return "게임 시작";
-        case "confirmActor": return "선택 확정";
-        case "roadmap":
-            return "캐릭터 스토리";
-        case "newRun":
-            return "게임 처음부터";
-        case "back":
-            return "뒤로";
-        case "gotoMap":
-            return "맵 이동";
-        case "startStory":
-            return "대화";
-        case "selectActor":
-            return "캐릭터 선택";
-        case "flagOn":
-            return "상태 켜기";
-        case "flagOff":
-            return "상태 끄기";
-        case "signal":
-            return "이벤트";
-        case "open":
-            return "화면 열기";
-        case "skip":
-            return "건너뛰기";
-        case "nextLine":
-            return "다음 대사";
-        case "online":
-            return "온라인 친선전";
-        default:
-            return "";
-        }
+        // A button without text of its own shows the game's wording for its action (번역 · 언어 in the studio).
+        if (w.action == "left") return "◀";
+        if (w.action == "right") return "▶";
+        return StudioLocalization.Text("button." + w.action);
     }
 
     private string Key(StudioWidget w, string part) => string.Concat(Layout.id, "/", w.id, "/", part);
@@ -418,7 +373,7 @@ internal sealed partial class StudioScreenView
                 rect.width -= width;
             }
         }
-        string text = (!string.IsNullOrEmpty(node.speakerName) ? node.speakerName : speaker != null ? speaker.name : "내레이션") + "\n" + world.StageText;
+        string text = (!string.IsNullOrEmpty(node.speakerName) ? node.speakerName : speaker != null ? speaker.name : StudioLocalization.Text("dialogue.narrator")) + "\n" + world.StageText;
         float contentWidth = Mathf.Max(ui.Dp(16), rect.width - ui.Dp(22)),
               textHeight = ui.Height(text, style, contentWidth) + ui.Dp(8);
         float itemSize = w.itemSkin != null && w.itemSkin.size >= 8 ? ui.TextSize(w.itemSkin.size) : style.size;
@@ -429,7 +384,7 @@ internal sealed partial class StudioScreenView
         int clicked = -2;
         if (node.choices.Length == 0)
         {
-            if (ItemButton(w, Key(w, "next"), new Rect(0, textHeight, contentWidth, buttonHeight), string.IsNullOrEmpty(node.nextLabel) ? "다음 →" : node.nextLabel, style))
+            if (ItemButton(w, Key(w, "next"), new Rect(0, textHeight, contentWidth, buttonHeight), string.IsNullOrEmpty(node.nextLabel) ? StudioLocalization.Text(world.LastLine ? "dialogue.end" : "dialogue.next") : node.nextLabel, style))
                 clicked = -1;
         }
         else
@@ -437,7 +392,7 @@ internal sealed partial class StudioScreenView
             {
                 var r = new Rect(0, textHeight + i * (buttonHeight + gap), contentWidth, buttonHeight);
                 if (w.itemSkin == null || w.itemSkin.size == 0) ui.Box(r, new Color(.15f, .25f, .35f));
-                if (ItemButton(w, Key(w, "choice" + i), r, node.choices[i].label, style, world.StageChoiceAllowed(i))) clicked = i;
+                if (ItemButton(w, Key(w, "choice" + i), r, ChoiceLabel(node.choices[i]), style, world.StageChoiceAllowed(i))) clicked = i;
             }
         ui.EndScroll();
         if (clicked != -2)
@@ -493,7 +448,7 @@ internal sealed partial class StudioScreenView
                 var area=new Rect(rect.x+s.x*rect.width/100,rect.y+s.y*rect.height/100,s.w*rect.width/100,s.h*rect.height/100);
                 Color baseColor=StudioWorld.Tint(s.fill,fill);baseColor.a=fill.a;
                 var skin=StudioSkin.Of(baseColor,StudioWorld.Tint(s.press,baseColor),Color.clear,0,Mathf.Min(area.width,area.height)*s.radius/100);
-                string text=line.choices.Length>0?line.choices[i].label:string.IsNullOrEmpty(line.nextLabel)?"다음":line.nextLabel;
+                string text=line.choices.Length>0?ChoiceLabel(line.choices[i]):string.IsNullOrEmpty(line.nextLabel)?StudioLocalization.Text("dialogue.nextShort"):line.nextLabel;
                 bool allowed=line.choices.Length==0 || world.StageChoiceAllowed(i);
                 var ink=new StudioText(style.size,StudioText.Align(layer.align),StudioWorld.Tint(s.color,Color.white));
                 if(ui.Button(string.Concat("shot/",layer.id,"/",i.ToString(System.Globalization.CultureInfo.InvariantCulture)),area,text,ink,allowed,skin))answer=line.choices.Length>0?i:-1;
@@ -512,7 +467,7 @@ internal sealed partial class StudioScreenView
         for (int i = 0; i < count; i++)
         {
             var area = new Rect((i % columns) * (cellWidth + gap), (i / columns) * (rowHeight + gap), cellWidth, rowHeight);
-            string label = line.choices.Length > 0 ? line.choices[i].label : string.IsNullOrEmpty(line.nextLabel) ? "다음" : line.nextLabel;
+            string label = line.choices.Length > 0 ? ChoiceLabel(line.choices[i]) : string.IsNullOrEmpty(line.nextLabel) ? StudioLocalization.Text("dialogue.nextShort") : line.nextLabel;
             bool allowed = line.choices.Length==0 || world.StageChoiceAllowed(i);
             if (ui.Button(string.Concat("shot/", layer.id, "/", i.ToString(System.Globalization.CultureInfo.InvariantCulture)), area, label, style, allowed, cell)) chosen = line.choices.Length > 0 ? i : -1;
         }
@@ -554,7 +509,7 @@ internal sealed partial class StudioScreenView
                 continue;
             }
             string text = p.kind == "text" ? world.StageText : p.kind == "caption" ? p.caption :
-                !string.IsNullOrEmpty(line.speakerName) ? line.speakerName : speaker?.name ?? "내레이션";
+                !string.IsNullOrEmpty(line.speakerName) ? line.speakerName : speaker?.name ?? StudioLocalization.Text("dialogue.narrator");
             float height = ui.Height(text, style, r.width);
             if (height <= r.height) ui.Label(new Rect(r.x,r.y,r.width,height),text,style);
             else {
@@ -579,7 +534,7 @@ internal sealed partial class StudioScreenView
                 new Rect(Screen.width * .25f, Screen.height * .32f, Screen.width * .5f, Screen.height * .35f);
             ui.Box(panel, new Color(.07f, .12f, .2f, .95f));
             ui.Label(panel, world.Result, Fixed(24, StudioAlign.Center, Color.white));
-            if (ui.Button("world/result/restart", new Rect(panel.x, panel.yMax - ui.Dp(48), panel.width, ui.Dp(48)), "다시 시작",
+            if (ui.Button("world/result/restart", new Rect(panel.x, panel.yMax - ui.Dp(48), panel.width, ui.Dp(48)), StudioLocalization.Text("result.again"),
                           Fixed(16, StudioAlign.Center, Color.white), true, StudioSkin.Standard(ui.Density)))
                 world.Press("restart");
             return;

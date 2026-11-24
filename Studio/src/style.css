@@ -1402,3 +1402,17 @@ body { font-size:16px; }
 .face-preview{display:flex;justify-content:center;align-items:flex-end;height:180px;margin-top:8px;border-radius:8px;
   background:linear-gradient(#1a2a3d,#0e1824);overflow:hidden}
 .face-preview img{max-height:170px;max-width:100%;object-fit:contain}
+/* 번역 · 언어 */
+.locale-languages{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
+.locale-languages button[aria-pressed="true"]{background:#2f5d6b;border-color:var(--sky)}
+.locale-table{display:grid;gap:10px;margin-top:12px}
+.locale-row{display:grid;gap:6px;background:#1d2c40;border:1px solid #35475c;border-radius:8px;padding:10px 12px}
+.locale-row>p{margin:0;color:var(--muted);white-space:pre-wrap;overflow-wrap:anywhere}
+.locale-row textarea,.locale-row input{width:100%;box-sizing:border-box}
+.locale-row small{color:#ffcf8a}
+.locale-where{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:.9em}
+.locale-where strong{font-weight:600;overflow-wrap:anywhere}
+.locale-state{flex:none;border-radius:999px;padding:2px 9px;font-size:.82em;border:1px solid var(--line)}
+.locale-state.missing{color:#ffd59a;border-color:#7a6236}
+.locale-state.stale{color:#ffb4a8;border-color:#80463e}
+.locale-state.done{color:#a0e7d4;border-color:#3d7064}

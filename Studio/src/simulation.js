@@ -102,9 +102,12 @@ function slashTouches(hero, target, reach, from, to) {
 }
 
 class FieldRun {
-  constructor(world, mapId, directEntry = false, ruleCapture = null) {
+  constructor(world, mapId, directEntry = false, ruleCapture = null, language = '') {
     if(world.menuFunctions?.length) world={...world,layouts:resolvedScreens(world)};
     this.world = world;
+    // The play copy shows one language; the host passes the player's choice or the device language.
+    this.language = localizeWorld(world, language || localeBase(world));
+    this.languageSerial = 0;
     this.t = world.tuning;
     this.ruleCapture=ruleCapture;
     this.eventMachine=world.eventRules?.length?new EventRuleMachine(world.eventRules,ruleCapture?entry=>ruleCapture.log(entry):null):null;
@@ -569,6 +572,16 @@ class FieldRun {
     this.pendingTravel = null;
     go();
   }
+  // Switches every text of the play copy at once; the host saves the choice on the device.
+  setLanguage(code) {
+    if (!localeCodes(this.world).includes(code) || code === this.language) return false;
+    this.language = localizeWorld(this.world, code);
+    this.languageSerial++;
+    // A line being typed continues in the new language from the same point.
+    if (this.dialogue?.glyphs) this.dialogue.glyphs = Array.from(this.dialogue.node?.text || '');
+    this.serial++;
+    return true;
+  }
   followScreenRoute(key){
     const id=this.screen?.navigation?.[key];if(!id)return false;
     this.present('');this.layers.length=0;this.menu='';
@@ -584,6 +597,11 @@ class FieldRun {
     if(route && this.followScreenRoute(route))return;
     // The host opens the online friendly match: the studio's match page in a browser, the match screen in Unity.
     if (action === 'online') { this.onlineRequests = (this.onlineRequests || 0) + 1; this.serial++; return; }
+    if (action === 'language') {
+      const codes = localeCodes(this.world);
+      this.setLanguage(target || codes[(codes.indexOf(this.language) + 1) % codes.length]);
+      return;
+    }
     const front = this.presentation;
     if (action === 'beginGame' || action === 'confirmActor') {
       this.present(action === 'beginGame' && this.world.frontScreens?.roster ? 'roster' : 'loading');

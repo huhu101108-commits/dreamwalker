@@ -168,6 +168,41 @@ public sealed partial class StudioWorld
 #if UNITY_EDITOR
     public const string TabletPreviewSlotKey="Dreamwalker.TabletPreview.Slot", TabletPreviewMapKey="Dreamwalker.TabletPreview.Map", TabletPreviewObjectKey="Dreamwalker.TabletPreview.Object";
 #endif
+    public string Language { get; private set; } = "ko";
+    private string LanguageKey => "dreamwalker-language-v1:" + (string.IsNullOrEmpty(Project.saveId) ? Project.startMap : Project.saveId);
+    // The device language as a language code; Android reports the full tag (zh-TW, pt-BR) where it can.
+    private static string DeviceLanguage()
+    {
+#if UNITY_ANDROID && !UNITY_EDITOR
+        try
+        {
+            using (var locale = new AndroidJavaClass("java.util.Locale"))
+            using (var current = locale.CallStatic<AndroidJavaObject>("getDefault"))
+                return current.Call<string>("toLanguageTag");
+        }
+        catch (Exception) { }
+#endif
+        switch (Application.systemLanguage)
+        {
+        case SystemLanguage.Korean: return "ko";
+        case SystemLanguage.English: return "en";
+        case SystemLanguage.Japanese: return "ja";
+        case SystemLanguage.ChineseSimplified: return "zh-Hans";
+        case SystemLanguage.ChineseTraditional: return "zh-Hant";
+        case SystemLanguage.Chinese: return "zh";
+        case SystemLanguage.Spanish: return "es";
+        case SystemLanguage.French: return "fr";
+        case SystemLanguage.German: return "de";
+        case SystemLanguage.Portuguese: return "pt";
+        case SystemLanguage.Russian: return "ru";
+        case SystemLanguage.Italian: return "it";
+        case SystemLanguage.Thai: return "th";
+        case SystemLanguage.Vietnamese: return "vi";
+        case SystemLanguage.Indonesian: return "id";
+        case SystemLanguage.Turkish: return "tr";
+        default: return "";
+        }
+    }
     private string SaveKey
     {
         get
@@ -446,7 +481,7 @@ public sealed partial class StudioWorld
         int count = inventory ? bag.Count : (Project.quests?.Length ?? 0);
         if (count == 0)
         {
-            Painter.Label(area, inventory ? "보유 장비 없음" : "등록된 의뢰 없음", style);
+            Painter.Label(area, StudioLocalization.Text(inventory ? "items.empty" : "quests.empty"), style);
             return;
         }
         float line = Mathf.Max(Painter.Dp(32), (inventory ? screenView.ItemStyle(widget,style).size : style.size) * 2);
@@ -462,14 +497,14 @@ public sealed partial class StudioWorld
                 gear.TryGetValue(Actor.id + ":" + item.slot, out var equipped);
                 var old = Item(equipped);
                 string label = item.name + " ×" + p.Value + " · " +
-                               (equipped == item.id ? "장착 해제" : (old?.power ?? 0) + " → " + item.power);
+                               (equipped == item.id ? StudioLocalization.Text("items.unequip") : (old?.power ?? 0) + " → " + item.power);
                 if (screenView.ItemButton(widget,"progress/" + key + "/" + item.id,new Rect(0, i++ * line, width, line), label, style,true,true))
                     ToggleGear(item);
             }
         else
             foreach (var q in Project.quests)
                 Painter.Label(new Rect(0, i++ * line, width, line),
-                          (rewards.Contains(q.id) ? "완료 · " : "진행 · ") + q.name, style);
+                          StudioLocalization.Text(rewards.Contains(q.id) ? "quests.done" : "quests.active") + " · " + q.name, style);
         Painter.EndScroll();
     }
     private Sprite GraphicsFor(string reference)

@@ -37,6 +37,12 @@ function actionFields(owner, chained = false, prefix = '') {
     root.append(
       bindText(prefix+(owner.action === 'signal' ? '보낼 이벤트 이름' : '변경할 상태 이름'), owner, 'target', 50),
     );
+  // Language buttons: the next language in the list, or one chosen language (번역 · 언어 tab).
+  if (owner.action === 'language')
+    root.append(
+      bindSelect(prefix+'바꿀 언어', owner, 'target',
+        { '': '다음 언어로 차례대로', ...Object.fromEntries(localeCodes(project).map((c) => [c, languageName(project, c) + ' (' + c + ')'])) }),
+    );
   if (chained)
     root.append(
       bindText(prefix+'실행 조건 상태 (비우면 항상)', owner, 'flag', 50),

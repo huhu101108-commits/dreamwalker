@@ -152,6 +152,7 @@ Object.assign(INPUTS, {
   flagOff: '상태 끄기',
   signal: '이벤트 보내기',
   online: '온라인 친선전 열기',
+  language: '언어 바꾸기',
 });
 const screenActions = () => INPUTS;
 const UI_EVENTS = {
@@ -211,6 +212,8 @@ function actionRefOK(d, action, target) {
   if (action === 'startStory') return !!named(d.stories, target);
   if (action === 'selectActor') return !!named(d.characters, target);
   if (['flagOn', 'flagOff', 'signal'].includes(action)) return signalKey(target);
+  // '' moves to the next language; a code picks that language.
+  if (action === 'language') return target === '' || localeCodes(d).includes(target);
   return target === '';
 }
 function menuProgram(name,base={action:'back',target:'',steps:[]}) {
@@ -937,7 +940,7 @@ function problem(d) {
     for (const o of s.objects) if (!sceneObjectOK(d,s,o))
         return s.name + '의 개체 좌표 또는 연결을 확인하세요.';
   }
-  return productionProblem(d) || workProblem(d);
+  return productionProblem(d) || workProblem(d) || localeProblem(d);
 }
 function sceneObjectOK(d,s,o) {
   return !!o && !(
@@ -1031,13 +1034,13 @@ function roadmapStory(world, character, startId = '') {
       mapId: e.mapId,
       speaker: '',
       text: [e.title, detail, e.summary].filter(Boolean).join('\n'),
-      choices: [{ label: story ? '대화 읽기' : '계속', to: story ? prefix + story.nodes[0].id : end }],
+      choices: [{ label: systemText(world, story ? 'roadmap.read' : 'roadmap.continue'), to: story ? prefix + story.nodes[0].id : end }],
     });
     if (story)
       story.nodes.forEach((line, i) => {
         const choices = line.choices.length
           ? line.choices.map((c) => ({ ...c, to: c.to ? prefix + c.to : end }))
-          : [{ label: line.nextLabel || '다음', to: story.nodes[i + 1] ? prefix + story.nodes[i + 1].id : end }];
+          : [{ label: line.nextLabel || systemText(world, 'dialogue.nextShort'), to: story.nodes[i + 1] ? prefix + story.nodes[i + 1].id : end }];
         nodes.push({ ...line, ...(line.stageTrack?{stageTrack:{...line.stageTrack,skipTo:line.stageTrack.skipTo?prefix+line.stageTrack.skipTo:''}}:{}), mapId: e.mapId, id: prefix + line.id, choices });
       });
     nodes.push({
@@ -1047,7 +1050,7 @@ function roadmapStory(world, character, startId = '') {
       text: e.title,
       choices: e.links.length
         ? e.links.map((l) => ({ label: l.label, to: l.to + ':' }))
-        : [{ label: '스토리 마치기', to: '' }],
+        : [{ label: systemText(world, 'roadmap.finish'), to: '' }],
     });
   }
   return { id: character.id, name: character.name + '의 스토리', nodes };
@@ -1275,6 +1278,9 @@ function mergeProject(base, mine, live) {
     if (path==='/work' && a===undefined && b && c) a=emptyWork();
     if(/^\/work\/(presets|levels|studies|releases)$/.test(path) && a===undefined && Array.isArray(b) && Array.isArray(c))a=[];
     if(path==='/work/design' && a===undefined && b && c)a={};
+    if(a===undefined && plainObject(b) && plainObject(c) && (['/locales','/locales/system','/locales/strings'].includes(path) ||
+      (path.startsWith('/locales/strings/') && !('text' in b))))a={};
+    if(path==='/locales/languages' && a===undefined && Array.isArray(b) && Array.isArray(c))a=[];
     if (same(b, c) || same(b, a)) return c;
     if (same(c, a)) return b;
     const arrays = [a, b, c].every(Array.isArray);
@@ -1285,7 +1291,9 @@ function mergeProject(base, mine, live) {
             ? 'id'
             : all.length && all.every((x) => x && typeof x === 'object' && 'path' in x)
               ? 'path'
-              : null;
+              : all.length && all.every((x) => x && typeof x === 'object' && 'code' in x)
+                ? 'code'
+                : null;
       if (key) {
         const maps = [a, b, c].map((xs) => new Map(xs.map((v) => [v[key], v])));
         const retained = a.map((v) => v[key]).filter((id) => maps.every((m) => m.has(id)));
@@ -1318,7 +1326,9 @@ function mergeProject(base, mine, live) {
 function playableWorld(project) {
   const {work,menuFunctions,...content}=project;
   const layouts=resolvedScreens(project).map(l=>({...l,elements:l.elements.map(({editorLocked,editorGroup,...w})=>w)}));
-  return {...content,layouts,scenes:content.scenes.map(s=>({...s,objects:s.objects.map(({editorName,locked,prefab,...object})=>object)})),sourceFiles:[]};
+  const world={...content,layouts,scenes:content.scenes.map(s=>({...s,objects:s.objects.map(({editorName,locked,prefab,...object})=>object)})),sourceFiles:[]};
+  if(project.locales)world.locales=playLocales(project);
+  return world;
 }
 async function contentDigest(doc) {
   const content=packNativeWorld(doc);
@@ -1348,6 +1358,8 @@ function packNativeWorld(project) {
   })}));
   world.combatContract = 1;
   world.combatRules = project.combatRules || [];
+  delete world.locales;
+  if (project.locales) world.locale = packLocale(project);
   world.characters = project.characters.map(({ clips, ...c }) => ({
     ...c,
     motionClips: Object.entries(clips || {}).map(([key, clip]) => ({ key, ...clip })),
@@ -2137,4 +2149,264 @@ function applyUnityChanges(project,base,rows){
   if(project.sourceFiles.length>SOURCE_LIMIT.files||project.sourceFiles.reduce((n,f)=>n+(f.text?.length||0),0)>SOURCE_LIMIT.chars)
     throw Error('적용하면 프로젝트 소스가 '+sourceLimitText()+'를 넘어요. 일부 파일만 골라 적용하세요.');
   return project;
+}
+
+// ── Localization ──────────────────────────────────────────────────────────────────────────────────────────────────────
+// Base-language text stays where the creator wrote it. project.locales lists the other languages and holds their text by
+// stable content keys ('story/<id>/line/<id>/text', 'screen/<id>/<widget>/text', 'system/<name>' …). Each translation
+// keeps a hash of the base text it was made from, so an original changed since then shows up for review. At play time
+// localizeWorld writes one language into the same fields of the play copy: game code keeps reading the fields it always
+// read and switching language is instant. Unity's StudioLocalization lists the same keys (scripts/native-check/locale.json).
+const LOCALE_LIMIT={languages:12,keys:60000,text:1200};
+const LANGUAGES={ko:'한국어',en:'English',ja:'日本語','zh-Hans':'简体中文','zh-Hant':'繁體中文',es:'Español',fr:'Français',de:'Deutsch',
+  'pt-BR':'Português (Brasil)',ru:'Русский',it:'Italiano',th:'ไทย',vi:'Tiếng Việt',id:'Bahasa Indonesia',tr:'Türkçe'};
+const localeCode=v=>typeof v==='string'&&/^[a-z]{2,3}(?:-[A-Z][a-z]{3})?(?:-(?:[A-Z]{2}|[0-9]{3}))?$/.test(v);
+const LOCALE_KEY=/^(?:title|(?:character|map|story|screen|item|quest)(?:\/[A-Za-z0-9_-]{1,50}){2,5}|system\/[A-Za-z]{1,20}\.[A-Za-z0-9]{1,20})$/;
+// Text the game itself shows: labels of buttons left without text, HUD and list wording, results and save messages.
+// Creators may reword each in the base language (locales.system) and translate it like any other text.
+const SYSTEM_TEXT={
+  'button.dodge':'회피','button.jump':'점프','button.attack':'베기','button.menu':'메뉴','button.open':'화면 열기',
+  'button.resume':'계속하기','button.restart':'다시 시작','button.switch':'캐릭터 교대','button.skip':'건너뛰기',
+  'button.nextLine':'다음 대사','button.roadmap':'캐릭터 스토리','button.beginGame':'게임 시작','button.confirmActor':'선택 확정',
+  'button.previousActor':'이전 캐릭터','button.newRun':'게임 처음부터','button.back':'뒤로','button.gotoMap':'맵 이동',
+  'button.startStory':'대화','button.selectActor':'캐릭터 선택','button.flagOn':'상태 켜기','button.flagOff':'상태 끄기',
+  'button.signal':'이벤트','button.online':'온라인 친선전','button.language':'언어',
+  'hud.loading':'로딩','hud.enemies':'남은 적','hud.energy':'스킬 게이지','hud.noEnergy':'없음','hud.boss':'보스',
+  'dialogue.narrator':'내레이션','dialogue.next':'다음 대사 →','dialogue.end':'대화 마치기','dialogue.nextShort':'다음','dialogue.choice':'선택',
+  'roadmap.read':'대화 읽기','roadmap.continue':'계속','roadmap.finish':'스토리 마치기',
+  'items.open':'보유 장비 · 장착 변경','items.empty':'보유한 장비가 없어요.','items.unequip':'장착 해제','items.power':'공격력',
+  'items.busy':'다른 캐릭터가 장착 중이에요.',
+  'gear.weapon':'무기','gear.head':'머리','gear.top':'상의','gear.bottom':'하의','gear.feet':'신발',
+  'gear.extra1':'추가 장비 1','gear.extra2':'추가 장비 2','gear.extra3':'추가 장비 3',
+  'quests.title':'의뢰 목록 · 진행 상태','quests.empty':'등록된 의뢰가 없어요.','quests.done':'완료','quests.active':'진행',
+  'result.clear':'맵 탐험 완료','result.over':'전투 종료','result.again':'이 맵 다시 시작',
+  'status.paused':'일시정지','status.ended':'플레이 종료','status.clearFirst':'적을 모두 처치한 뒤 출구로 이동하세요.',
+  'status.exit':'출구로 이동하면 다음 맵으로 이어져요.',
+  'save.unavailable':'이 실행 환경은 기기 저장소를 사용할 수 없어요.','save.busy':'대화나 전투 동작이 끝난 뒤 저장할 수 있어요.',
+  'save.done':'이 기기에 진행 상황을 저장했어요.','save.failed':'기기 저장 공간을 사용할 수 없어요.','save.none':'이 기기에 호환되는 저장 기록이 없어요.',
+  'bar.close':'화면 닫기','bar.save':'진행 저장','bar.continue':'이어하기','bar.stick':'조이스틱','bar.stats':'성능','bar.hitboxes':'판정 표시',
+  'bar.assist':'보조 조작','bar.stop':'편집기로','bar.replay':'다시 플레이',
+  'input.invalid':'입력 조건을 확인하세요.','online.unavailable':'온라인 친선전은 스튜디오 사이트나 Unity 앱에서 열 수 있어요.',
+};
+const SYSTEM_GROUPS={button:'버튼 기본 문구',hud:'HUD',dialogue:'대화',roadmap:'스토리 로드맵',items:'장비',gear:'장비 부위',quests:'의뢰',
+  result:'결과 화면',status:'진행 안내',save:'진행 저장',bar:'웹 플레이 막대',input:'입력 컨트롤',online:'온라인'};
+const LOCALE_GROUPS={character:'캐릭터',map:'맵',story:'대사',screen:'UI 화면',item:'아이템 · 의뢰',quest:'아이템 · 의뢰',system:'게임 기본 문구',title:'게임 제목'};
+const plainObject=v=>!!v&&typeof v==='object'&&!Array.isArray(v);
+const localeHash=text=>motionSeed(String(text)).toString(16).padStart(8,'0');
+const localeBase=doc=>doc?.locales?.base||'ko';
+function localeCodes(doc){return [localeBase(doc),...(doc?.locales?.languages||[]).map(l=>l.code)];}
+function languageName(doc,code){
+  const loc=doc?.locales;
+  if(code===localeBase(doc))return loc?.baseName||LANGUAGES[code]||code;
+  return loc?.languages?.find(l=>l.code===code)?.name||LANGUAGES[code]||code;
+}
+// Every translatable text as {key, owner, field, max, where}. Empty text has nothing to translate and is left out.
+// play: choice inputs get display labels, because the value a choice stores must not change with the language.
+// system: the game's own wording, with the creator's base-language rewording where there is one.
+function textSlots(doc,{play=false,system=false}={}){
+  const out=[];
+  const add=(key,owner,field,max,where)=>{if(typeof owner?.[field]==='string'&&owner[field].trim())out.push({key,owner,field,max,where});};
+  add('title',doc,'title',50,'게임 제목');
+  for(const c of doc.characters||[]){
+    const k='character/'+c.id+'/',w=c.name+' · ';
+    add(k+'name',c,'name',50,w+'이름');add(k+'region',c,'region',50,w+'지역');add(k+'summary',c,'summary',500,w+'소개');
+    for(const p of c.profile||[])add(k+'profile/'+p.id,p,'value',300,w+'프로필 · '+p.label);
+    (c.skills||[]).forEach((s,i)=>{
+      add(k+'skill/'+i+'/name',s,'name',50,w+'스킬 '+(i+1)+' 이름');
+      if(s.cast){add(k+'skill/'+i+'/caption',s.cast,'caption',40,w+s.name+' · 컷인 문구');add(k+'skill/'+i+'/line',s.cast,'line',80,w+s.name+' · 외침');}
+    });
+    for(const e of c.roadmap?.episodes||[]){
+      const ek=k+'episode/'+e.id+'/',ew=w+'에피소드 '+e.title+' · ';
+      add(ek+'title',e,'title',50,ew+'제목');add(ek+'summary',e,'summary',240,ew+'요약');
+      (e.links||[]).forEach((l,i)=>add(ek+'link/'+i,l,'label',80,ew+'분기 '+(i+1)));
+    }
+  }
+  for(const m of doc.scenes||[]){
+    add('map/'+m.id+'/name',m,'name',50,m.name+' · 맵 이름');
+    for(const o of m.objects||[])if(o.type==='enemy'||o.type==='prop')add('map/'+m.id+'/object/'+o.id+'/label',o,'label',50,m.name+' · '+(o.type==='enemy'?'적':'소품')+' '+o.id+' 이름');
+  }
+  for(const s of doc.stories||[]){
+    add('story/'+s.id+'/name',s,'name',50,s.name+' · 스토리 제목');
+    (s.nodes||[]).forEach((n,i)=>{
+      const k='story/'+s.id+'/line/'+n.id+'/',w=s.name+' · '+(i+1)+'행 ';
+      add(k+'text',n,'text',1200,w+'대사');add(k+'speaker',n,'speakerName',50,w+'화자 표시 이름');add(k+'next',n,'nextLabel',80,w+'다음 버튼');
+      (n.choices||[]).forEach((c,j)=>add(k+'choice/'+j,c,'label',80,w+'선택지 '+(j+1)));
+      for(const l of n.shot?.layers||[])if(l.kind==='caption')add(k+'layer/'+l.id,l,'caption',400,w+'화면 문구 '+(l.title||l.id));
+    });
+  }
+  for(const l of doc.layouts||[])add('screen/'+l.id+'/name',l,'name',50,l.name+' · 화면 이름');
+  for(const l of doc.layouts||[])for(const w of l.elements||[]){
+    const k='screen/'+l.id+'/'+w.id+'/',at=l.name+' · '+(WIDGETS[w.type]||w.type)+' '+w.id+' ';
+    add(k+'text',w,'text',160,at+'글자');
+    if(w.type!=='input'||!w.control)continue;
+    add(k+'hint',w.control,'hint',120,at+'안내 문구');
+    if(w.control.validation)add(k+'message',w.control.validation,'message',100,at+'입력 오류 문구');
+    if(w.control.mode==='choice'){
+      const shown=play?(w.control.labels??=w.control.options.slice()):w.control.options;
+      shown.forEach((_,i)=>add(k+'option/'+i,shown,i,60,at+'선택 항목 '+(i+1)));
+    }
+  }
+  for(const v of doc.items||[])add('item/'+v.id+'/name',v,'name',50,'아이템 · '+v.name);
+  for(const q of doc.quests||[])add('quest/'+q.id+'/name',q,'name',50,'의뢰 · '+q.name);
+  if(system)for(const name of Object.keys(SYSTEM_TEXT)){
+    const owner={text:doc.locales?.system?.[name]||SYSTEM_TEXT[name]};
+    out.push({key:'system/'+name,owner,field:'text',max:200,where:(SYSTEM_GROUPS[name.split('.')[0]]||'')+' · '+SYSTEM_TEXT[name],system:name});
+  }
+  return out;
+}
+function localeKeys(doc){return new Set(textSlots(doc,{system:true}).map(s=>s.key));}
+// missing: no translation; stale: the original changed after it was translated; done.
+function translationState(doc,slot,code){
+  const t=doc.locales?.strings?.[slot.key]?.[code];
+  return !t?'missing':t.src!==localeHash(slot.owner[slot.field])?'stale':'done';
+}
+function setTranslation(doc,key,code,text,from){
+  const loc=doc.locales;if(!loc||code===loc.base)return;
+  if(!text.trim()){if(loc.strings[key]){delete loc.strings[key][code];if(!Object.keys(loc.strings[key]).length)delete loc.strings[key];}return;}
+  (loc.strings[key]??={})[code]={text:text.slice(0,LOCALE_LIMIT.text),src:localeHash(from)};
+}
+// {…} tokens that the game fills in: a translation must keep the same ones as its original.
+const textTokens=text=>(String(text).match(/\{(?:입력|프로필|변수|언어)(?::[^{}]*)?\}/g)||[]).sort().join('\n');
+function emptyLocales(){return {base:'ko',baseName:'한국어',languages:[],system:{},strings:{}};}
+function localeProblem(d){
+  const loc=d.locales;
+  if(loc===undefined)return '';
+  if(!plainObject(loc)||!localeCode(loc.base)||!textValue(loc.baseName,30,true)||!Array.isArray(loc.languages)||loc.languages.length>LOCALE_LIMIT.languages)
+    return '번역 · 언어의 기본 언어와 언어 목록(최대 '+LOCALE_LIMIT.languages+'개)을 확인하세요.';
+  const codes=new Set([loc.base]);
+  for(const l of loc.languages){
+    if(!plainObject(l)||!localeCode(l.code)||codes.has(l.code)||!textValue(l.name,30,true))return '번역 · 언어 코드와 이름을 확인하세요. 같은 언어를 두 번 넣을 수 없어요.';
+    codes.add(l.code);
+  }
+  if(!plainObject(loc.system)||Object.entries(loc.system).some(([k,v])=>!has(SYSTEM_TEXT,k)||!textValue(v,200,true)))return '번역 · 게임 기본 문구의 값을 확인하세요.';
+  if(!plainObject(loc.strings))return '번역 표 형식을 확인하세요.';
+  const keys=Object.keys(loc.strings);
+  if(keys.length>LOCALE_LIMIT.keys)return '번역 항목은 '+LOCALE_LIMIT.keys+'개까지 저장할 수 있어요. 쓰지 않는 번역을 정리하세요.';
+  for(const k of keys){
+    const row=loc.strings[k];
+    if(!LOCALE_KEY.test(k)||!plainObject(row))return '번역 항목 '+k.slice(0,80)+'을 확인하세요.';
+    for(const [code,t] of Object.entries(row))
+      if(code===loc.base||!codes.has(code)||!plainObject(t)||!textValue(t.text,LOCALE_LIMIT.text,true)||typeof t.src!=='string'||!/^[0-9a-f]{8}$/.test(t.src))
+        return '번역 '+k.slice(0,80)+' · '+code+'의 내용(1~'+LOCALE_LIMIT.text+'자)을 확인하세요.';
+  }
+  return '';
+}
+// What a game export carries: current keys only, no review hashes.
+function playLocales(doc){
+  const loc=doc.locales;if(!loc)return undefined;
+  const used=localeKeys(doc),strings={};
+  for(const [k,row] of Object.entries(loc.strings))if(used.has(k)){
+    const kept=Object.fromEntries(Object.entries(row).map(([code,t])=>[code,{text:t.text}]));
+    if(Object.keys(kept).length)strings[k]=kept;
+  }
+  return {base:loc.base,baseName:loc.baseName,languages:loc.languages.map(l=>({code:l.code,name:l.name})),system:{...loc.system},strings};
+}
+// Unity reads arrays: one key list and, per language, the texts in the same order ('' falls back to the base text).
+function packLocale(doc){
+  const loc=playLocales(doc);if(!loc)return undefined;
+  const keys=Object.keys(loc.strings);
+  return {base:loc.base,baseName:loc.baseName,keys,
+    languages:loc.languages.map(l=>({code:l.code,name:l.name,values:keys.map(k=>loc.strings[k][l.code]?.text||'')})),
+    system:Object.entries(loc.system).map(([key,text])=>({key,text}))};
+}
+const localeMemory=new WeakMap();
+// Writes one language into the play copy. The base text of every field is kept, so any language can follow.
+function localizeWorld(world,code){
+  let state=localeMemory.get(world);
+  if(!state){
+    state={slots:textSlots(world,{play:true}),code:''};
+    for(const s of state.slots)s.base=s.owner[s.field];
+    localeMemory.set(world,state);
+  }
+  const loc=world.locales,base=localeBase(world);
+  if(!localeCodes(world).includes(code))code=base;
+  const name=languageName(world,code);
+  for(const s of state.slots){
+    const v=(code!==base&&loc?.strings?.[s.key]?.[code]?.text)||s.base;
+    s.owner[s.field]=v.includes('{언어}')?v.replaceAll('{언어}',name):v;
+  }
+  state.code=code;
+  return code;
+}
+function worldLanguage(world){return localeMemory.get(world)?.code||localeBase(world);}
+function systemText(world,name){
+  const loc=world?.locales,code=worldLanguage(world);
+  return (code!==localeBase(world)&&loc?.strings?.['system/'+name]?.[code]?.text)||loc?.system?.[name]||SYSTEM_TEXT[name]||'';
+}
+// The first wanted language the game has: exact code, Chinese script by region, then the same main language.
+function pickLanguage(codes,wanted){
+  const script=w=>/^zh-(?:hant|tw|hk|mo)\b/i.test(w)?'zh-Hant':/^zh-(?:hans|cn|sg)\b/i.test(w)?'zh-Hans':'';
+  for(const raw of wanted){
+    if(typeof raw!=='string'||!raw)continue;
+    const w=raw.replaceAll('_','-'),lower=w.toLowerCase();
+    const exact=codes.find(c=>c.toLowerCase()===lower)||codes.find(c=>c===script(w));
+    if(exact)return exact;
+    const main=lower.split('-')[0];
+    const near=codes.find(c=>c.toLowerCase().split('-')[0]===main);
+    if(near)return near;
+  }
+  return codes[0];
+}
+// CSV for translators: key, where it appears, length limit, the base text and one column per language.
+// A cell that a spreadsheet would read as a formula is written with a leading apostrophe and read back without it.
+function csvCell(v){
+  let s=String(v??'');
+  if(/^[=+\-@]/.test(s))s="'"+s;
+  return /[",\r\n]|^\s|\s$/.test(s)?'"'+s.replaceAll('"','""')+'"':s;
+}
+function csvRows(text){
+  const rows=[];let row=[],cell='',quoted=false,i=text.charCodeAt(0)===0xfeff?1:0;
+  for(;i<text.length;i++){
+    const ch=text[i];
+    if(quoted){
+      if(ch==='"'){if(text[i+1]==='"'){cell+='"';i++;}else quoted=false;}
+      else cell+=ch;
+    }else if(ch==='"'&&cell==='')quoted=true;
+    else if(ch===','){row.push(cell);cell='';}
+    else if(ch==='\n'||ch==='\r'){
+      if(ch==='\r'&&text[i+1]==='\n')i++;
+      row.push(cell);rows.push(row);row=[];cell='';
+    }else cell+=ch;
+  }
+  if(cell!==''||row.length){row.push(cell);rows.push(row);}
+  return rows.map(r=>r.map(c=>/^'[=+\-@]/.test(c)?c.slice(1):c));
+}
+function localeCsv(doc,codes=doc.locales?.languages.map(l=>l.code)||[]){
+  const base=localeBase(doc),strings=doc.locales?.strings||{};
+  const lines=[['key','where','max',base,...codes].map(csvCell).join(',')];
+  for(const s of textSlots(doc,{system:true}))
+    lines.push([s.key,s.where,s.max,s.owner[s.field],...codes.map(c=>strings[s.key]?.[c]?.text||'')].map(csvCell).join(','));
+  return '﻿'+lines.join('\r\n')+'\r\n';
+}
+// Reads translations back. The base column records which original each translation was made from, so text that changed
+// after the file was written is marked for review. Empty cells keep what is there; unknown keys and languages are reported.
+function importLocaleCsv(doc,text){
+  const rows=csvRows(text),head=rows.shift()||[],col=name=>head.indexOf(name);
+  const loc=doc.locales;
+  if(!loc)throw Error('먼저 번역할 언어를 추가하세요.');
+  if(col('key')<0||col(loc.base)<0)throw Error('CSV 첫 줄에 key와 기본 언어('+loc.base+') 열이 있어야 해요.');
+  const codes=head.filter(h=>loc.languages.some(l=>l.code===h)),unknownLanguages=head.filter((h,i)=>i>2&&h&&h!==loc.base&&!codes.includes(h));
+  const slots=new Map(textSlots(doc,{system:true}).map(s=>[s.key,s]));
+  const report={changed:0,same:0,unknownKeys:[],unknownLanguages,tooLong:[],tokens:[]};
+  for(const r of rows){
+    const key=r[col('key')];if(!key)continue;
+    const slot=slots.get(key);if(!slot){report.unknownKeys.push(key);continue;}
+    const from=r[col(loc.base)]??'';
+    for(const code of codes){
+      const value=(r[col(code)]??'').trim()?r[col(code)]:'';
+      if(!value)continue;
+      if(value.length>LOCALE_LIMIT.text){report.tooLong.push(key+' · '+code);continue;}
+      if(textTokens(value)!==textTokens(from))report.tokens.push(key+' · '+code);
+      const old=loc.strings[key]?.[code];
+      if(old?.text===value&&old.src===localeHash(from)){report.same++;continue;}
+      setTranslation(doc,key,code,value,from);report.changed++;
+    }
+  }
+  return report;
+}
+// Removes translations whose text no longer exists in the game.
+function pruneTranslations(doc){
+  const used=localeKeys(doc);let n=0;
+  for(const k of Object.keys(doc.locales?.strings||{}))if(!used.has(k)){delete doc.locales.strings[k];n++;}
+  return n;
 }

@@ -96,6 +96,7 @@ public static class Verify
         UnityReturn.Run();
         UiGeometry.Run();
         PortraitMotion.Run();
+        Locale.Run();
         return "PASS bidirectional sweep at tick 10 and saved state";
     }
     public static async System.Threading.Tasks.Task Main(string[] args)

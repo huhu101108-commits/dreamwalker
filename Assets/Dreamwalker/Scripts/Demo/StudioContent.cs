@@ -14,7 +14,8 @@ public class StudioRelease
 public class StudioProject
 {
     public int schema;
-    public string startMap, saveId, customJson;
+    public string title, startMap, saveId, customJson;
+    public StudioLocale locale;
     public bool authoredKeysOnly;
     public StudioTuning tuning;
     public StudioMix mix;
@@ -416,6 +417,13 @@ public sealed class StudioInputGestureClock
     public StudioTextValidation validation;
     public int limit, min, max, step;
     public string[] options;
+    // Display labels of a choice in the current language, set by StudioLocalization; the stored value stays options[i].
+    public string[] labels;
+    public string Label(string value)
+    {
+        int at = options == null ? -1 : Array.IndexOf(options, value);
+        return at >= 0 && labels != null && at < labels.Length ? labels[at] : value;
+    }
     public string Value(string raw)
     {
         raw = raw ?? "";

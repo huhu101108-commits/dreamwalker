@@ -201,7 +201,7 @@ internal sealed partial class StudioScreenView
         if(spec.mode=="toggle"){
             if(ui.Button(key,area,current=="true"?"☑":"☐",style,enabled,StudioSkin.None))world.CommitField(w,current=="true"?"false":"true");
         }else if(spec.mode=="choice"){
-            if(ui.Button(key,area,current+" ▾",style,enabled,StudioSkin.None)){openChoices=w;fieldLayout=Layout;choiceScroll=Vector2.zero;}
+            if(ui.Button(key,area,spec.Label(current)+" ▾",style,enabled,StudioSkin.None)){openChoices=w;fieldLayout=Layout;choiceScroll=Vector2.zero;}
         }else if(spec.mode=="range"){
             var track=new Rect(area.x,area.y+area.height*.1f,area.width*.75f,area.height*.8f);
             string display=rangeField==w?rangeValue:current;
@@ -225,7 +225,7 @@ internal sealed partial class StudioScreenView
             if(string.IsNullOrEmpty(after) && editingField!=w && !string.IsNullOrEmpty(spec.hint))ui.Label(area,spec.hint,style);
         }
         if(invalidField==w){
-            string hint=string.IsNullOrEmpty(spec.validation?.message)?"입력 조건을 확인하세요.":spec.validation.message;
+            string hint=string.IsNullOrEmpty(spec.validation?.message)?StudioLocalization.Text("input.invalid"):spec.validation.message;
             float height=Mathf.Clamp(style.size*1.2f+ui.Dp(6),ui.Dp(22),ui.Dp(55));
             var help=new Rect(r.x,r.yMax+height<=Screen.height?r.yMax:Mathf.Max(0,r.y-height),r.width,height);
             ui.Box(help,Color.black);ui.Label(help,"! "+hint,style);
@@ -262,7 +262,7 @@ internal sealed partial class StudioScreenView
             var area=new Rect(0,row*i,inner,row);
             string option=w.control.options[i];
             if(value==option)ui.Box(area,StudioWorld.Tint(w.pressedColor,Color.gray));
-            if(ui.Button("dw-choice-"+i.ToString(System.Globalization.CultureInfo.InvariantCulture),area,option,style,true,StudioSkin.None))chosen=option;
+            if(ui.Button("dw-choice-"+i.ToString(System.Globalization.CultureInfo.InvariantCulture),area,w.control.Label(option),style,true,StudioSkin.None))chosen=option;
         }
         ui.EndScroll();
         if(chosen!=null){openChoices=null;world.CommitField(w,chosen);}

@@ -34,6 +34,7 @@ public sealed partial class StudioWorld : MonoBehaviour
     public StudioCharacter Actor { get; private set; }
     public StudioStory Story { get; private set; }
     public StudioLine Line => Story == null ? null : Story.nodes[lineIndex];
+    public bool LastLine => Story != null && lineIndex == Story.nodes.Length - 1;
     public string Menu { get; private set; }
     public string Result { get; private set; }
     public int Health { get; private set; }
@@ -187,6 +188,9 @@ public sealed partial class StudioWorld : MonoBehaviour
             Running = true;
         }
         Project = project;
+        // One language at a time: the player's earlier choice, else the device language, else the base language.
+        Language = StudioLocalization.Apply(project, StudioLocalization.Pick(StudioLocalization.Codes(project),
+            new[] { PlayerPrefs.GetString(LanguageKey, ""), DeviceLanguage() }));
         flow = new StudioScreenFlow();
         hasTimers = Array.Exists(project.layouts,
                                  l => l.rules != null && Array.Exists(l.rules, r => r.@event == "elapsed"));
@@ -569,7 +573,7 @@ public sealed partial class StudioWorld : MonoBehaviour
             Enter(dest, true);
         else
         {
-            Result = "맵 탐험 완료";
+            Result = StudioLocalization.Text("result.clear");
             Fire("clear");
             SyncControls();
         }
@@ -701,6 +705,19 @@ public sealed partial class StudioWorld : MonoBehaviour
     }
     private void PressCore(string action,string target)
     {
+        // A language button: the next language in the list, or the one it names. The choice is kept on this device.
+        if (action == "language")
+        {
+            var codes = StudioLocalization.Codes(Project);
+            string chosen = string.IsNullOrEmpty(target) ? codes[(codes.IndexOf(Language) + 1) % codes.Count] : target;
+            if (codes.Contains(chosen) && chosen != Language)
+            {
+                Language = StudioLocalization.Apply(Project, chosen);
+                PlayerPrefs.SetString(LanguageKey, Language);
+                PlayerPrefs.Save();
+            }
+            return;
+        }
         // A creator-placed button opens the online friendly match, also in release builds where the studio panel is hidden.
         if (action == "online")
         {
@@ -1156,7 +1173,7 @@ public sealed partial class StudioWorld : MonoBehaviour
         }
         if (Health <= 0)
         {
-            Result = "전투 종료";
+            Result = StudioLocalization.Text("result.over");
             Fire("defeat");
             SyncControls();
             return;
@@ -1257,7 +1274,7 @@ public sealed partial class StudioWorld : MonoBehaviour
              w.action == "restart" || w.action == "newRun" || w.action == "gotoMap" || w.action == "open" ||
              w.action == "beginGame" || w.action == "confirmActor" ||
              (Story != null && (w.action == "skip" || w.action == "nextLine")))));
-        if (!recovery && Painter.Button("world/close", new Rect(Screen.width-Painter.Dp(104),Painter.Dp(4),Painter.Dp(100),Painter.Dp(38)),"화면 닫기",
+        if (!recovery && Painter.Button("world/close", new Rect(Screen.width-Painter.Dp(104),Painter.Dp(4),Painter.Dp(100),Painter.Dp(38)),StudioLocalization.Text("bar.close"),
                 new StudioText(Mathf.RoundToInt(Painter.Dp(14)),StudioAlign.Center,Color.white),true,StudioSkin.Standard(Painter.Density)))
             Press(HasOverlay || Story == null ? "back" : "skip");
     }

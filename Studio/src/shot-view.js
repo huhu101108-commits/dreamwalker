@@ -63,7 +63,7 @@ function shotCoversField(line) {
 function makeShotView(world,line,map,advance,design=false) {
   const board=box('shot-board'), entries=new Map();
   const rgba=(hex,alpha)=>hex+Math.round(alpha*255/100).toString(16).padStart(2,'0');
-  const person=()=>line.speakerName || named(world.characters,line.speaker)?.name || '내레이션';
+  const person=()=>line.speakerName || named(world.characters,line.speaker)?.name || systemText(world,'dialogue.narrator');
   function update(p) {
     const entry=entries.get(p.id);
     if(!entry) return;
@@ -91,7 +91,7 @@ function makeShotView(world,line,map,advance,design=false) {
         {flip:p.flip,explicit:p.kind==='portrait'&&line.portrait?line.portrait:'',base:url});
     }
     if(p.kind==='choices') {
-      const labels=line.choices.length ? line.choices.map(c=>c.label||'선택') : [line.nextLabel||'다음'];
+      const labels=line.choices.length ? line.choices.map(c=>c.label||systemText(world,'dialogue.choice')) : [line.nextLabel||systemText(world,'dialogue.nextShort')];
       node.style.setProperty('--shot-columns',Math.min(labels.length,p.columns||1));
       node.style.setProperty('--shot-choice-fill',fill);
       const signature=JSON.stringify(labels);
