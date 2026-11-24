@@ -68,8 +68,15 @@ document.addEventListener('visibilitychange', () => {
 const activeMap = () => named(project.scenes, sceneId) || named(project.scenes, project.startMap);
 const activeActor = () => named(project.characters, actorId) || project.characters[0];
 const activeLayout = () => named(project.layouts, layoutId) || project.layouts[0];
+// A notice stays long enough to read and then gives its space back; tapping it closes it at once. A notice of work
+// still in progress (ending in …) stays until the next one.
+let noteTimer = 0;
 function note(text) {
-  $('#note').textContent = text;
+  const bar = $('#note');
+  bar.textContent = text;
+  clearTimeout(noteTimer);
+  if (text && !/…$/.test(text)) noteTimer = setTimeout(() => { if (bar.textContent === text) bar.textContent = ''; }, 9000);
+  bar.onclick = () => { bar.textContent = ''; };
 }
 async function api(path, body) {
   if(inspectionId){
@@ -137,16 +144,51 @@ function travel(from, to) {
 function bindSelect(label, obj, key, options, redraw = true) {
   return selectField(label, obj[key], options, (v) => edit(() => (obj[key] = v), redraw));
 }
+// Typing saves each letter without redrawing, so the field keeps its focus. Once a value is committed (leaving the
+// field or Enter), the tool redraws so names show in lists, cards and headers: after a press in progress has
+// clicked, keeping the field or button the person moved to and the page position.
+let commitDrawPending = false, pointerHeld = false;
+addEventListener('pointerdown', () => { pointerHeld = true; }, true);
+for (const type of ['pointerup', 'pointercancel'])
+  addEventListener(type, () => { pointerHeld = false; if (commitDrawPending) setTimeout(commitDraw); }, true);
+function afterFieldCommit(input) {
+  if (!input?.isConnected || !input.closest('#content')) return;
+  commitDrawPending = true;
+  if (!pointerHeld) setTimeout(commitDraw);
+}
+function fieldName(n) {
+  return n?.getAttribute?.('aria-label') || (n?.tagName === 'BUTTON' ? n.textContent.trim() : '');
+}
+function commitDraw() {
+  if (!commitDrawPending || !project) return;
+  commitDrawPending = false;
+  const content = $('#content'), active = document.activeElement, name = content.contains(active) ? fieldName(active) : '';
+  const same = (root) => [...root.querySelectorAll('input,select,textarea,button')].filter((n) => fieldName(n) === name);
+  const index = name ? same(content).indexOf(active) : -1;
+  let range = null;
+  try { range = active && typeof active.selectionStart === 'number' ? [active.selectionStart, active.selectionEnd] : null; } catch {}
+  const x = window.scrollX, y = window.scrollY;
+  draw();
+  window.scrollTo(x, y);
+  const next = index >= 0 ? same($('#content'))[index] : null;
+  if (!next) return;
+  next.focus({ preventScroll: true });
+  try { if (range) next.setSelectionRange(range[0], range[1]); } catch {}
+}
 function bindText(label, obj, key, max = 50, multi = false) {
   const token = {};
-  return textField(label, obj[key], (v) => edit(() => (obj[key] = v), false, token), max, multi);
+  const field = textField(label, obj[key], (v) => edit(() => (obj[key] = v), false, token), max, multi);
+  field.querySelector('input,textarea').addEventListener('change', (e) => afterFieldCommit(e.target));
+  return field;
 }
 function bindNumber(label, obj, key, min, max, step, update) {
   const token = {};
-  return numberField(label, obj[key], min, max, step, (v) => {
+  const field = numberField(label, obj[key], min, max, step, (v) => {
     edit(() => (obj[key] = v), false, token);
     update?.();
   });
+  field.querySelector('input').addEventListener('change', (e) => afterFieldCommit(e.target));
+  return field;
 }
 function bindColor(label, obj, key, update) {
   const token = {};

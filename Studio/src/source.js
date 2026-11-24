@@ -424,7 +424,7 @@ async function exportWebSnapshot(doc,revision){
   const url = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' })),
     a = el('a');
   a.href = url;
-  a.download = revision===null?'Dreamwalker-Play.html':'Dreamwalker-Play-v'+revision+'.html';
+  a.download = exportName(doc)+'-Play'+(revision===null?'':'-v'+revision)+'.html';
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 5000);
 }

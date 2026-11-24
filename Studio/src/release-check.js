@@ -64,6 +64,14 @@ function releaseCheck(doc) {
     if (!uses('draw', b.id) && !uses('drawMulti', b.id)) add('warn', '상점 · 뽑기', b.name + ' · 게임에서 이 뽑기를 하는 버튼이 없어요.', 'shop');
     if (!uses('odds', b.id)) add('warn', '상점 · 뽑기', b.name + ' · «확률 정보 보기» 버튼이 없어요. 확률형 아이템은 게임 안에서 확률을 보여 줘야 해요.', 'shop');
   }
+  // A currency nobody starts with and nothing gives can never be spent, so what it buys cannot be had either.
+  for (const cur of doc.shop?.currencies || []) {
+    const gives = (list) => (list || []).some((g) => g.kind === 'currency' && g.id === cur.id);
+    const earned = cur.start > 0 || doc.shop.products.some((p) => gives(p.gives)) ||
+      doc.shop.banners.some((b) => b.tiers.some((t) => t.rate > 0 && gives(t.entries))) ||
+      (doc.quests || []).some((q) => q.rewardKind === 'currency' && q.reward === cur.id);
+    if (!earned) add('warn', '상점 · 뽑기', cur.name + ' · 시작 수량이 0이고 얻을 방법(상품·뽑기·의뢰 보상)이 없어 쓸 수 없어요.', 'shop');
+  }
   for (const p of doc.shop?.products || []) if (!uses('buy', p.id)) add('info', '상점 · 뽑기', p.name + ' · 이 상품을 파는 버튼이 없어요.', 'shop');
   if ((doc.shop?.products || []).some((p) => p.cost.kind === 'money'))
     add('info', '상점 · 뽑기', '원화 상품은 Unity 빌드에 스토어 어댑터(StudioPurchases.Handler)를 연결해야 팔려요. 웹에서는 팔 수 없어요.', 'shop');

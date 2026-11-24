@@ -62,7 +62,7 @@ release.project.scenes[0].music='asset:'+soundHash;
 release.project.work=vm.runInContext('emptyWork()',ctx);
 release.project.work.brief='internal milestone';
 await vm.runInContext('exportUnityPack()', ctx);
-assert.equal(downloaded, 'Dreamwalker-Unity-v17.zip');
+assert.equal(downloaded, 'mine-Unity-v17.zip', 'the file carries the game\'s save identifier');
 const dir = await mkdtemp(join(tmpdir(), 'dw-zip-'));
 try {
   const path = join(dir, 'pack.zip');
@@ -86,7 +86,7 @@ try {
     { path: 'Web/scratch.js', text: '// web' },
   ];
   await vm.runInContext('exportUnityPack(true)', ctx);
-  assert.equal(downloaded, 'Dreamwalker-Unity-Project-v17.zip');
+  assert.equal(downloaded, 'mine-Unity-Project-v17.zip');
   await writeFile(path, new Uint8Array(await archive.arrayBuffer()));
   execFileSync('unzip', ['-tq', path]);
   const files = execFileSync('unzip', ['-Z1', path], { encoding: 'utf8' });

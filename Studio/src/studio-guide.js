@@ -179,7 +179,7 @@ function drawGameSettings(side) {
   const f = project.frontScreens || {}, name = (id2) => (named(project.layouts, id2) ? '«' + named(project.layouts, id2).name + '»' : '없음');
   side.append(box('group',
     el('strong', '게임 시작 순서'),
-    el('p', '시작 화면 ' + name(f.title) + ' · 캐릭터 선택 ' + name(f.roster) + ' · 로딩 ' + name(f.loading)),
+    el('p', FRONT_ORDER.map((role) => FRONT_NAMES[role].replace(/ \(.*\)$/, '') + ' ' + name(f[role])).join(' → ') + ' → 맵'),
     action('시작 순서 바꾸기', () => openFeature('interface', 's:게임 시작 순서 · 화면 연결'), 'quiet')));
   const loc = project.locales;
   side.append(box('group',

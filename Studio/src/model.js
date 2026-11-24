@@ -447,6 +447,46 @@ function polygonOK(points) {
 function joystickWidget(id) {
   return widget(id, 'joystick', 2, 65, 17, 32, { background: '#132b42', color: '#c5eef1', opacity: 65 });
 }
+// The name of exported files: the game's save identifier, else its name, so downloads of two games do not mix.
+function exportName(doc) {
+  const name = (doc?.saveId || doc?.title || '').replace(/[\\/:*?"<>|\s.]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 50);
+  return name || 'Dreamwalker';
+}
+// Whether a rectangle (in screen percent) is clear of the screen's visible elements, with a small margin.
+function rectFree(layout, r) {
+  return !layout.elements.some((w) => w.visible && w.type !== 'panel' && w.type !== 'image' &&
+    w.x < r.x + r.w + 1 && r.x < w.x + w.w + 1 && w.y < r.y + r.h + 1 && r.y < w.y + w.h + 1);
+}
+// A button in the first clear place, reading from the top left, so buttons added to a designed screen do not cover
+// what is there. A full screen falls back to the menu slots.
+function freeButton(layout, text, props = {}) {
+  return placeButtons(layout, [{ text, props }])[0];
+}
+// Several buttons kept together in the first clear block: left to right, then the next row under the first one.
+function placeButtons(layout, specs) {
+  for (const [w, h] of [[24, 10], [20, 9], [17, 8]])
+    for (let y = 3; y <= 97 - h; y++)
+      for (let x = 2; x <= 98 - w; x++) {
+        const spots = [];
+        let cx = x, cy = y;
+        for (let i = 0; i < specs.length; i++) {
+          if (cx + w > 98) { cx = x; cy += h + 1; }
+          if (cy + h > 97 || !rectFree(layout, { x: cx, y: cy, w, h })) break;
+          spots.push({ x: cx, y: cy });
+          cx += w + 1;
+        }
+        if (spots.length === specs.length)
+          return specs.map((s, i) => widget(uid(), 'button', spots[i].x, spots[i].y, w, h, { text: s.text, action: 'back', shape: 'pill', ...s.props }));
+      }
+  // A full screen: the menu slots, one after another.
+  const copy = { elements: [...layout.elements] };
+  return specs.map((s) => { const b = newMenuButton(copy, s.text, s.props); copy.elements.push(b); return b; });
+}
+// A small button in a screen's top-right corner (a lobby's settings), or the first clear place when it is taken.
+function cornerButton(layout, text, props = {}) {
+  const r = { x: 83, y: 3, w: 14, h: 9 };
+  return rectFree(layout, r) ? widget(uid(), 'button', r.x, r.y, r.w, r.h, { text, action: 'back', shape: 'pill', ...props }) : freeButton(layout, text, props);
+}
 function frontScreen(id, role, title) {
   const s = newScreen(id, FRONT_NAMES[role], 'custom');
   s.shade = 94;
@@ -459,15 +499,16 @@ function frontScreen(id, role, title) {
     button('prev','이전','previousActor',8,43,18), button('next-actor','다음','switch',74,43,18),
     button('confirm','이 캐릭터로 시작','confirmActor',29,77,42)];
   if (role === 'loading') s.elements = [titleAt('불러오는 중'), widget('progress', 'loading', 20, 60, 60, 10)];
-  // A lobby: the chosen character on the left, the ways on from here on the right.
+  // A lobby: the chosen character on the left, the ways on from here on the right, and room below them for the
+  // store and gacha buttons a game adds.
   if (role === 'home') s.elements = [
     widget('heading', 'text', 4, 4, 52, 12, { text: title, fontSize: 28, opacity: 0, align: 'left' }),
     widget('face', 'portrait', 4, 18, 40, 66, { opacity: 0 }),
     widget('name', 'character', 4, 86, 40, 9, { opacity: 0 }),
-    widget('play', 'button', 58, 18, 36, 16, { text: '출격', action: 'play', shape: 'pill', fontSize: 22 }),
-    button('next-actor', '캐릭터 교대', 'switch', 58, 38, 36),
-    button('save', '진행 저장', 'saveGame', 58, 56, 36),
-    button('to-title', '시작 화면으로', 'back', 58, 74, 36)];
+    widget('play', 'button', 58, 17, 36, 15, { text: '출격', action: 'play', shape: 'pill', fontSize: 22 }),
+    widget('next-actor', 'button', 58, 35, 36, 11, { text: '캐릭터 교대', action: 'switch', shape: 'pill' }),
+    widget('save', 'button', 58, 49, 36, 11, { text: '진행 저장', action: 'saveGame', shape: 'pill' }),
+    widget('to-title', 'button', 58, 63, 36, 11, { text: '시작 화면으로', action: 'back', shape: 'pill' })];
   return s;
 }
 // A settings screen of device settings: sound, line speed and auto lines, language and error report consent.

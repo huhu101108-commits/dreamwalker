@@ -49,7 +49,19 @@ function drawShop() {
     action('링크 · 확률 공개 페이지', () => window.open('/odds', '_blank', 'noopener'), 'quiet')));
   const b = named(s.banners, shopView.banner);
   if (!b) return;
+  main.append(row(action('화면에 뽑기 버튼 놓기', () => placeBannerButtons(b), 'quiet'),
+    el('small', '홈 화면(없으면 이 맵의 메뉴)에 뽑기·확률 정보 버튼을 놓아요.')));
   main.append(bannerFields(b, s));
+}
+// The pull and odds buttons of a banner on the home screen, else the active map's menu, in free slots.
+function placeBannerButtons(b) {
+  const screen = named(project.layouts, project.frontScreens?.home || '') || named(project.layouts, activeMap().menuId);
+  const wanted = [['draw', '1회 뽑기'], ...(b.multi > 0 ? [['drawMulti', b.multi + '회 뽑기']] : []), ['odds', '확률 정보']]
+    .filter(([act]) => !screen.elements.some((w) => w.type === 'button' && w.action === act && w.target === b.id));
+  if (!wanted.length) return note(screen.name + '에 이 뽑기의 버튼이 이미 있어요.');
+  if (screen.elements.length + wanted.length > LIMIT.widgets) throw Error(screen.name + '에 버튼을 놓을 공간이 부족해요.');
+  edit(() => { screen.elements.push(...placeButtons(screen, wanted.map(([act, text]) => ({ text, props: { action: act, target: b.id } })))); });
+  note(screen.name + '에 ' + wanted.map(([, t]) => '«' + t + '»').join(' ') + ' 버튼을 놓았어요. 위치는 UI 디자인에서 바꿔요.');
 }
 function bannerFields(b, s) {
   const root = box('shop-banner');

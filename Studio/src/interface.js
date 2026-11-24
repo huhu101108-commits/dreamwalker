@@ -27,7 +27,7 @@ function drawScreenShortcuts(a, layout) {
       project.layouts.push(screen);
       config.settings = screen.id;
       const home = named(project.layouts, config.home || '');
-      if (home && home.elements.length < LIMIT.widgets) home.elements.push(newMenuButton(home, '설정', { action: 'open', target: screen.id }));
+      if (home && home.elements.length < LIMIT.widgets) home.elements.push(cornerButton(home, '설정', { action: 'open', target: screen.id }));
       layoutId = screen.id; elementId = '';
     });
   }, layout.id === settingsId ? 'on' : ''));
