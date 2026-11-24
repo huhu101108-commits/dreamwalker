@@ -33,10 +33,22 @@ const get = async (b, k) => {
 };
 const put = (b, k, d, old) =>
   b.put(k, JSON.stringify(d), { onlyIf: old ? { etagMatches: old.etag } : { etagDoesNotMatch: '*' } });
-async function startSession(b, generation, scope, ownerOnly = false) {
+function editorEmail(value) {
+  if (typeof value !== 'string') return '';
+  const email = value.trim().toLowerCase();
+  return email.length <= 254 && /^[^\s@*,;<>]+@[^\s@*,;<>]+\.[^\s@*,;<>]+$/u.test(email) ? email : '';
+}
+function studioEditors(auth, env) {
+  // An explicitly saved empty roster also overrides the initial invitations.
+  if (auth?.data.editors) return auth.data.editors;
+  const initial = (env.STUDIO_INITIAL_EDITORS || '').split('\n').map(editorEmail).filter(Boolean);
+  return [...new Set(initial)].map(email => ({ email, grant: 'initial' }));
+}
+async function startSession(b, generation, scope, ownerOnly = false, editor = null) {
   const token = random();
   await b.put('session/' + (await hash(token)), JSON.stringify({
     gen: generation, exp: Date.now() + 43200000, scope, ownerOnly,
+    ...(editor ? { editor } : {}),
   }));
   return json(scope === 'read' ? { token } : { ok: true }, 200, {
     'set-cookie': 'dw_session=' + token + '; Path=/; Max-Age=43200; Secure; HttpOnly; SameSite=Strict',
@@ -70,16 +82,21 @@ async function api(req, env, path) {
     origin = new URL(req.url).origin;
   // Sites supplies the verified email in the mobile preview even when it omits the site-scoped ID.
   const email = (req.headers.get('oai-authenticated-user-email') || '').trim().toLowerCase();
-  const owner = !!email && (await hash(email)) === env.STUDIO_OWNER_EMAIL_SHA256;
+  const account = email && await hash(email);
+  const owner = !!account && account === env.STUDIO_OWNER_EMAIL_SHA256;
   let auth = await get(b, 'access');
+  const editors = studioEditors(auth, env);
+  const member = !owner && email && editors.find(entry => entry.email === email);
   const bearer = req.headers.get('authorization') || '';
   const sessionId = bearer.startsWith('Bearer ')
     ? bearer.slice(7)
     : (/(?:^|; *)dw_session=([a-f0-9]{48})(?:;|$)/.exec(req.headers.get('cookie') || '') || [])[1];
   const sk = sessionId && /^[a-f0-9]{48}$/.test(sessionId) ? 'session/' + (await hash(sessionId)) : null;
   const session = sk && (await get(b, sk));
+  const boundEditor = session?.data.editor;
   const ok = !!(session && auth && session.data.gen === auth.data.gen && session.data.exp > Date.now()
-    && (!session.data.ownerOnly || owner));
+    && (!session.data.ownerOnly || owner)
+    && (!boundEditor || (member && boundEditor.account === account && boundEditor.grant === member.grant)));
   if(path.startsWith('/api/unity-sync/'))return unityTransfer(req,b,path.slice('/api/unity-sync/'.length),auth,ok?session.data:null,owner);
   if(session?.data.scope==='unity')err(403,'Unity 연결은 전달한 콘텐츠만 읽을 수 있어요.');
   if (path.startsWith('/api/file-relay/'))
@@ -90,9 +107,10 @@ async function api(req, env, path) {
     return json({
       owner, signedIn: !!(email || req.headers.get('oai-authenticated-user-id')),
       configured: !!auth?.data.digest, ok, reviewRequired: !!auth?.data.reviewRequired,
+      ...(member ? { approvedEditor: true, editorSession: ok && !!boundEditor } : {}),
     });
-  if (!ok && !['/api/login', '/api/password', '/api/owner-session'].includes(path))
-    err(401, '스튜디오 암호로 입장하세요.');
+  if (!ok && !['/api/login', '/api/password', '/api/owner-session', '/api/editor-session'].includes(path))
+    err(401, boundEditor ? '편집 권한을 다시 확인하세요. 새로고침하면 현재 계정으로 입장할 수 있어요.' : '스튜디오 암호로 입장하세요.');
   if (path === '/api/password' && !owner) err(403, '프로젝트 소유자만 설정할 수 있어요.');
   const post = req.method === 'POST';
   const assetHead = req.method === 'HEAD' && /^\/api\/assets\/[a-f0-9]{64}$/.test(path);
@@ -108,16 +126,18 @@ async function api(req, env, path) {
     return ownerGptAction(req,env,path.slice('/api/personal-gpt/'.length));
   }
   if(path==='/api/studio-gpt')return studioGpt(req,env,b,sk,ok && session.data.scope==='edit',owner);
-  if (path === '/api/owner-session') {
+  if (path === '/api/owner-session' || path === '/api/editor-session') {
     if (!post) err(405, '지원하지 않는 요청이에요.');
-    if (!owner) err(403, '소유자 계정으로 로그인하세요.');
+    const ownerEntry = path === '/api/owner-session';
+    if (ownerEntry && !owner) err(403, '소유자 계정으로 로그인하세요.');
+    if (!ownerEntry && !member) err(403, '소유자가 편집을 허용한 계정으로 로그인하세요.');
     if (!req.headers.get('content-type')?.startsWith('application/json')) err(415, 'JSON 요청이 필요해요.');
-    if (ok && session.data.scope === 'edit' && session.data.ownerOnly) return json({ ok: true });
+    if (ok && session.data.scope === 'edit' && (ownerEntry ? session.data.ownerOnly : boundEditor)) return json({ ok: true });
     if (!auth) {
       await put(b, 'access', { gen: random(), reviewRequired: false }, null);
       auth = await get(b, 'access');
     }
-    return startSession(b, auth.data.gen, 'edit', true);
+    return startSession(b, auth.data.gen, 'edit', ownerEntry, ownerEntry ? null : { account, grant: member.grant });
   }
   if (path.startsWith('/api/assets')) {
     if (!ok) err(401, '스튜디오 암호로 입장하세요.');
@@ -173,12 +193,27 @@ async function api(req, env, path) {
       !(await put(
         b,
         'access',
-        { salt, digest: await derive(p, salt), gen: random(), reviewRequired: !!auth?.data.reviewRequired },
+        { ...auth?.data, salt, digest: await derive(p, salt), gen: random(), reviewRequired: !!auth?.data.reviewRequired },
         auth,
       ))
     )
       err(409, '접근 설정이 변경됐어요.');
     return json({ ok: true });
+  }
+  if (path === '/api/editors') {
+    if (!owner || !ok || session.data.scope !== 'edit') err(403, '소유자만 편집자를 관리할 수 있어요.');
+    let next = editors;
+    if (post) {
+      const address = editorEmail(body.email);
+      if (!address || address === email || !['grant', 'revoke'].includes(body.action))
+        err(400, '편집할 이용자의 계정 이메일과 작업을 확인하세요.');
+      const exists = editors.some(entry => entry.email === address);
+      if (body.action === 'grant' && !exists) next = [...editors, { email: address, grant: random() }];
+      if (body.action === 'revoke' && exists) next = editors.filter(entry => entry.email !== address);
+      if (next !== editors && !(await put(b, 'access', { ...auth.data, editors: next }, auth)))
+        err(409, '편집 권한 목록이 변경됐어요. 최신 목록을 확인한 뒤 다시 시도하세요.');
+    }
+    return json({ editors: next.map(entry => entry.email).sort() });
   }
   if (post && path === '/api/policy') {
     if (!owner || !ok || session.data.scope !== 'edit') err(403, '소유자만 승인 정책을 변경할 수 있어요.');
