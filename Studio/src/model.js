@@ -50,16 +50,20 @@ const editablePath = (path) =>
   /^(Web|Assets|Packages|ProjectSettings)\//.test(path) &&
   !/^Assets\/Resources\/DreamwalkerStudio(?:\/|\.|$)/i.test(path) &&
   path.split('/').every((part) => part === part.trim() && !part.endsWith('.'));
+// Content limits sized for a full game: a save may be up to 8MB and earlier revisions are stored apart (server.js).
 const LIMIT = {
-  characters: 48,
-  scenes: 64,
-  objects: 160,
-  stories: 128,
-  nodes: 100,
+  characters: 120,
+  scenes: 200,
+  objects: 400,
+  stories: 400,
+  nodes: 300,
   choices: 6,
-  layouts: 64,
-  widgets: 48,
+  layouts: 120,
+  widgets: 96,
 };
+// Edited game source: file count, total characters and one file's characters.
+const SOURCE_LIMIT = { files: 600, chars: 4000000, file: 200000 };
+const sourceLimitText = () => SOURCE_LIMIT.files + '개 또는 ' + SOURCE_LIMIT.chars / 10000 + '만 자';
 const MECHANICS = {
   none: '미지정',
   sequence: '직접 조립한 동작',
@@ -769,12 +773,12 @@ function problem(d) {
   }
   if (
     !Array.isArray(d.sourceFiles) ||
-    d.sourceFiles.length > 180 ||
+    d.sourceFiles.length > SOURCE_LIMIT.files ||
     d.sourceFiles.some(
-      (f) => !f || !editablePath(f.path) || (f.text !== null && !textValue(f.text, 200000)),
+      (f) => !f || !editablePath(f.path) || (f.text !== null && !textValue(f.text, SOURCE_LIMIT.file)),
     ) ||
     new Set(d.sourceFiles.map((f) => f.path.toLowerCase())).size !== d.sourceFiles.length ||
-    d.sourceFiles.reduce((n, f) => n + (f.text?.length || 0), 0) > 1200000
+    d.sourceFiles.reduce((n, f) => n + (f.text?.length || 0), 0) > SOURCE_LIMIT.chars
   )
     return '소스 파일 경로, 중복 이름 또는 용량을 확인하세요.';
   if (!named(d.scenes, d.startMap)) return '게임을 시작할 맵을 지정하세요.';
@@ -1947,7 +1951,7 @@ function controlPresetElements(doc,p,layout){
 // Every field is optional: projects without them keep their previous field, dialogue and HUD behavior.
 const mediaRef=v=>v===''||(typeof v==='string'&&/^asset:[0-9a-f]{64}$/.test(v));
 const CAST_TICKS=[12,240];
-const STAGE_LIMIT={expressions:24,profile:16};
+const STAGE_LIMIT={expressions:48,profile:32};
 const profileLabelOK=v=>typeof v==='string'&&/^[^{}:\n\r]{1,20}$/.test(v)&&v.trim()===v;
 const newExpression=name=>({id:uid(),name,image:''});
 const newProfileEntry=(label,value='')=>({id:uid(),label,value});
@@ -2095,7 +2099,7 @@ function unityChangeProblem(set){
     if(!f||typeof f.path!=='string'||seen.has(f.path.toLowerCase()))return 'Unity 변경의 파일 경로가 비었거나 겹쳐요.';
     seen.add(f.path.toLowerCase());
     if(!(f.since===''||/^[a-f0-9]{64}$/.test(f.since)))return f.path+'의 비교 기준을 확인하세요.';
-    if(f.kind==='text'){if(!unitySourcePath(f.path)||!textValue(f.text,200000))return f.path+' · Unity 텍스트 파일 경로나 크기를 확인하세요.';}
+    if(f.kind==='text'){if(!unitySourcePath(f.path)||!textValue(f.text,SOURCE_LIMIT.file))return f.path+' · Unity 텍스트 파일 경로나 크기를 확인하세요.';}
     else if(f.kind==='deleted'){if(!unitySourcePath(f.path))return f.path+' · 삭제할 소스 경로를 확인하세요.';}
     else if(f.kind==='image'||f.kind==='audio'){if(unityMediaKind(f.path)?.[0]!==f.kind||!/^asset:[0-9a-f]{64}$/.test(f.ref))return f.path+' · 이미지·소리 파일을 확인하세요.';}
     else return f.path+' · 지원하지 않는 변경 종류예요.';
@@ -2130,7 +2134,7 @@ function applyUnityChanges(project,base,rows){
     if(text!==(Object.hasOwn(base,r.path)?base[r.path]:null))keep.push({path:r.path,text});
     project.sourceFiles=keep;
   }
-  if(project.sourceFiles.length>180||project.sourceFiles.reduce((n,f)=>n+(f.text?.length||0),0)>1200000)
-    throw Error('적용하면 프로젝트 소스가 180개 또는 120만 자를 넘어요. 일부 파일만 골라 적용하세요.');
+  if(project.sourceFiles.length>SOURCE_LIMIT.files||project.sourceFiles.reduce((n,f)=>n+(f.text?.length||0),0)>SOURCE_LIMIT.chars)
+    throw Error('적용하면 프로젝트 소스가 '+sourceLimitText()+'를 넘어요. 일부 파일만 골라 적용하세요.');
   return project;
 }

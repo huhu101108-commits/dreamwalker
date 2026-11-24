@@ -60,7 +60,7 @@ function addInspectionWorkspace(parent){
   for(const r of [record,...record.history])source.add(new Option('저장된 v'+r.rev,String(r.rev)));
   const copies=box('group'),message=el('output');
   panel.append(row(titled('사본으로 만들 버전',source),titled('검수 사본 이름',label),action('검수 사본 만들고 열기',async()=>{
-    const r=source.value==='draft'?{project,rev:record.rev}:[record,...record.history].find(v=>String(v.rev)===source.value);
+    const r=source.value==='draft'?{project,rev:record.rev}:await savedRevision(Number(source.value));
     if(!r)throw Error('버전을 다시 선택하세요.');
     const id=await createInspectionCopy(label.value,r.project,r.rev);await visitInspection(id);
   })),copies,message);
@@ -110,7 +110,7 @@ function addRevisionComparison(parent){
   const panel=el('details');panel.dataset.persist='revision-comparison';panel.append(el('summary','편집값 변경 비교'));
   const sel=el('select');for(const r of [record,...record.history])sel.add(new Option('v'+r.rev,String(r.rev)));
   const result=box('inspection-list');
-  function inspect(){const base=[record,...record.history].find(r=>r.rev===Number(sel.value));if(!base)return;
+  async function inspect(){const base=await savedRevision(Number(sel.value));if(!base)throw Error('그 버전은 보관 기간이 지났어요.');
     const diffs=revisionChanges(migrateProject(structuredClone(base.project)),project),repr=v=>v===undefined?'없음':typeof v==='string'?v.slice(0,120):JSON.stringify(v).slice(0,160);
     result.replaceChildren();if(!diffs.length)result.append(el('p','편집값이 같아요.'));
     for(const d of diffs)result.append(box('group',el('strong',d.path),el('p',repr(d.before)+' → '+repr(d.after))));

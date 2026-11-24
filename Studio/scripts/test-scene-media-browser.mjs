@@ -49,11 +49,12 @@ export async function testSceneMediaBrowser(page,origin){
     await tab('assets');await open('시각 스타일 · 게임 크기 비교');
     await field('시각 스타일 기준').fill('장면과 기준 컷 대조');await button('스타일 기록').click();
     assert.equal(await field('시각 스타일 기준').inputValue(),'장면과 기준 컷 대조');
-    await editor.waitForFunction(()=>{
-      const p=JSON.parse(localStorage.getItem('dreamwalker-verification-draft-v1:'+new URL(location.href).searchParams.get('qa'))||'null')?.project;
+    const drafted=async()=>editor.evaluate(async()=>{
+      const p=(await readDeviceDraft())?.project;
       return p?.work?.artGuide?.notes==='장면과 기준 컷 대조'&&p.stories.some(s=>s.nodes[0].stageTrack?.cues.some(c=>c.key==='gate'))&&
         p.characters.some(c=>c.clips?.attack?.paint?.pivotX===35&&c.clips.attack.paint.repeat==='once'&&c.clips.attack.markers.soundTick===12&&c.clips.attack.markers.effectTicks===19)&&p.scenes.some(m=>m.camera?.frame?.right===75&&m.camera.frame.zoom===2&&m.camera.frame.fadeTicks===30);
     });
+    for(const end=Date.now()+30000;!await drafted();await editor.waitForTimeout(100))if(Date.now()>end)throw Error('the device draft was not written');
     assert.deepEqual(errors,[]);
     console.log('PASS isolated tablet browser scene cue and choice, dialogue branch, camera frame, motion pivot and tick stepping, art guide and draft persistence');
   }finally{await ctx.close();}

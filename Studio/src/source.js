@@ -22,12 +22,12 @@ function effectiveFiles(base, patches) {
 function setSourceFile(d, base, path, text) {
   if (!editablePath(path))
     throw Error('Web, Assets, Packages, ProjectSettings 아래에 지원하는 텍스트 파일 경로를 입력하세요.');
-  if (text !== null && (typeof text !== 'string' || text.length > 200000))
-    throw Error('파일당 20만 자까지 편집할 수 있어요.');
+  if (text !== null && (typeof text !== 'string' || text.length > SOURCE_LIMIT.file))
+    throw Error('파일당 ' + SOURCE_LIMIT.file / 10000 + '만 자까지 편집할 수 있어요.');
   const others = d.sourceFiles.filter((f) => f.path !== path);
   if (text !== (Object.hasOwn(base, path) ? base[path] : null)) others.push({ path, text });
-  if (others.length > 180 || others.reduce((sum, f) => sum + (f.text?.length || 0), 0) > 1200000)
-    throw Error('프로젝트 소스 편집 용량을 초과했어요.');
+  if (others.length > SOURCE_LIMIT.files || others.reduce((sum, f) => sum + (f.text?.length || 0), 0) > SOURCE_LIMIT.chars)
+    throw Error('프로젝트 소스는 ' + sourceLimitText() + '까지 편집할 수 있어요.');
   d.sourceFiles = others;
 }
 function drawSource() {
