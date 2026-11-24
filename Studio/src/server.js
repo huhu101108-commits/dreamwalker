@@ -268,6 +268,10 @@ async function api(req, env, path) {
     if (session.data.scope !== 'edit') err(403, '편집 권한이 필요해요.');
     return json(SOURCE_BASE);
   }
+  if (path === '/api/report-groups' || path === '/api/report-resolve') {
+    if (session.data.scope !== 'edit') err(403, '편집 팀원만 오류 보고를 볼 수 있어요.');
+    return post && path === '/api/report-resolve' ? resolveReports(env, body) : !post && path === '/api/report-groups' ? reportOverview(env) : err(405, '요청 방식을 확인하세요.');
+  }
   if (path.startsWith('/api/net-test/')) {
     if (session.data.scope !== 'edit') err(403, '편집 팀원만 테스트할 수 있어요.');
     if (path === '/api/net-test/echo' && !post) return json({ ok: true });
@@ -389,6 +393,7 @@ export default {
       if (path==='/mcp') return await studioGptMcp(req,env);
       if (path.startsWith('/api/gpt-device/')) return await personalGptDevice(req,env,path.slice('/api/gpt-device/'.length));
       if (path.startsWith('/api/arena/')) return await arenaApi(req,env,path.slice(11));
+      if (path === '/api/reports' || path === '/api/reports/session') return await reportsApi(req,env,path.slice(13).replace(/^\//,''));
       if (path.startsWith('/api/')) return await api(req, env, path);
       if (path in FILES) {
         const [mime, data, etag] = FILES[path];

@@ -36,6 +36,7 @@ public static class StudioSystemText
         { "button.cloudLoad", "클라우드 불러오기" },
         { "button.transferIssue", "기기 이전 코드" },
         { "button.transferClaim", "코드로 이전" },
+        { "button.reports", "오류 보고" },
         { "hud.loading", "로딩" },
         { "hud.enemies", "남은 적" },
         { "hud.energy", "스킬 게이지" },
@@ -99,6 +100,10 @@ public static class StudioSystemText
         { "cloud.code", "기기 이전 코드 {코드} · 24시간 안에 새 기기에서 한 번 쓸 수 있어요." },
         { "cloud.claimed", "이 기기로 진행을 옮겼어요." },
         { "cloud.badCode", "이전 코드가 맞지 않거나 기간이 지났어요." },
+        { "reports.on", "켜짐" },
+        { "reports.off", "꺼짐" },
+        { "reports.agreed", "오류 보고를 켰어요. 게임 오류가 나면 오류 내용·게임 버전·기기 종류를 보내요." },
+        { "reports.stopped", "오류 보고를 껐어요." },
     };
     public static string Default(string name) => name != null && defaults.TryGetValue(name, out string text) ? text : "";
     public static IEnumerable<string> Names => defaults.Keys;

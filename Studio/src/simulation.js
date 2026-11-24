@@ -598,7 +598,7 @@ class FieldRun {
     // The host opens the online friendly match: the studio's match page in a browser, the match screen in Unity.
     if (action === 'online') { this.onlineRequests = (this.onlineRequests || 0) + 1; this.serial++; return; }
     // Cloud saves and device transfer go through the host's server connection; the input of a claim holds the code.
-    if (['cloudSave', 'cloudLoad', 'transferIssue', 'transferClaim'].includes(action)) {
+    if (['cloudSave', 'cloudLoad', 'transferIssue', 'transferClaim', 'reports'].includes(action)) {
       const value = action === 'transferClaim' ? this.inputValues.get(target) ?? this.inputDefaults.get(target) ?? '' : '';
       (this.hostRequests ??= []).push({ action, target, value });
       this.serial++;

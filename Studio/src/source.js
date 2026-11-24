@@ -248,7 +248,9 @@ function drawSource() {
       action('저장본 → 전체 Unity 프로젝트', () => exportUnityPack(true), 'accent'),
     );
 }
-async function packWeb(d, mapId, base, screenId = '', checkpoint = null, inspection = false, revision = null) {
+// relay: the studio page that hosts the frame forwards the game's server requests (cloud saves, error reports, online
+// match); 'published' when that page is the public play link. Offline HTML has no relay and no network.
+async function packWeb(d, mapId, base, screenId = '', checkpoint = null, inspection = false, revision = null, relay = '', device = null) {
   const issue = problem(d);
   if (issue) throw Error(issue);
   const files = effectiveFiles(base, d.sourceFiles);
@@ -295,7 +297,7 @@ async function packWeb(d, mapId, base, screenId = '', checkpoint = null, inspect
   const init = doc.createElement('script');
   init.textContent =
     'const GAME_DATA=' +
-    JSON.stringify({ project: world, mapId, screenId, images, checkpoint, inspection, revision, contentDigest:await contentDigest(d) }).replaceAll('<', '\\u003c') +
+    JSON.stringify({ project: world, mapId, screenId, images, checkpoint, inspection, revision, contentDigest:await contentDigest(d), ...(relay ? { relay, device } : {}) }).replaceAll('<', '\\u003c') +
     ';\n' +
     "addEventListener('error',e=>{const out=document.getElementById('runtime-error')||document.createElement('pre');out.id='runtime-error';out.textContent='게임 실행 오류 · '+(e.message||'소스를 확인하세요.');(document.body||document.documentElement).prepend(out);});";
   doc.head.prepend(policy, init);
@@ -349,6 +351,7 @@ async function playCustom(d, mapId, screenId = '', inspection = false) {
       } catch {}
     }
     if (e.source === frame.contentWindow && e.data?.dreamwalker === 'close') modal.close();
+    if (e.source === frame.contentWindow && !inspection) relayGameRequest(frame, e.data);
   };
   window.addEventListener('message', fromChild);
   modal.addEventListener('cancel',e=>{e.preventDefault();requestExit();});
@@ -359,7 +362,9 @@ async function playCustom(d, mapId, screenId = '', inspection = false) {
   };
   modal.showModal();
   try {
-    const html = await packWeb(snapshot, mapId, await getSourceBase(), screenId, saved, inspection, scoped?inspection.revision??null:null);
+    const relay = inspection ? '' : location.pathname === '/play' ? 'published' : 'preview';
+    const html = await packWeb(snapshot, mapId, await getSourceBase(), screenId, saved, inspection, scoped?inspection.revision??null:null,
+      relay, relay ? frameDeviceValues(snapshot, relay) : null);
     if (!modal.open) return;
     frame.srcdoc = html;
     state.replaceWith(frame);
@@ -375,6 +380,33 @@ function playProject(mapId, screenId = '', inspection = false) {
   return project.sourceFiles.some((f) => f.path.startsWith('Web/'))
     ? playCustom(project, mapId, screenId, inspection)
     : launchGame(mapId, screenId, inspection);
+}
+// The device values a game frame reads (see deviceValue in game.js), and the only keys it may change.
+const DEVICE_KEYS = /^dreamwalker-(?:cloud|reports|language)-v1:[\w-]{1,60}$/;
+function frameDeviceValues(doc, relay) {
+  const game = doc.saveId || doc.startMap, values = {};
+  for (const key of ['dreamwalker-language-v1:' + game, 'dreamwalker-reports-v1:' + game,
+    'dreamwalker-cloud-v1:' + ((relay === 'preview' ? 'preview-' : '') + game).slice(0, 50)])
+    try { const v = localStorage.getItem(key); if (v !== null) values[key] = v; } catch {}
+  return values;
+}
+// The game frame has no network of its own. Only these requests are forwarded, with this page's guest cookie.
+const RELAYED = /^\/api\/(?:arena\/(?:session|saves|save|transfer|claim)|reports(?:\/session)?)(?:\?[\w=&%.-]*)?$/;
+async function relayGameRequest(frame, m) {
+  if (m?.dreamwalker === 'open-arena') { window.open('/arena', '_blank', 'noopener'); return; }
+  if (m?.dreamwalker === 'device-value') {
+    if (typeof m.key === 'string' && DEVICE_KEYS.test(m.key) && typeof m.value === 'string' && m.value.length <= 20)
+      try { localStorage.setItem(m.key, m.value); } catch {}
+    return;
+  }
+  if (m?.dreamwalker !== 'server' || !Number.isSafeInteger(m.id)) return;
+  const reply = (status, data) => frame.contentWindow?.postMessage({ dreamwalker: 'server-reply', id: m.id, status, data }, '*');
+  if (typeof m.path !== 'string' || !RELAYED.test(m.path) || !['GET', 'POST'].includes(m.method) ||
+      (m.body !== null && (typeof m.body !== 'string' || m.body.length > 80000))) return reply(400, { error: '허용되지 않은 요청이에요.' });
+  try {
+    const r = await fetch(m.path, m.method === 'GET' ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: m.body ?? '{}' });
+    reply(r.status, await r.json().catch(() => ({})));
+  } catch { reply(0, {}); }
 }
 async function exportWebGame() {
   return exportWebSnapshot(project,null);

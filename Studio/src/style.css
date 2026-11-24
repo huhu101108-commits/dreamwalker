@@ -1416,3 +1416,10 @@ body { font-size:16px; }
 .locale-state.missing{color:#ffd59a;border-color:#7a6236}
 .locale-state.stale{color:#ffb4a8;border-color:#80463e}
 .locale-state.done{color:#a0e7d4;border-color:#3d7064}
+/* 플레이어 오류 보고 */
+.report-list{display:grid;gap:8px;margin-top:8px}
+.report-group{background:#1d2c40;border:1px solid #35475c;border-radius:8px;padding:8px 12px}
+.report-group summary{overflow-wrap:anywhere}
+.report-group dl{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin:8px 0}
+.report-group dt{color:var(--muted)}
+.report-group pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:220px;overflow:auto;font-size:.85em;background:#101b28;padding:8px;border-radius:6px}

@@ -192,6 +192,7 @@ public sealed partial class StudioWorld : MonoBehaviour
         Language = StudioLocalization.Apply(project, StudioLocalization.Pick(StudioLocalization.Codes(project),
             new[] { PlayerPrefs.GetString(LanguageKey, ""), DeviceLanguage() }));
         flow = new StudioScreenFlow();
+        StartReports();
         hasTimers = Array.Exists(project.layouts,
                                  l => l.rules != null && Array.Exists(l.rules, r => r.@event == "elapsed"));
         ResetProgress();
@@ -706,6 +707,7 @@ public sealed partial class StudioWorld : MonoBehaviour
     private void PressCore(string action,string target)
     {
         if (CloudAction(action)) { CloudPress(action, target); return; }
+        if (action == "reports") { SetReports(target); return; }
         // A language button: the next language in the list, or the one it names. The choice is kept on this device.
         if (action == "language")
         {
@@ -716,6 +718,7 @@ public sealed partial class StudioWorld : MonoBehaviour
                 Language = StudioLocalization.Apply(Project, chosen);
                 PlayerPrefs.SetString(LanguageKey, Language);
                 PlayerPrefs.Save();
+                ReportsWord();
             }
             return;
         }
@@ -1288,6 +1291,7 @@ public sealed partial class StudioWorld : MonoBehaviour
         if (!Running)
             return;
         SaveProgress();
+        StopReports();
         Running = false;
         Time.fixedDeltaTime = previousStep;
         Application.targetFrameRate = previousFrameRate;

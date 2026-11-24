@@ -30,7 +30,7 @@ for (const name of [
   'interface','preset-editor','screen-tools','design-plan','personal-gpt','studio-gpt','gpt-dock','studio-layout','device-open','target-files','device-workspace','device-standalone',
   'flows',
   'export',
-  'roadmap','locales',
+  'roadmap','locales','error-reports',
   'source','unity-return',
 ]) {
   files['/' + name + '.js'] = ['text/javascript', read('src/' + name + '.js')];
@@ -69,7 +69,7 @@ fs.writeFileSync(
     'const SOURCE_BASE=' +
     JSON.stringify(sourceBase) +
     ';\n' +
-    ['model','rule-machine','design-plan','gpt-service','personal-gpt-service','unity-transfer-service','gpt-workbench-service','gpt-mcp','claude-service', 'github-runner', 'android-service', 'competitive-lab','link-test-service', 'file-relay-service', 'arena-simulation', 'arena-service', 'server']
+    ['model','rule-machine','design-plan','gpt-service','personal-gpt-service','unity-transfer-service','gpt-workbench-service','gpt-mcp','claude-service', 'github-runner', 'android-service', 'competitive-lab','link-test-service', 'file-relay-service', 'arena-simulation', 'arena-service', 'report-service', 'server']
       .map((n) => read('src/' + n + '.js'))
       .join('\n'),
 );

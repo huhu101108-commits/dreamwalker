@@ -73,12 +73,45 @@ function makeCastView() {
   return { root, paint };
 }
 
+// Server requests of the game: direct on the studio site, through the hosting studio page inside its game frame
+// (GAME_DATA.relay), and none in offline HTML.
+const relayedFrame = typeof GAME_DATA !== 'undefined' && !!GAME_DATA.relay && window.parent !== window;
+const relayWaits = new Map();
+let relaySerial = 0;
+if (relayedFrame)
+  addEventListener('message', (e) => {
+    if (e.source !== parent || e.data?.dreamwalker !== 'server-reply' || !relayWaits.has(e.data.id)) return;
+    relayWaits.get(e.data.id)(e.data);
+    relayWaits.delete(e.data.id);
+  });
+const serverReachable = () => relayedFrame || (typeof GAME_DATA === 'undefined' && /^https?:$/.test(location.protocol));
+// Player choices kept on the device (language, error report consent, last cloud revision). A game frame cannot use
+// storage; its host page passes the current values in and keeps the changes.
+const deviceCopy = new Map(Object.entries((typeof GAME_DATA !== 'undefined' && GAME_DATA.device) || {}));
+function deviceValue(key) {
+  try { const v = localStorage.getItem(key); if (v !== null) return v; } catch {}
+  return deviceCopy.get(key) ?? null;
+}
+function keepDeviceValue(key, value) {
+  deviceCopy.set(key, value);
+  try { localStorage.setItem(key, value); return; } catch {}
+  if (relayedFrame) parent.postMessage({ dreamwalker: 'device-value', key, value }, '*');
+}
+async function serverCall(path, init = {}) {
+  if (!relayedFrame) return fetch(path, init);
+  const id = ++relaySerial;
+  const reply = await new Promise((resolve) => {
+    relayWaits.set(id, resolve);
+    parent.postMessage({ dreamwalker: 'server', id, path, method: init.method || 'GET', body: init.body ?? null }, '*');
+    setTimeout(() => { if (relayWaits.delete(id)) resolve({ status: 0, data: {} }); }, 15000);
+  });
+  if (!reply.status) throw Error('relay');
+  return { ok: reply.status >= 200 && reply.status < 300, status: reply.status, json: async () => reply.data };
+}
 // The player's language is kept per game on this device; the first visit follows the browser's languages.
 const languageKey = (doc) => 'dreamwalker-language-v1:' + (doc.saveId || doc.startMap);
 function startLanguage(doc, chosen = '') {
-  let saved = '';
-  try { saved = localStorage.getItem(languageKey(doc)) || ''; } catch {}
-  return pickLanguage(localeCodes(doc), [chosen, saved, ...(navigator.languages || [navigator.language])]);
+  return pickLanguage(localeCodes(doc), [chosen, deviceValue(languageKey(doc)) || '', ...(navigator.languages || [navigator.language])]);
 }
 function launchGame(mapId, screenId = '', inspection = false) {
   const direct=inspection && typeof inspection==='object' && !inspection.fromStart && (inspection.storyId||inspection.objectId||inspection.screenId);
@@ -158,21 +191,22 @@ function launchGame(mapId, screenId = '', inspection = false) {
   if (!inspection && !screenId && (location.pathname === '/play' || typeof GAME_DATA !== 'undefined')) continueProgress();
   // Cloud saves and device transfer use this site's online guest. The cloud copy is the device save, uploaded as it is;
   // studio test plays keep their own slots. A device that has used the cloud keeps it up to date once a minute.
-  const cloudGame = ((typeof GAME_DATA === 'undefined' && location.pathname !== '/play' ? 'preview-' : '') + (run.world.saveId || run.world.startMap)).slice(0, 50);
+  const preview = relayedFrame ? GAME_DATA.relay === 'preview' : typeof GAME_DATA === 'undefined' && location.pathname !== '/play';
+  const cloudGame = ((preview ? 'preview-' : '') + (run.world.saveId || run.world.startMap)).slice(0, 50);
   const cloudKey = 'dreamwalker-cloud-v1:' + cloudGame;
   run.hostInputs = new Map();
   let cloudBusy = false, cloudSent = '', cloudAt = 0, cloudWarned = false;
-  const cloudRev = () => { try { return Math.max(0, Number(localStorage.getItem(cloudKey)) || 0); } catch { return 0; } };
-  const keepCloudRev = (rev) => { try { localStorage.setItem(cloudKey, String(rev)); } catch {} };
+  const cloudRev = () => Math.max(0, Number(deviceValue(cloudKey)) || 0);
+  const keepCloudRev = (rev) => keepDeviceValue(cloudKey, String(rev));
   async function arenaCall(path, body) {
-    const r = await fetch('/api/arena/' + path, body === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const r = await serverCall('/api/arena/' + path, body === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const data = await r.json().catch(() => ({}));
     if (!r.ok) throw Object.assign(Error(data.error || ''), { status: r.status, data });
     return data;
   }
   async function cloud(action, target = '', value = '', quiet = false) {
     const words = (name) => systemText(run.world, name);
-    if (!/^https?:$/.test(location.protocol) || !saveStore) { if (!quiet) say(words('cloud.offline')); return; }
+    if (!serverReachable() || !saveStore) { if (!quiet) say(words('cloud.offline')); return; }
     if (cloudBusy) return;
     cloudBusy = true;
     let claimed = false;
@@ -219,6 +253,40 @@ function launchGame(mapId, screenId = '', inspection = false) {
     } finally {
       cloudBusy = false;
     }
+  }
+  // Error reports with the player's consent: the published play page sends uncaught errors (ten different ones at most
+  // per play) and one count per play. No player identity, inputs or saves are sent.
+  const reportKey = 'dreamwalker-reports-v1:' + (run.world.saveId || run.world.startMap);
+  const reportsAllowed = () => deviceValue(reportKey) === 'on';
+  const reportsWord = () => run.hostInputs.set('오류보고', systemText(run.world, reportsAllowed() ? 'reports.on' : 'reports.off'));
+  const published = !inspection && (relayedFrame ? GAME_DATA.relay === 'published' : location.pathname === '/play' && serverReachable());
+  const reported = new Set(), gameVersion = typeof GAME_DATA !== 'undefined' ? (GAME_DATA.revision == null ? '' : 'v' + GAME_DATA.revision) : typeof record !== 'undefined' && record ? 'v' + record.rev : '';
+  const browserFamily = () => {
+    const ua = navigator.userAgent, m = /(Edg|SamsungBrowser|Firefox|Chrome|Version)\/(\d+)/.exec(ua);
+    const os = /Android/.test(ua) ? 'Android' : /iPhone|iPad|Mac OS/.test(ua) ? 'Apple' : /Windows/.test(ua) ? 'Windows' : /Linux/.test(ua) ? 'Linux' : '';
+    return ((m ? (m[1] === 'Version' ? 'Safari' : m[1]) + ' ' + m[2] : 'browser') + (os ? ' · ' + os : '')).slice(0, 80);
+  };
+  const sendReport = (path, body) => serverCall('/api/reports' + path, { method: 'POST', keepalive: true, headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ runtime: 'web', ...body }) }).catch(() => {});
+  function reportError(message, stack) {
+    if (!published || !reportsAllowed() || reported.size >= 10) return;
+    const key = message + '\n' + String(stack || '').split('\n')[1];
+    if (reported.has(key)) return;
+    reported.add(key);
+    sendReport('', { message: String(message).slice(0, 300), stack: String(stack || '').slice(0, 2000), version: gameVersion, place: run.map?.id || '', device: browserFamily() });
+  }
+  const onWindowError = (e) => reportError(e.message || String(e.error), e.error?.stack || '');
+  const onRejection = (e) => reportError(String(e.reason?.message || e.reason), e.reason?.stack || '');
+  window.addEventListener('error', onWindowError);
+  window.addEventListener('unhandledrejection', onRejection);
+  if (published && reportsAllowed()) sendReport('/session', {});
+  reportsWord();
+  function setReports(target) {
+    const on = target === 'on' || (target === '' && !reportsAllowed());
+    keepDeviceValue(reportKey, on ? 'on' : 'off');
+    reportsWord();
+    run.serial++; render();
+    say(systemText(run.world, on ? 'reports.agreed' : 'reports.stopped'));
   }
   // Keeps the cloud copy of a device that has used it current, at most once a minute.
   function syncCloud() {
@@ -543,6 +611,7 @@ function launchGame(mapId, screenId = '', inspection = false) {
   // An offline HTML build has no server to play against; the studio site opens its match page.
   let onlineSeen = 0, languageSeen = -1;
   function openOnlineMatch() {
+    if (relayedFrame) { parent.postMessage({ dreamwalker: 'open-arena' }, '*'); return; }
     if (typeof GAME_DATA !== 'undefined' || location.protocol === 'file:') {
       $('#gameNote').textContent = lastNotice = systemText(run.world, 'online.unavailable');
       return;
@@ -551,12 +620,13 @@ function launchGame(mapId, screenId = '', inspection = false) {
   }
   function render() {
     if ((run.onlineRequests || 0) !== onlineSeen) { onlineSeen = run.onlineRequests || 0; openOnlineMatch(); }
-    for (const r of run.hostRequests?.splice(0) || []) cloud(r.action, r.target, r.value);
+    for (const r of run.hostRequests?.splice(0) || []) r.action === 'reports' ? setReports(r.target) : cloud(r.action, r.target, r.value);
     if (run.languageSerial !== languageSeen) {
       languageSeen = run.languageSerial;
       // Only a choice the player made is remembered; until then the browser's languages decide.
-      if (!inspection && run.languageSerial > 0) try { localStorage.setItem(languageKey(project), run.language); } catch {}
+      if (!inspection && run.languageSerial > 0) keepDeviceValue(languageKey(project), run.language);
       wordBar();
+      reportsWord();
     }
     const fade=run.map.camera?.frame;
     const alpha=fade?.fadeTicks && !run.presentation ? 1-run.sceneAge/fade.fadeTicks : 0;
@@ -830,6 +900,7 @@ function launchGame(mapId, screenId = '', inspection = false) {
     metrics?.capture();sizeObserver.disconnect();cancelAnimationFrame(frame);
     if(sample) modal.removeEventListener('pointerdown',countTouch,true);
     clearControls();padHeld.clear();audioBus.close();sceneFade.remove();castView.root.remove();
+    window.removeEventListener('error', onWindowError);window.removeEventListener('unhandledrejection', onRejection);
     for (const release of releaseSticks) release();
     saveProgress();
     diagnostics.remove();
