@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Text;
 using Dreamwalker.Combat;
 using Dreamwalker.Player;
+using Dreamwalker.UI;
 using UnityEngine;
 using UnityEngine.Networking;
 
@@ -45,8 +46,14 @@ public sealed class StudioConnection : MonoBehaviour
             player.gameObject.AddComponent<StudioConnection>();
     }
 
+    // The studio panel is a development tool: players of a release build only see the game.
+    private static bool DeveloperPanel => Application.isEditor || Debug.isDebugBuild;
+    private StudioPainter ui;
+    private void LateUpdate() => ui?.Frame(Paint);
+
     private void Start()
     {
+        if (DeveloperPanel) ui = StudioPainter.Create(this, "Dreamwalker Studio Panel", 30, Paint);
         // An explicitly exported content pack can ship in a normal offline build.
         var asset = Resources.Load<TextAsset>("DreamwalkerStudio/release");
         if (asset == null)
@@ -76,48 +83,54 @@ public sealed class StudioConnection : MonoBehaviour
         expanded = false;
     }
 
-    private void OnGUI()
+    private void Paint()
     {
         if (StudioOnlineArena.Visible) return;
-        GUI.depth = -100;
-        float width = Mathf.Min(245, Screen.width);
-        GUILayout.BeginArea(new Rect(Screen.width - width, 0, width, expanded ? 300 : 30));
-        if (GUILayout.Button(expanded ? "Close Studio" : "Dreamwalker Studio"))
+        float width = Mathf.Min(ui.Dp(245), Screen.width), row = ui.Dp(32), gap = ui.Dp(3), y = 0;
+        Rect Next(float height) { var r = new Rect(Screen.width - width, y, width, height); y += height + gap; return r; }
+        var text = new StudioText(Mathf.RoundToInt(ui.Dp(14)), StudioAlign.Center, Color.white);
+        var standard = StudioSkin.Standard(ui.Density);
+        if (ui.Button("studio/toggle", Next(row), expanded ? "Close Studio" : "Dreamwalker Studio", text, true, standard))
             expanded = !expanded;
-        if (expanded)
+        if (!expanded)
+            return;
+        if (ui.Button("studio/online", Next(row), "Online friendly match", text, true, standard))
+            (GetComponent<StudioOnlineArena>() ?? gameObject.AddComponent<StudioOnlineArena>()).Open();
+        if (world != null && ui.Button("studio/demo", Next(row), "Return to combat demo", text, true, standard))
+            CloseWorld();
+        if (world == null && Supported(bundled) && ui.Button("studio/bundled", Next(row), "Play bundled content", text, true, standard))
+            PlayContent(bundled);
+        if (string.IsNullOrEmpty(token))
         {
-            if (GUILayout.Button("Online friendly match"))
-                (GetComponent<StudioOnlineArena>() ?? gameObject.AddComponent<StudioOnlineArena>()).Open();
-            if (world != null && GUILayout.Button("Return to combat demo"))
-                CloseWorld();
-            if (world == null && Supported(bundled) && GUILayout.Button("Play bundled content"))
-                PlayContent(bundled);
-            if (string.IsNullOrEmpty(token))
-            {
-                password = GUILayout.PasswordField(password, '*', 128);
-                GUI.enabled = !connecting && password.Length > 0;
-                if (GUILayout.Button("Connect to studio"))
-                    StartCoroutine(Connect());
-                GUI.enabled = true;
-            }
-            else
-            {
-                if (Supported(latest) &&
-                    GUILayout.Button(world == null ? "Play studio maps" : "Restart with latest version"))
-                {
-                    PlayContent(latest);
-                }
-                if (GUILayout.Button("Disconnect"))
-                {
-                    string old = token;
-                    StopAllCoroutines();
-                    EndSession();
-                    StartCoroutine(Logout(old));
-                }
-            }
-            GUILayout.Label(status);
+            var field = Next(row);
+            ui.Box(field, new Color(.1f, .13f, .17f, .95f), ui.Dp(4));
+            ui.Box(field, new Color(.5f, .58f, .66f, .9f), ui.Dp(4), ui.Dp(1));
+            password = ui.Field("studio/password", field, password, 128, new StudioText(text.size, StudioAlign.Left, Color.white), true, true);
+            if (ui.Button("studio/connect", Next(row), "Connect to studio", text, !connecting && password.Length > 0, standard))
+                StartCoroutine(Connect());
         }
-        GUILayout.EndArea();
+        else
+        {
+            if (Supported(latest) &&
+                ui.Button("studio/latest", Next(row), world == null ? "Play studio maps" : "Restart with latest version", text, true, standard))
+            {
+                PlayContent(latest);
+            }
+            if (ui.Button("studio/disconnect", Next(row), "Disconnect", text, true, standard))
+            {
+                string old = token;
+                StopAllCoroutines();
+                EndSession();
+                StartCoroutine(Logout(old));
+            }
+        }
+        if (!string.IsNullOrEmpty(status))
+        {
+            var note = new StudioText(Mathf.RoundToInt(ui.Dp(13)), StudioAlign.Left, new Color(.9f, .95f, 1f));
+            var area = Next(ui.Height(status, note, width));
+            ui.Box(area, new Color(.05f, .07f, .1f, .85f), ui.Dp(4));
+            ui.Label(area, status, note);
+        }
     }
 
     private void CloseWorld()
@@ -172,6 +185,8 @@ public sealed class StudioConnection : MonoBehaviour
     }
     private void OnDestroy()
     {
+        ui?.Dispose();
+        ui = null;
         ClearRemoteSounds();
         foreach (var tex in textures.Values)
             Destroy(tex);

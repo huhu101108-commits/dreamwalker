@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Dreamwalker.UI;
 using UnityEngine;
 
 namespace Dreamwalker.Demo
@@ -437,7 +438,7 @@ public sealed partial class StudioWorld
         gear[key] = item.id;
         return true;
     }
-    internal void DrawProgressWidget(StudioWidget widget, Rect area, GUIStyle style)
+    internal void DrawProgressWidget(StudioWidget widget, Rect area, StudioText style)
     {
         string key = CurrentLayout.id + ":" + widget.id;
         widgetScroll.TryGetValue(key, out var scroll);
@@ -445,12 +446,12 @@ public sealed partial class StudioWorld
         int count = inventory ? bag.Count : (Project.quests?.Length ?? 0);
         if (count == 0)
         {
-            GUI.Label(area, inventory ? "보유 장비 없음" : "등록된 의뢰 없음", style);
+            Painter.Label(area, inventory ? "보유 장비 없음" : "등록된 의뢰 없음", style);
             return;
         }
-        float line = Mathf.Max(32, (inventory ? screenView.ItemStyle(widget,style).fontSize : style.fontSize) * 2);
-        float width = Mathf.Max(24, area.width - 18);
-        widgetScroll[key] = GUI.BeginScrollView(area, scroll, new Rect(0, 0, width, count * line));
+        float line = Mathf.Max(Painter.Dp(32), (inventory ? screenView.ItemStyle(widget,style).size : style.size) * 2);
+        float width = Mathf.Max(Painter.Dp(24), area.width - Painter.Dp(18));
+        widgetScroll[key] = Painter.BeginScroll("progress/" + key, area, new Rect(0, 0, width, count * line), scroll);
         int i = 0;
         if (inventory)
             foreach (var p in bag)
@@ -462,14 +463,14 @@ public sealed partial class StudioWorld
                 var old = Item(equipped);
                 string label = item.name + " ×" + p.Value + " · " +
                                (equipped == item.id ? "장착 해제" : (old?.power ?? 0) + " → " + item.power);
-                if (screenView.ItemButton(widget,new Rect(0, i++ * line, width, line), label, style,true))
+                if (screenView.ItemButton(widget,"progress/" + key + "/" + item.id,new Rect(0, i++ * line, width, line), label, style,true,true))
                     ToggleGear(item);
             }
         else
             foreach (var q in Project.quests)
-                GUI.Label(new Rect(0, i++ * line, width, line),
+                Painter.Label(new Rect(0, i++ * line, width, line),
                           (rewards.Contains(q.id) ? "완료 · " : "진행 · ") + q.name, style);
-        GUI.EndScrollView();
+        Painter.EndScroll();
     }
     private Sprite GraphicsFor(string reference)
     {

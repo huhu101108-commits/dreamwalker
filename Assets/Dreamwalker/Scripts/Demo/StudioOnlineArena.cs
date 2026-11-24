@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Text;
 using Dreamwalker.Input;
+using Dreamwalker.UI;
 using static Dreamwalker.Demo.StudioArenaProtocol;
 using UnityEngine;
 using UnityEngine.Networking;
@@ -32,7 +33,6 @@ namespace Dreamwalker.Demo
         private static readonly string[] PadIds={"left","right","jump","dodge","attack"};
         private static readonly string[] PadLabels={"<",">","Jump","Dodge","Attack"};
         private readonly Dictionary<string,ArenaControl> designs=new Dictionary<string,ArenaControl>();
-        private readonly Dictionary<string,GUIStyle> designStyles=new Dictionary<string,GUIStyle>();
         private bool customPad;
         private readonly System.Collections.Generic.HashSet<int> held = new System.Collections.Generic.HashSet<int>();
 
@@ -40,6 +40,7 @@ namespace Dreamwalker.Demo
         {
             if (Visible) return;
             Visible = true; previousScale = Time.timeScale; Time.timeScale = 0;
+            ui ??= StudioPainter.Create(this, "Dreamwalker Online UI", 40, Paint);
             token = PlayerPrefs.GetString(Key, "");
             stage = Resources.Load<Texture2D>("DreamwalkerStudio/Images/builtin-stage");
             sprite = Resources.Load<Texture2D>("DreamwalkerStudio/Images/builtin-player");
@@ -51,7 +52,7 @@ namespace Dreamwalker.Demo
             StopAllCoroutines(); working = leaving = false; held.Clear(); edges = axis = 0; pending = null;
             Visible = false; Time.timeScale = previousScale;
         }
-        private void OnDestroy() { if (Visible) Close(); }
+        private void OnDestroy() { if (Visible) Close(); ui?.Dispose(); ui = null; }
         private void Run(IEnumerator job) { if (!working && Visible) StartCoroutine(Work(job)); }
         private IEnumerator Work(IEnumerator job)
         {
@@ -167,7 +168,7 @@ namespace Dreamwalker.Demo
 
         private void LoadControls(ArenaControl[] values)
         {
-            designs.Clear(); designStyles.Clear(); customPad=false;
+            designs.Clear(); customPad=false;
             if(values==null)return;
             foreach(var value in values) {
                 if(value==null || string.IsNullOrEmpty(value.id))continue;
@@ -175,120 +176,137 @@ namespace Dreamwalker.Demo
                 if(Array.IndexOf(PadIds,value.id)>=0)customPad=true;
             }
         }
-        private GUIStyle DesignStyle(ArenaControl value,bool field=false)
+        // ---- screen ----
+        private StudioPainter ui;
+        private Rect area;
+        private float flowY;
+        private void LateUpdate() => ui?.Frame(Paint);
+        // Rows from the top of the panel, in place of the previous IMGUI auto-layout.
+        private Rect Row(float height) { var r = new Rect(area.x, flowY, area.width, height); flowY += height + ui.Dp(6); return r; }
+        private Rect Slice(Rect row, int index, int count)
         {
-            if(designStyles.TryGetValue(value.id,out var cached))return cached;
-            var style=new GUIStyle(field?GUI.skin.textField:GUI.skin.label);
-            style.alignment=field?TextAnchor.MiddleLeft:TextAnchor.MiddleCenter;
-            style.fontSize=value.size; style.padding=new RectOffset(5,5,2,2);
-            var ink=StudioWorld.Tint(value.color,Color.white);
-            foreach(var state in new[]{style.normal,style.focused,style.hover,style.active,style.onNormal,style.onFocused,style.onHover,style.onActive})
-                { state.background=null;state.textColor=ink; }
-            designStyles[value.id]=style;
-            return style;
+            float gap = ui.Dp(6), w = (row.width - gap * (count - 1)) / count;
+            return new Rect(row.x + index * (w + gap), row.y, w, row.height);
         }
-        private static void PaintControl(Rect r,ArenaControl value,bool pressed)
+        private StudioText Plain(StudioAlign align = StudioAlign.Left) => new StudioText(Mathf.RoundToInt(ui.Dp(15)), align, new Color(.9f, .95f, 1f));
+        private StudioText Ink(ArenaControl value, StudioAlign align = StudioAlign.Center) =>
+            new StudioText(Mathf.RoundToInt(ui.Dp(value.size > 0 ? value.size : 15)), align, StudioWorld.Tint(value.color, Color.white));
+        // A creator-designed control keeps its height and width share inside its slot.
+        private Rect Shape(ArenaControl value, Rect slot)
         {
-            float radius=Mathf.Min(r.width,r.height)*value.radius/100f;
-            Color fill=StudioWorld.Tint(pressed?value.press:value.fill,Color.gray);
-            GUI.DrawTexture(r,Texture2D.whiteTexture,ScaleMode.StretchToFill,true,0,fill,0,radius);
-            if(value.width>0)
-                GUI.DrawTexture(r,Texture2D.whiteTexture,ScaleMode.StretchToFill,true,0,StudioWorld.Tint(value.edge,Color.white),value.width,radius);
+            float h = value.height > 0 ? Mathf.Min(slot.height, ui.Dp(value.height)) : slot.height;
+            float w = value.span > 0 ? Mathf.Min(slot.width, Mathf.Max(ui.Dp(12), Screen.width * .9f * value.span / 100f)) : slot.width;
+            return new Rect(slot.x, slot.y + slot.height - h, w, h);
         }
-        private static Rect ControlRect(ArenaControl value,string label,GUIStyle style)
+        private float Height(string id, float fallback) => designs.TryGetValue(id, out var s) && s.height > 0 ? Mathf.Max(fallback, ui.Dp(s.height)) : fallback;
+        private void PaintControl(Rect r, ArenaControl value, bool pressed)
         {
-            GUILayoutOption horizontal=value.span>0?GUILayout.Width(Mathf.Max(12,Screen.width*.9f*value.span/100f)):GUILayout.ExpandWidth(true);
-            return GUILayoutUtility.GetRect(new GUIContent(label),style,GUILayout.Height(value.height),horizontal);
+            float radius = Mathf.Min(r.width, r.height) * value.radius / 100f;
+            ui.Box(r, StudioWorld.Tint(pressed ? value.press : value.fill, Color.gray), radius);
+            if (value.width > 0) ui.Box(r, StudioWorld.Tint(value.edge, Color.white), radius, ui.Dp(value.width));
         }
-        private bool ArenaButton(string id,string fallback,string suffix="",params GUILayoutOption[] defaults)
+        private bool ArenaButton(string id, string fallback, Rect slot, string suffix = "", string instance = "")
         {
-            if(!designs.TryGetValue(id,out var s))return GUILayout.Button(fallback+suffix,defaults);
-            var style=DesignStyle(s);
-            var r=ControlRect(s,s.label+suffix,style);
-            PaintControl(r,s,GUIUtility.hotControl!=0&&r.Contains(Event.current.mousePosition));
-            return GUI.Button(r,s.label+suffix,style);
+            string key = "arena/" + id + instance;
+            if (!designs.TryGetValue(id, out var s))
+                return ui.Button(key, slot, fallback + suffix, Plain(StudioAlign.Center), true, StudioSkin.Standard(ui.Density));
+            var r = Shape(s, slot);
+            float radius = Mathf.Min(r.width, r.height) * s.radius / 100f;
+            var skin = StudioSkin.Of(StudioWorld.Tint(s.fill, Color.gray), StudioWorld.Tint(s.press, Color.gray), StudioWorld.Tint(s.edge, Color.white), ui.Dp(s.width), radius);
+            return ui.Button(key, r, s.label + suffix, Ink(s), true, skin);
         }
-        private string ArenaEntry(string id,string value,int limit)
+        private string ArenaEntry(string id, string value, int limit, Rect slot)
         {
-            if(!designs.TryGetValue(id,out var s))return GUILayout.TextField(value,limit);
-            var style=DesignStyle(s,true);
-            GUILayout.BeginVertical();
-            GUILayout.Label(s.label);
-            var r=ControlRect(s,s.label,style);
-            PaintControl(r,s,GUI.GetNameOfFocusedControl()==id);
-            GUI.SetNextControlName(id);
-            string next=GUI.TextField(r,value,limit,style);
-            if(next.Length==0 && GUI.GetNameOfFocusedControl()!=id)GUI.Label(r,s.hint,style);
-            GUILayout.EndVertical();
+            string key = "arena/" + id;
+            if (!designs.TryGetValue(id, out var s))
+            {
+                ui.Box(slot, new Color(.1f, .13f, .17f, .95f), ui.Dp(4));
+                ui.Box(slot, new Color(.5f, .58f, .66f, .9f), ui.Dp(4), ui.Dp(1));
+                return ui.Field(key, slot, value, limit, Plain(), true);
+            }
+            // The design's label sits above its field.
+            float labelHeight = ui.Dp(20);
+            ui.Label(new Rect(slot.x, slot.y, slot.width, labelHeight), s.label, Plain());
+            var r = Shape(s, new Rect(slot.x, slot.y + labelHeight, slot.width, slot.height - labelHeight));
+            PaintControl(r, s, ui.Focused(key));
+            string next = ui.Field(key, r, value, limit, Ink(s, StudioAlign.Left), true);
+            if (next.Length == 0 && !ui.Focused(key)) ui.Label(r, s.hint, Ink(s, StudioAlign.Left));
             return next;
         }
         private void PaintMatch()
         {
             float w=Screen.width, h=Screen.height;
             var field=new Rect(w*.05f,h*.27f,w*.9f,h*.49f);
-            if (stage!=null) GUI.DrawTexture(field,stage,ScaleMode.ScaleAndCrop);
-            else GUI.Box(field,"Snowfield");
+            if (stage!=null) ui.Picture(field,stage,StudioFit.Cover,Color.white);
+            else { ui.Box(field,new Color(.12f,.16f,.2f,.9f)); ui.Label(field,"Snowfield",Plain(StudioAlign.Center)); }
             if (room.players==null) return;
             foreach(var f in room.players) {
                 float x=field.x+field.width*f.x/Math.Max(1,room.width), y=field.yMax-field.height*(.08f+f.y*.0013f);
                 Rect figure=new Rect(x-field.height*.13f,y-field.height*.32f,field.height*.26f,field.height*.32f);
-                if (sprite!=null) {
-                    GUI.color=f.dodging ? Color.gray : Color.white;
-                    GUI.DrawTexture(figure,sprite,ScaleMode.ScaleToFit); GUI.color=Color.white;
-                } else GUI.Box(figure,f.name);
-                GUI.Label(new Rect(Mathf.Clamp(x-45,field.x,field.xMax-95),y-field.height*.32f-22,140,25),
-                    f.hp+"/"+f.maxHp+(f.shield>0?" +"+f.shield:"")+(f.attacking?" *":""));
+                if (sprite!=null) ui.Picture(figure,sprite,StudioFit.Fit,f.dodging ? Color.gray : Color.white);
+                else { ui.Box(figure,new Color(.2f,.25f,.31f,.9f)); ui.Label(figure,f.name,Plain(StudioAlign.Center)); }
+                ui.Label(new Rect(Mathf.Clamp(x-ui.Dp(45),field.x,field.xMax-ui.Dp(95)),y-field.height*.32f-ui.Dp(22),ui.Dp(140),ui.Dp(25)),
+                    f.hp+"/"+f.maxHp+(f.shield>0?" +"+f.shield:"")+(f.attacking?" *":""),Plain());
             }
             var pad=new Rect(field.x,h*.77f,field.width,h*.2f);
             for(int i=0;i<PadIds.Length;i++) {
                 designs.TryGetValue(PadIds[i],out var s);
                 pads[i]=customPad?new Rect(pad.x+pad.width*(s?.x??i*20+1)/100f,pad.y+pad.height*(s?.y??7)/100f,
-                    pad.width*(s?.w??18)/100f,pad.height*(s?.h??86)/100f):new Rect(field.x+i*field.width/5,h*.79f,field.width/5-3,h*.09f);
-                if(s==null)GUI.Box(pads[i],PadLabels[i]);
-                else { PaintControl(pads[i],s,held.Contains(i));GUI.Label(pads[i],s.label,DesignStyle(s)); }
+                    pad.width*(s?.w??18)/100f,pad.height*(s?.h??86)/100f):new Rect(field.x+i*field.width/5,h*.79f,field.width/5-ui.Dp(3),h*.09f);
+                if(s==null) { ui.Box(pads[i],new Color(.2f,.25f,.31f,held.Contains(i)?1:.9f),ui.Dp(6)); ui.Label(pads[i],PadLabels[i],Plain(StudioAlign.Center)); }
+                else { PaintControl(pads[i],s,held.Contains(i)); ui.Label(pads[i],s.label,Ink(s)); }
             }
         }
-        private void OnGUI()
+        private void Paint()
         {
             if (!Visible) return;
-            GUI.depth=-250; GUI.Box(new Rect(0,0,Screen.width,Screen.height),"");
-            GUILayout.BeginArea(new Rect(Screen.width*.05f,8,Screen.width*.9f,Screen.height-16));
-            GUILayout.BeginHorizontal(); GUILayout.Label("DREAMWALKER / ONLINE");
-            if (ArenaButton("home","Back to Studio","",GUILayout.Width(130))) Close();
-            GUILayout.EndHorizontal();
+            ui.Box(new Rect(0,0,Screen.width,Screen.height),new Color(.04f,.06f,.09f,.92f));
+            area=new Rect(Screen.width*.05f,ui.Dp(8),Screen.width*.9f,Screen.height-ui.Dp(16));
+            flowY=area.y;
+            float line=ui.Dp(36);
+            var header=Row(Height("home",line));
+            ui.Label(new Rect(header.x,header.y,header.width-ui.Dp(140),header.height),"DREAMWALKER / ONLINE",Plain());
+            if (ArenaButton("home","Back to Studio",new Rect(header.xMax-ui.Dp(130),header.y,ui.Dp(130),header.height))) Close();
             if (room!=null && !market) {
-                GUILayout.Label("Room "+room.code+"    P"+(room.seat+1)+"    v"+room.revision+"    "+room.remaining+"s");
+                ui.Label(Row(ui.Dp(26)),"Room "+room.code+"    P"+(room.seat+1)+"    v"+room.revision+"    "+room.remaining+"s",Plain());
                 string state=room.status=="waiting"?"Share the room code":room.status=="finished"?
                     (room.reason=="ko"&&room.winner>=0?(room.winner==room.seat?"Victory":"Defeat"):room.reason):
                     room.countdown>0?"Ready":"Fight";
-                GUILayout.Label(state+"    "+message);
-                if (ArenaButton("leave","Leave room")) leaving=true;
-
+                ui.Label(Row(ui.Dp(26)),state+"    "+message,Plain());
+                if (ArenaButton("leave","Leave room",Row(Height("leave",line)))) leaving=true;
             } else if (market) {
-                GUILayout.Label("Mine medals    "+(wallet?.medals??0)+"    Credits    "+(wallet?.credits??0));
-                GUILayout.BeginHorizontal(); price=ArenaEntry("price",price,4);
-                if (ArenaButton("sell","List one medal") && int.TryParse(price,out int n))
+                ui.Label(Row(ui.Dp(26)),"Mine medals    "+(wallet?.medals??0)+"    Credits    "+(wallet?.credits??0),Plain());
+                var bar=Row(Mathf.Max(Height("sell",line),designs.ContainsKey("price")?Height("price",line)+ui.Dp(20):line));
+                price=ArenaEntry("price",price,4,Slice(bar,0,4));
+                if (ArenaButton("sell","List one medal",Slice(bar,1,4)) && int.TryParse(price,out int n))
                     Run(Market("sell",new Command { id=Guid.NewGuid().ToString(),price=n }));
-                if (ArenaButton("refresh","Refresh")) Run(Market("market",null));
-                if (ArenaButton("lobbyView","Lobby")) market=false; GUILayout.EndHorizontal();
-                scroll=GUILayout.BeginScrollView(scroll);
-                foreach(var item in listings) if (ArenaButton(item.mine?"cancel":"buy",item.mine?"Cancel":"Buy","    "+item.price+" credits"))
-                    Run(Market(item.mine?"cancel":"buy",new Command { id=item.id }));
-                GUILayout.EndScrollView(); GUILayout.Label(message);
+                if (ArenaButton("refresh","Refresh",Slice(bar,2,4))) Run(Market("market",null));
+                if (ArenaButton("lobbyView","Lobby",Slice(bar,3,4))) market=false;
+                float rowHeight=Mathf.Max(Height("buy",line),Height("cancel",line)), gap=ui.Dp(4);
+                var list=new Rect(area.x,flowY,area.width,Mathf.Max(line,area.yMax-flowY-ui.Dp(36)));
+                float inner=area.width-ui.Dp(18);
+                scroll=ui.BeginScroll("arena/listings",list,new Rect(0,0,inner,listings.Length*(rowHeight+gap)),scroll);
+                for (int i=0;i<listings.Length;i++) {
+                    var item=listings[i];
+                    if (ArenaButton(item.mine?"cancel":"buy",item.mine?"Cancel":"Buy",new Rect(0,i*(rowHeight+gap),inner,rowHeight),"    "+item.price+" credits","/"+item.id))
+                        Run(Market(item.mine?"cancel":"buy",new Command { id=item.id }));
+                }
+                ui.EndScroll();
+                flowY=list.yMax+ui.Dp(6);
+                ui.Label(Row(ui.Dp(26)),message,Plain());
             } else {
-                if (actors.Length>0 && ArenaButton("actor","Character","   "+actors[selected].name)) selected=(selected+1)%actors.Length;
+                if (actors.Length>0 && ArenaButton("actor","Character",Row(Height("actor",line)),"   "+actors[selected].name)) selected=(selected+1)%actors.Length;
                 string actor=actors.Length>0?actors[selected].id:"";
                 if (wallet!=null) {
-                    if (ArenaButton("create","Create room")) Run(RoomAction("create",new Command { actor=actor }));
-                    GUILayout.BeginHorizontal(); joinCode=ArenaEntry("code",joinCode,8);
-                    if (ArenaButton("join","Join room")) Run(RoomAction("join",new Command { actor=actor, code=joinCode.Trim().ToUpperInvariant() }));
-                    GUILayout.EndHorizontal();
-                    if (ArenaButton("marketView","Medal exchange")) Run(Market("market",null));
-                } else if (ArenaButton("enter","Connect")) Run(Connect());
-                GUILayout.Label(message);
+                    if (ArenaButton("create","Create room",Row(Height("create",line)))) Run(RoomAction("create",new Command { actor=actor }));
+                    var bar=Row(Mathf.Max(Height("join",line),designs.ContainsKey("code")?Height("code",line)+ui.Dp(20):line));
+                    joinCode=ArenaEntry("code",joinCode,8,Slice(bar,0,2));
+                    if (ArenaButton("join","Join room",Slice(bar,1,2))) Run(RoomAction("join",new Command { actor=actor, code=joinCode.Trim().ToUpperInvariant() }));
+                    if (ArenaButton("marketView","Medal exchange",Row(Height("marketView",line)))) Run(Market("market",null));
+                } else if (ArenaButton("enter","Connect",Row(Height("enter",line)))) Run(Connect());
+                ui.Label(Row(ui.Dp(26)),message,Plain());
             }
-            GUILayout.EndArea();
-            if(Visible && room!=null && !market)PaintMatch();
+            if(room!=null && !market)PaintMatch();
         }
     }
 }

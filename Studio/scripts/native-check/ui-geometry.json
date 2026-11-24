@@ -1,0 +1,1084 @@
+{
+ "texts": [
+  {
+   "authored": 4,
+   "screenWidth": 480,
+   "density": 1,
+   "pixels": 8
+  },
+  {
+   "authored": 4,
+   "screenWidth": 720,
+   "density": 1.5,
+   "pixels": 12
+  },
+  {
+   "authored": 4,
+   "screenWidth": 960,
+   "density": 2,
+   "pixels": 16
+  },
+  {
+   "authored": 4,
+   "screenWidth": 1260,
+   "density": 2.625,
+   "pixels": 21
+  },
+  {
+   "authored": 4,
+   "screenWidth": 800,
+   "density": 1,
+   "pixels": 8
+  },
+  {
+   "authored": 4,
+   "screenWidth": 1200,
+   "density": 1.5,
+   "pixels": 12
+  },
+  {
+   "authored": 4,
+   "screenWidth": 1600,
+   "density": 2,
+   "pixels": 16
+  },
+  {
+   "authored": 4,
+   "screenWidth": 2100,
+   "density": 2.625,
+   "pixels": 21
+  },
+  {
+   "authored": 4,
+   "screenWidth": 1024,
+   "density": 1,
+   "pixels": 8
+  },
+  {
+   "authored": 4,
+   "screenWidth": 1536,
+   "density": 1.5,
+   "pixels": 12
+  },
+  {
+   "authored": 4,
+   "screenWidth": 2048,
+   "density": 2,
+   "pixels": 16
+  },
+  {
+   "authored": 4,
+   "screenWidth": 2688,
+   "density": 2.625,
+   "pixels": 21
+  },
+  {
+   "authored": 4,
+   "screenWidth": 1280,
+   "density": 1,
+   "pixels": 8
+  },
+  {
+   "authored": 4,
+   "screenWidth": 1920,
+   "density": 1.5,
+   "pixels": 12
+  },
+  {
+   "authored": 4,
+   "screenWidth": 2560,
+   "density": 2,
+   "pixels": 16
+  },
+  {
+   "authored": 4,
+   "screenWidth": 3360,
+   "density": 2.625,
+   "pixels": 21
+  },
+  {
+   "authored": 4,
+   "screenWidth": 1920,
+   "density": 1,
+   "pixels": 8
+  },
+  {
+   "authored": 4,
+   "screenWidth": 2880,
+   "density": 1.5,
+   "pixels": 12
+  },
+  {
+   "authored": 4,
+   "screenWidth": 3840,
+   "density": 2,
+   "pixels": 16
+  },
+  {
+   "authored": 4,
+   "screenWidth": 5040,
+   "density": 2.625,
+   "pixels": 21
+  },
+  {
+   "authored": 9,
+   "screenWidth": 480,
+   "density": 1,
+   "pixels": 8
+  },
+  {
+   "authored": 9,
+   "screenWidth": 720,
+   "density": 1.5,
+   "pixels": 12
+  },
+  {
+   "authored": 9,
+   "screenWidth": 960,
+   "density": 2,
+   "pixels": 16
+  },
+  {
+   "authored": 9,
+   "screenWidth": 1260,
+   "density": 2.625,
+   "pixels": 21
+  },
+  {
+   "authored": 9,
+   "screenWidth": 800,
+   "density": 1,
+   "pixels": 9
+  },
+  {
+   "authored": 9,
+   "screenWidth": 1200,
+   "density": 1.5,
+   "pixels": 14
+  },
+  {
+   "authored": 9,
+   "screenWidth": 1600,
+   "density": 2,
+   "pixels": 18
+  },
+  {
+   "authored": 9,
+   "screenWidth": 2100,
+   "density": 2.625,
+   "pixels": 24
+  },
+  {
+   "authored": 9,
+   "screenWidth": 1024,
+   "density": 1,
+   "pixels": 12
+  },
+  {
+   "authored": 9,
+   "screenWidth": 1536,
+   "density": 1.5,
+   "pixels": 17
+  },
+  {
+   "authored": 9,
+   "screenWidth": 2048,
+   "density": 2,
+   "pixels": 23
+  },
+  {
+   "authored": 9,
+   "screenWidth": 2688,
+   "density": 2.625,
+   "pixels": 30
+  },
+  {
+   "authored": 9,
+   "screenWidth": 1280,
+   "density": 1,
+   "pixels": 13
+  },
+  {
+   "authored": 9,
+   "screenWidth": 1920,
+   "density": 1.5,
+   "pixels": 19
+  },
+  {
+   "authored": 9,
+   "screenWidth": 2560,
+   "density": 2,
+   "pixels": 25
+  },
+  {
+   "authored": 9,
+   "screenWidth": 3360,
+   "density": 2.625,
+   "pixels": 33
+  },
+  {
+   "authored": 9,
+   "screenWidth": 1920,
+   "density": 1,
+   "pixels": 13
+  },
+  {
+   "authored": 9,
+   "screenWidth": 2880,
+   "density": 1.5,
+   "pixels": 19
+  },
+  {
+   "authored": 9,
+   "screenWidth": 3840,
+   "density": 2,
+   "pixels": 25
+  },
+  {
+   "authored": 9,
+   "screenWidth": 5040,
+   "density": 2.625,
+   "pixels": 33
+  },
+  {
+   "authored": 11,
+   "screenWidth": 480,
+   "density": 1,
+   "pixels": 8
+  },
+  {
+   "authored": 11,
+   "screenWidth": 720,
+   "density": 1.5,
+   "pixels": 12
+  },
+  {
+   "authored": 11,
+   "screenWidth": 960,
+   "density": 2,
+   "pixels": 16
+  },
+  {
+   "authored": 11,
+   "screenWidth": 1260,
+   "density": 2.625,
+   "pixels": 21
+  },
+  {
+   "authored": 11,
+   "screenWidth": 800,
+   "density": 1,
+   "pixels": 11
+  },
+  {
+   "authored": 11,
+   "screenWidth": 1200,
+   "density": 1.5,
+   "pixels": 17
+  },
+  {
+   "authored": 11,
+   "screenWidth": 1600,
+   "density": 2,
+   "pixels": 22
+  },
+  {
+   "authored": 11,
+   "screenWidth": 2100,
+   "density": 2.625,
+   "pixels": 29
+  },
+  {
+   "authored": 11,
+   "screenWidth": 1024,
+   "density": 1,
+   "pixels": 14
+  },
+  {
+   "authored": 11,
+   "screenWidth": 1536,
+   "density": 1.5,
+   "pixels": 21
+  },
+  {
+   "authored": 11,
+   "screenWidth": 2048,
+   "density": 2,
+   "pixels": 28
+  },
+  {
+   "authored": 11,
+   "screenWidth": 2688,
+   "density": 2.625,
+   "pixels": 37
+  },
+  {
+   "authored": 11,
+   "screenWidth": 1280,
+   "density": 1,
+   "pixels": 15
+  },
+  {
+   "authored": 11,
+   "screenWidth": 1920,
+   "density": 1.5,
+   "pixels": 23
+  },
+  {
+   "authored": 11,
+   "screenWidth": 2560,
+   "density": 2,
+   "pixels": 31
+  },
+  {
+   "authored": 11,
+   "screenWidth": 3360,
+   "density": 2.625,
+   "pixels": 40
+  },
+  {
+   "authored": 11,
+   "screenWidth": 1920,
+   "density": 1,
+   "pixels": 15
+  },
+  {
+   "authored": 11,
+   "screenWidth": 2880,
+   "density": 1.5,
+   "pixels": 23
+  },
+  {
+   "authored": 11,
+   "screenWidth": 3840,
+   "density": 2,
+   "pixels": 31
+  },
+  {
+   "authored": 11,
+   "screenWidth": 5040,
+   "density": 2.625,
+   "pixels": 40
+  },
+  {
+   "authored": 12,
+   "screenWidth": 480,
+   "density": 1,
+   "pixels": 8
+  },
+  {
+   "authored": 12,
+   "screenWidth": 720,
+   "density": 1.5,
+   "pixels": 12
+  },
+  {
+   "authored": 12,
+   "screenWidth": 960,
+   "density": 2,
+   "pixels": 16
+  },
+  {
+   "authored": 12,
+   "screenWidth": 1260,
+   "density": 2.625,
+   "pixels": 21
+  },
+  {
+   "authored": 12,
+   "screenWidth": 800,
+   "density": 1,
+   "pixels": 12
+  },
+  {
+   "authored": 12,
+   "screenWidth": 1200,
+   "density": 1.5,
+   "pixels": 18
+  },
+  {
+   "authored": 12,
+   "screenWidth": 1600,
+   "density": 2,
+   "pixels": 24
+  },
+  {
+   "authored": 12,
+   "screenWidth": 2100,
+   "density": 2.625,
+   "pixels": 32
+  },
+  {
+   "authored": 12,
+   "screenWidth": 1024,
+   "density": 1,
+   "pixels": 15
+  },
+  {
+   "authored": 12,
+   "screenWidth": 1536,
+   "density": 1.5,
+   "pixels": 23
+  },
+  {
+   "authored": 12,
+   "screenWidth": 2048,
+   "density": 2,
+   "pixels": 31
+  },
+  {
+   "authored": 12,
+   "screenWidth": 2688,
+   "density": 2.625,
+   "pixels": 40
+  },
+  {
+   "authored": 12,
+   "screenWidth": 1280,
+   "density": 1,
+   "pixels": 17
+  },
+  {
+   "authored": 12,
+   "screenWidth": 1920,
+   "density": 1.5,
+   "pixels": 25
+  },
+  {
+   "authored": 12,
+   "screenWidth": 2560,
+   "density": 2,
+   "pixels": 34
+  },
+  {
+   "authored": 12,
+   "screenWidth": 3360,
+   "density": 2.625,
+   "pixels": 44
+  },
+  {
+   "authored": 12,
+   "screenWidth": 1920,
+   "density": 1,
+   "pixels": 17
+  },
+  {
+   "authored": 12,
+   "screenWidth": 2880,
+   "density": 1.5,
+   "pixels": 25
+  },
+  {
+   "authored": 12,
+   "screenWidth": 3840,
+   "density": 2,
+   "pixels": 34
+  },
+  {
+   "authored": 12,
+   "screenWidth": 5040,
+   "density": 2.625,
+   "pixels": 44
+  },
+  {
+   "authored": 16,
+   "screenWidth": 480,
+   "density": 1,
+   "pixels": 10
+  },
+  {
+   "authored": 16,
+   "screenWidth": 720,
+   "density": 1.5,
+   "pixels": 14
+  },
+  {
+   "authored": 16,
+   "screenWidth": 960,
+   "density": 2,
+   "pixels": 19
+  },
+  {
+   "authored": 16,
+   "screenWidth": 1260,
+   "density": 2.625,
+   "pixels": 25
+  },
+  {
+   "authored": 16,
+   "screenWidth": 800,
+   "density": 1,
+   "pixels": 16
+  },
+  {
+   "authored": 16,
+   "screenWidth": 1200,
+   "density": 1.5,
+   "pixels": 24
+  },
+  {
+   "authored": 16,
+   "screenWidth": 1600,
+   "density": 2,
+   "pixels": 32
+  },
+  {
+   "authored": 16,
+   "screenWidth": 2100,
+   "density": 2.625,
+   "pixels": 42
+  },
+  {
+   "authored": 16,
+   "screenWidth": 1024,
+   "density": 1,
+   "pixels": 20
+  },
+  {
+   "authored": 16,
+   "screenWidth": 1536,
+   "density": 1.5,
+   "pixels": 31
+  },
+  {
+   "authored": 16,
+   "screenWidth": 2048,
+   "density": 2,
+   "pixels": 41
+  },
+  {
+   "authored": 16,
+   "screenWidth": 2688,
+   "density": 2.625,
+   "pixels": 54
+  },
+  {
+   "authored": 16,
+   "screenWidth": 1280,
+   "density": 1,
+   "pixels": 22
+  },
+  {
+   "authored": 16,
+   "screenWidth": 1920,
+   "density": 1.5,
+   "pixels": 34
+  },
+  {
+   "authored": 16,
+   "screenWidth": 2560,
+   "density": 2,
+   "pixels": 45
+  },
+  {
+   "authored": 16,
+   "screenWidth": 3360,
+   "density": 2.625,
+   "pixels": 59
+  },
+  {
+   "authored": 16,
+   "screenWidth": 1920,
+   "density": 1,
+   "pixels": 22
+  },
+  {
+   "authored": 16,
+   "screenWidth": 2880,
+   "density": 1.5,
+   "pixels": 34
+  },
+  {
+   "authored": 16,
+   "screenWidth": 3840,
+   "density": 2,
+   "pixels": 45
+  },
+  {
+   "authored": 16,
+   "screenWidth": 5040,
+   "density": 2.625,
+   "pixels": 59
+  },
+  {
+   "authored": 22,
+   "screenWidth": 480,
+   "density": 1,
+   "pixels": 13
+  },
+  {
+   "authored": 22,
+   "screenWidth": 720,
+   "density": 1.5,
+   "pixels": 20
+  },
+  {
+   "authored": 22,
+   "screenWidth": 960,
+   "density": 2,
+   "pixels": 26
+  },
+  {
+   "authored": 22,
+   "screenWidth": 1260,
+   "density": 2.625,
+   "pixels": 35
+  },
+  {
+   "authored": 22,
+   "screenWidth": 800,
+   "density": 1,
+   "pixels": 22
+  },
+  {
+   "authored": 22,
+   "screenWidth": 1200,
+   "density": 1.5,
+   "pixels": 33
+  },
+  {
+   "authored": 22,
+   "screenWidth": 1600,
+   "density": 2,
+   "pixels": 44
+  },
+  {
+   "authored": 22,
+   "screenWidth": 2100,
+   "density": 2.625,
+   "pixels": 58
+  },
+  {
+   "authored": 22,
+   "screenWidth": 1024,
+   "density": 1,
+   "pixels": 28
+  },
+  {
+   "authored": 22,
+   "screenWidth": 1536,
+   "density": 1.5,
+   "pixels": 42
+  },
+  {
+   "authored": 22,
+   "screenWidth": 2048,
+   "density": 2,
+   "pixels": 56
+  },
+  {
+   "authored": 22,
+   "screenWidth": 2688,
+   "density": 2.625,
+   "pixels": 74
+  },
+  {
+   "authored": 22,
+   "screenWidth": 1280,
+   "density": 1,
+   "pixels": 31
+  },
+  {
+   "authored": 22,
+   "screenWidth": 1920,
+   "density": 1.5,
+   "pixels": 46
+  },
+  {
+   "authored": 22,
+   "screenWidth": 2560,
+   "density": 2,
+   "pixels": 62
+  },
+  {
+   "authored": 22,
+   "screenWidth": 3360,
+   "density": 2.625,
+   "pixels": 81
+  },
+  {
+   "authored": 22,
+   "screenWidth": 1920,
+   "density": 1,
+   "pixels": 31
+  },
+  {
+   "authored": 22,
+   "screenWidth": 2880,
+   "density": 1.5,
+   "pixels": 46
+  },
+  {
+   "authored": 22,
+   "screenWidth": 3840,
+   "density": 2,
+   "pixels": 62
+  },
+  {
+   "authored": 22,
+   "screenWidth": 5040,
+   "density": 2.625,
+   "pixels": 81
+  },
+  {
+   "authored": 32,
+   "screenWidth": 480,
+   "density": 1,
+   "pixels": 19
+  },
+  {
+   "authored": 32,
+   "screenWidth": 720,
+   "density": 1.5,
+   "pixels": 29
+  },
+  {
+   "authored": 32,
+   "screenWidth": 960,
+   "density": 2,
+   "pixels": 38
+  },
+  {
+   "authored": 32,
+   "screenWidth": 1260,
+   "density": 2.625,
+   "pixels": 50
+  },
+  {
+   "authored": 32,
+   "screenWidth": 800,
+   "density": 1,
+   "pixels": 32
+  },
+  {
+   "authored": 32,
+   "screenWidth": 1200,
+   "density": 1.5,
+   "pixels": 48
+  },
+  {
+   "authored": 32,
+   "screenWidth": 1600,
+   "density": 2,
+   "pixels": 64
+  },
+  {
+   "authored": 32,
+   "screenWidth": 2100,
+   "density": 2.625,
+   "pixels": 84
+  },
+  {
+   "authored": 32,
+   "screenWidth": 1024,
+   "density": 1,
+   "pixels": 41
+  },
+  {
+   "authored": 32,
+   "screenWidth": 1536,
+   "density": 1.5,
+   "pixels": 61
+  },
+  {
+   "authored": 32,
+   "screenWidth": 2048,
+   "density": 2,
+   "pixels": 82
+  },
+  {
+   "authored": 32,
+   "screenWidth": 2688,
+   "density": 2.625,
+   "pixels": 108
+  },
+  {
+   "authored": 32,
+   "screenWidth": 1280,
+   "density": 1,
+   "pixels": 45
+  },
+  {
+   "authored": 32,
+   "screenWidth": 1920,
+   "density": 1.5,
+   "pixels": 67
+  },
+  {
+   "authored": 32,
+   "screenWidth": 2560,
+   "density": 2,
+   "pixels": 90
+  },
+  {
+   "authored": 32,
+   "screenWidth": 3360,
+   "density": 2.625,
+   "pixels": 118
+  },
+  {
+   "authored": 32,
+   "screenWidth": 1920,
+   "density": 1,
+   "pixels": 45
+  },
+  {
+   "authored": 32,
+   "screenWidth": 2880,
+   "density": 1.5,
+   "pixels": 67
+  },
+  {
+   "authored": 32,
+   "screenWidth": 3840,
+   "density": 2,
+   "pixels": 90
+  },
+  {
+   "authored": 32,
+   "screenWidth": 5040,
+   "density": 2.625,
+   "pixels": 118
+  },
+  {
+   "authored": 48,
+   "screenWidth": 480,
+   "density": 1,
+   "pixels": 29
+  },
+  {
+   "authored": 48,
+   "screenWidth": 720,
+   "density": 1.5,
+   "pixels": 43
+  },
+  {
+   "authored": 48,
+   "screenWidth": 960,
+   "density": 2,
+   "pixels": 58
+  },
+  {
+   "authored": 48,
+   "screenWidth": 1260,
+   "density": 2.625,
+   "pixels": 76
+  },
+  {
+   "authored": 48,
+   "screenWidth": 800,
+   "density": 1,
+   "pixels": 48
+  },
+  {
+   "authored": 48,
+   "screenWidth": 1200,
+   "density": 1.5,
+   "pixels": 72
+  },
+  {
+   "authored": 48,
+   "screenWidth": 1600,
+   "density": 2,
+   "pixels": 96
+  },
+  {
+   "authored": 48,
+   "screenWidth": 2100,
+   "density": 2.625,
+   "pixels": 126
+  },
+  {
+   "authored": 48,
+   "screenWidth": 1024,
+   "density": 1,
+   "pixels": 61
+  },
+  {
+   "authored": 48,
+   "screenWidth": 1536,
+   "density": 1.5,
+   "pixels": 92
+  },
+  {
+   "authored": 48,
+   "screenWidth": 2048,
+   "density": 2,
+   "pixels": 123
+  },
+  {
+   "authored": 48,
+   "screenWidth": 2688,
+   "density": 2.625,
+   "pixels": 161
+  },
+  {
+   "authored": 48,
+   "screenWidth": 1280,
+   "density": 1,
+   "pixels": 67
+  },
+  {
+   "authored": 48,
+   "screenWidth": 1920,
+   "density": 1.5,
+   "pixels": 101
+  },
+  {
+   "authored": 48,
+   "screenWidth": 2560,
+   "density": 2,
+   "pixels": 134
+  },
+  {
+   "authored": 48,
+   "screenWidth": 3360,
+   "density": 2.625,
+   "pixels": 176
+  },
+  {
+   "authored": 48,
+   "screenWidth": 1920,
+   "density": 1,
+   "pixels": 67
+  },
+  {
+   "authored": 48,
+   "screenWidth": 2880,
+   "density": 1.5,
+   "pixels": 101
+  },
+  {
+   "authored": 48,
+   "screenWidth": 3840,
+   "density": 2,
+   "pixels": 134
+  },
+  {
+   "authored": 48,
+   "screenWidth": 5040,
+   "density": 2.625,
+   "pixels": 176
+  },
+  {
+   "authored": 64,
+   "screenWidth": 480,
+   "density": 1,
+   "pixels": 38
+  },
+  {
+   "authored": 64,
+   "screenWidth": 720,
+   "density": 1.5,
+   "pixels": 58
+  },
+  {
+   "authored": 64,
+   "screenWidth": 960,
+   "density": 2,
+   "pixels": 77
+  },
+  {
+   "authored": 64,
+   "screenWidth": 1260,
+   "density": 2.625,
+   "pixels": 101
+  },
+  {
+   "authored": 64,
+   "screenWidth": 800,
+   "density": 1,
+   "pixels": 64
+  },
+  {
+   "authored": 64,
+   "screenWidth": 1200,
+   "density": 1.5,
+   "pixels": 96
+  },
+  {
+   "authored": 64,
+   "screenWidth": 1600,
+   "density": 2,
+   "pixels": 128
+  },
+  {
+   "authored": 64,
+   "screenWidth": 2100,
+   "density": 2.625,
+   "pixels": 168
+  },
+  {
+   "authored": 64,
+   "screenWidth": 1024,
+   "density": 1,
+   "pixels": 82
+  },
+  {
+   "authored": 64,
+   "screenWidth": 1536,
+   "density": 1.5,
+   "pixels": 123
+  },
+  {
+   "authored": 64,
+   "screenWidth": 2048,
+   "density": 2,
+   "pixels": 164
+  },
+  {
+   "authored": 64,
+   "screenWidth": 2688,
+   "density": 2.625,
+   "pixels": 215
+  },
+  {
+   "authored": 64,
+   "screenWidth": 1280,
+   "density": 1,
+   "pixels": 90
+  },
+  {
+   "authored": 64,
+   "screenWidth": 1920,
+   "density": 1.5,
+   "pixels": 134
+  },
+  {
+   "authored": 64,
+   "screenWidth": 2560,
+   "density": 2,
+   "pixels": 179
+  },
+  {
+   "authored": 64,
+   "screenWidth": 3360,
+   "density": 2.625,
+   "pixels": 235
+  },
+  {
+   "authored": 64,
+   "screenWidth": 1920,
+   "density": 1,
+   "pixels": 90
+  },
+  {
+   "authored": 64,
+   "screenWidth": 2880,
+   "density": 1.5,
+   "pixels": 134
+  },
+  {
+   "authored": 64,
+   "screenWidth": 3840,
+   "density": 2,
+   "pixels": 179
+  },
+  {
+   "authored": 64,
+   "screenWidth": 5040,
+   "density": 2.625,
+   "pixels": 235
+  }
+ ]
+}

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Dreamwalker.Combat;
 using Dreamwalker.Player;
+using Dreamwalker.UI;
 using UnityEngine;
 
 namespace Dreamwalker.Demo
@@ -55,6 +56,9 @@ public sealed partial class StudioWorld : MonoBehaviour
                           (Project.schema < 4 ? !string.IsNullOrEmpty(Menu) : CurrentLayout.pauseGame);
     public bool Running { get; private set; }
     public StudioConnection Connection { get; private set; }
+    // Game screens, HUD, dialogue and cut-ins are drawn through this painter (a uGUI canvas in players).
+    internal StudioPainter Painter { get; private set; }
+    private int previousFrameRate, previousSleep;
 
     private BaekseolMotor motor;
     private BaekseolSlash slash;
@@ -174,6 +178,12 @@ public sealed partial class StudioWorld : MonoBehaviour
             white = MakeSprite(Texture2D.whiteTexture);
             slash.TargetHit += OnBasicHit;
             screenView = new StudioScreenView(this);
+            Painter ??= StudioPainter.Create(this, "Dreamwalker Game UI", 10, PaintUi);
+            // Drawing keeps pace with the 60-tick simulation (mobile players default to 30), and the screen stays on while playing.
+            previousFrameRate = Application.targetFrameRate;
+            previousSleep = Screen.sleepTimeout;
+            Application.targetFrameRate = 60;
+            Screen.sleepTimeout = SleepTimeout.NeverSleep;
             Running = true;
         }
         Project = project;
@@ -1226,8 +1236,10 @@ public sealed partial class StudioWorld : MonoBehaviour
             RecordFrame();
             if (Time.unscaledTime >= nextProgressSave) { SaveProgress(); nextProgressSave = Time.unscaledTime + 5; }
         }
+        // After the camera has moved, so the shout bubble follows the hero on the same frame.
+        Painter?.Frame(PaintUi);
     }
-    private void OnGUI()
+    private void PaintUi()
     {
         if (StudioOnlineArena.Visible) return;
         if (!Running) return;
@@ -1239,7 +1251,8 @@ public sealed partial class StudioWorld : MonoBehaviour
              w.action == "restart" || w.action == "newRun" || w.action == "gotoMap" || w.action == "open" ||
              w.action == "beginGame" || w.action == "confirmActor" ||
              (Story != null && (w.action == "skip" || w.action == "nextLine")))));
-        if (!recovery && GUI.Button(new Rect(Screen.width-104,4,100,38),"화면 닫기"))
+        if (!recovery && Painter.Button("world/close", new Rect(Screen.width-Painter.Dp(104),Painter.Dp(4),Painter.Dp(100),Painter.Dp(38)),"화면 닫기",
+                new StudioText(Mathf.RoundToInt(Painter.Dp(14)),StudioAlign.Center,Color.white),true,StudioSkin.Standard(Painter.Density)))
             Press(HasOverlay || Story == null ? "back" : "skip");
     }
     private void OnDestroy()
@@ -1253,6 +1266,8 @@ public sealed partial class StudioWorld : MonoBehaviour
         SaveProgress();
         Running = false;
         Time.fixedDeltaTime = previousStep;
+        Application.targetFrameRate = previousFrameRate;
+        Screen.sleepTimeout = previousSleep;
         ClearMap();
         if (slash != null)
             slash.TargetHit -= OnBasicHit;
@@ -1293,6 +1308,8 @@ public sealed partial class StudioWorld : MonoBehaviour
             demoHud.enabled = hudEnabled;
         ReleaseSound();
         screenView.Dispose();
+        Painter?.Dispose();
+        Painter = null;
         foreach (var sprite in sprites.Values)
             Destroy(sprite);
         sprites.Clear();

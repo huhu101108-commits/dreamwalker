@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Dreamwalker.Player;
+using Dreamwalker.UI;
 using UnityEngine;
 #if ENABLE_INPUT_SYSTEM
 using UnityEngine.InputSystem;
@@ -12,25 +13,21 @@ namespace Dreamwalker.Demo
 internal sealed partial class StudioScreenView
 {
     private readonly StudioWorld world;
-    private readonly Dictionary<int, GUIStyle> textStyles = new Dictionary<int, GUIStyle>();
-    private Font font;
-    private readonly Dictionary<string,Font> familyFonts=new Dictionary<string,Font>();
-    private bool triedFont;
-    private float mouseDirection;
-    private bool mouseAllowed,stickAllowed=true;
+    private bool stickAllowed=true;
     private int stickSign;
     private int stickOwner = -1;
     private bool sawStick;
     private Vector2 stickOffset;
     private StudioWidget heldStick;
     private StudioLayout touchLayout;
-    private float mouseHeldAt = -1;
     private Vector2 dialogueScroll;
     private StudioLine drawnLine;
     private readonly Dictionary<string, Vector2> shotScroll = new Dictionary<string, Vector2>();
     private StudioShot ActiveShot => world.HasOverlay ? null : world.Line?.shot;
     private string pressedId;
     private float pressUntil;
+    // Every screen draws through the world's painter: uGUI for players, IMGUI only when the Editor compares the two.
+    private StudioPainter ui => world.Painter;
 
     internal StudioScreenView(StudioWorld world)
     {
@@ -44,9 +41,7 @@ internal sealed partial class StudioScreenView
 #endif
         if (Dreamwalker.Input.DreamwalkerInput.MaskKey == MaskGameKey) Dreamwalker.Input.DreamwalkerInput.MaskKey=null;
         foreach (var shape in shapes.Values) shape.Release();
-        shapes.Clear();foreach(var f in familyFonts.Values)if(f!=null)UnityEngine.Object.Destroy(f);familyFonts.Clear();
-        if (font != null)
-            UnityEngine.Object.Destroy(font);
+        shapes.Clear();
     }
     private StudioLayout Layout => world.CurrentLayout;
     private static Rect Bounds(StudioWidget w)
@@ -73,7 +68,8 @@ internal sealed partial class StudioScreenView
     }
     private static bool Hit(StudioWidget w, Rect r, Vector2 pos) =>
         r.Contains(pos) && StudioOutline.Contains(w,(pos.x-r.x)/r.width,(pos.y-r.y)/r.height,r.width/r.height);
-    private void Touch(int finger, Vector2 position, bool began, ref float horizontal,bool authoredOnly=false)
+    // The mouse is finger -2 with its own gesture group, so a desktop click acts like a tap on the same widget.
+    private void Touch(int finger, Vector2 position, bool began, ref float horizontal,string group="touch")
     {
         if (ActiveShot != null || openChoices != null) return;
         position.y = Screen.height - position.y;
@@ -99,12 +95,12 @@ internal sealed partial class StudioScreenView
             var w = widgets[i];
             var r = Bounds(w);
             if (!world.Visible(w) || !world.Enabled(w) || !r.Contains(position)) continue;
-            if (w.type == "input") return;
+            // Fields, dialogue and lists answer the press themselves; widgets underneath them do not.
+            if (w.type == "input" || w.type == "dialogue" || w.type == "inventory" || w.type == "quests") return;
             if(w.type=="button"&&w.gesture!=null&&Hit(w,r,position)){
-                if(began){fingerWidgets[finger]=w;GestureDown("touch"+finger,authoredOnly?"mouse":"touch",w);if(allowedMoves.Contains("touch"+finger))horizontal+=w.action=="left"?-1:1;}
+                if(began){fingerWidgets[finger]=w;GestureDown("touch"+finger,group,w);if(allowedMoves.Contains("touch"+finger))horizontal+=w.action=="left"?-1:1;}
                 return;
             }
-            if(authoredOnly){if(w.type=="button"&&Hit(w,r,position)||w.type=="joystick")return;continue;}
             if (w.type == "joystick" && began && stickOwner < 0 && !world.Paused)
             {
                 stickOwner = finger;
@@ -146,7 +142,7 @@ internal sealed partial class StudioScreenView
                     Touch(touch.touchId.ReadValue(), touch.position.ReadValue(), touch.press.wasPressedThisFrame, ref horizontal);
                 else if(touch.press.wasReleasedThisFrame)FinishTouch(touch.touchId.ReadValue(),touch.position.ReadValue(),touch.phase.ReadValue()==UnityEngine.InputSystem.TouchPhase.Canceled);
         var mouse=Mouse.current;
-        if(!Application.isMobilePlatform&&mouse!=null){if(mouse.leftButton.isPressed)Touch(-2,mouse.position.ReadValue(),mouse.leftButton.wasPressedThisFrame,ref horizontal,true);else if(mouse.leftButton.wasReleasedThisFrame)FinishTouch(-2,mouse.position.ReadValue(),false);}
+        if(!Application.isMobilePlatform&&mouse!=null){if(mouse.leftButton.isPressed)Touch(-2,mouse.position.ReadValue(),mouse.leftButton.wasPressedThisFrame,ref horizontal,"mouse");else if(mouse.leftButton.wasReleasedThisFrame)FinishTouch(-2,mouse.position.ReadValue(),false);}
 #else
         for (int i = 0; i < UnityEngine.Input.touchCount; i++)
         {
@@ -155,14 +151,12 @@ internal sealed partial class StudioScreenView
                 Touch(touch.fingerId, touch.position, touch.phase == TouchPhase.Began, ref horizontal);
             else FinishTouch(touch.fingerId,touch.position,touch.phase==TouchPhase.Canceled);
         }
-        if(!Application.isMobilePlatform){if(UnityEngine.Input.GetMouseButton(0))Touch(-2,UnityEngine.Input.mousePosition,UnityEngine.Input.GetMouseButtonDown(0),ref horizontal,true);else if(UnityEngine.Input.GetMouseButtonUp(0))FinishTouch(-2,UnityEngine.Input.mousePosition,false);}
+        if(!Application.isMobilePlatform){if(UnityEngine.Input.GetMouseButton(0))Touch(-2,UnityEngine.Input.mousePosition,UnityEngine.Input.GetMouseButtonDown(0),ref horizontal,"mouse");else if(UnityEngine.Input.GetMouseButtonUp(0))FinishTouch(-2,UnityEngine.Input.mousePosition,false);}
 #endif
         lostFingers.Clear();foreach(var finger in fingerWidgets.Keys)if(!liveFingers.Contains(finger))lostFingers.Add(finger);
         foreach(int finger in lostFingers)EndFinger(finger,true);
         ReadScreenKeys(ref horizontal);
         if (!sawStick && stickOwner >= 0) { stickOwner = -1; heldStick = null; stickOffset = Vector2.zero;stickSign=0;stickAllowed=true; }
-        if (!Application.isMobilePlatform && Time.unscaledTime - mouseHeldAt < .06f)
-            horizontal += mouseDirection;
         motor.SetVirtualHorizontal(world.Paused ? 0 : Mathf.Clamp(horizontal, -1, 1));
     }
 
@@ -231,72 +225,43 @@ internal sealed partial class StudioScreenView
     }
     private void DrawShape(StudioWidget w, Rect r, Color color)
     {
-        if (Event.current.type != EventType.Repaint) return;
         var art = world.Connection.Texture(w.image);
         if (!shapes.TryGetValue(w,out var shape) || shape.size != r.size || shape.source != art)
         {
             shape?.Release(); shapes[w] = shape = MakeShape(w,r,art);
         }
-        var prior = GUI.color;
-        GUI.color = color; GUI.DrawTexture(r,shape.mask);
-        GUI.color = Color.white; if (shape.artwork != null) GUI.DrawTexture(r,shape.artwork);
-        GUI.color = StudioWorld.Tint(w.borderColor,Color.white); if (shape.edge != null) GUI.DrawTexture(r,shape.edge);
-        GUI.color = prior;
+        ui.Picture(r, shape.mask, StudioFit.Stretch, color);
+        if (shape.artwork != null) ui.Picture(r, shape.artwork, StudioFit.Stretch, Color.white);
+        if (shape.edge != null) ui.Picture(r, shape.edge, StudioFit.Stretch, StudioWorld.Tint(w.borderColor,Color.white));
     }
-    private GUIStyle Style(int size, string align, Color color, string family=null)
-    {
-        if (!triedFont)
-        {
-            triedFont = true;
-            font = Font.CreateDynamicFontFromOSFont(new[] { "Noto Sans CJK KR", "Noto Sans KR", "Malgun Gothic",
-                                                            "Apple SD Gothic Neo", "sans-serif" },
-                                                    18);
-        }
-        var anchor = align == "left"    ? TextAnchor.MiddleLeft
-                     : align == "right" ? TextAnchor.MiddleRight
-                                        : TextAnchor.MiddleCenter;
-        bool alternate=family=="serif"||family=="mono";
-        int key=size*30+(int)anchor+(family=="serif"?10:family=="mono"?20:0);
-        Font face=font;
-        if(alternate){
-            if(!familyFonts.TryGetValue(family,out var other)){
-                other=Font.CreateDynamicFontFromOSFont(family=="serif"?new[]{"Noto Serif CJK KR","Batang","serif"}:new[]{"D2Coding","Consolas","monospace"},18);
-                familyFonts[family]=other;
-            }
-            if(other!=null)face=other;
-        }
-        if (!textStyles.TryGetValue(key, out var style))
-        {
-            style = new GUIStyle(GUI.skin.label) { wordWrap = true, alignment = anchor, fontSize = size };
-            if (face != null)
-                style.font = face;
-            style.padding = new RectOffset(5, 5, 2, 2);
-            textStyles[key] = style;
-        }
-        style.normal.textColor = color;
-        return style;
-    }
+    // Authored sizes follow the studio preview: CSS pixels scaled with the screen, then device pixels.
+    private StudioText Text(float authored, string align, Color color, string family = null, float max = 90) =>
+        new StudioText(ui.TextSize(authored, max), StudioText.Align(align), color, StudioText.Family(family));
+    private StudioText Fixed(float cssPixels, StudioAlign align, Color color) =>
+        new StudioText(Mathf.RoundToInt(ui.Dp(cssPixels)), align, color);
+    private int Clamped(float pixels, float min, float max) => Mathf.RoundToInt(Mathf.Clamp(pixels, ui.Dp(min), ui.Dp(max)));
+    internal static StudioFit Fit(string authored) => authored == "cover" ? StudioFit.Cover : authored == "stretch" ? StudioFit.Stretch : StudioFit.Fit;
     // Cooldown shade, gauge charge and a ready outline over a skill button.
     private void DrawMeter(StudioWidget w, Rect r)
     {
         if (!world.SkillMeter(w.action, out float wait, out float waitFraction, out float charge, out int cost)) return;
         if (waitFraction > 0)
-            Fill(new Rect(r.x, r.yMax - r.height * waitFraction, r.width, r.height * waitFraction), new Color(0, 0, 0, .66f));
+            ui.Box(new Rect(r.x, r.yMax - r.height * waitFraction, r.width, r.height * waitFraction), new Color(0, 0, 0, .66f));
         if (wait > 0)
         {
             string seconds = wait >= 10 ? Mathf.CeilToInt(wait).ToString(System.Globalization.CultureInfo.InvariantCulture)
                                         : (Mathf.Ceil(wait * 10) / 10).ToString(System.Globalization.CultureInfo.InvariantCulture);
-            var badge = Style(Mathf.Clamp(Mathf.RoundToInt(w.fontSize * .82f * Mathf.Min(Screen.width / 800f, 1.4f)), 8, 60), "center", Color.white);
-            float size = Mathf.Max(18, badge.fontSize * 1.9f);
+            var badge = Text(w.fontSize * .82f, "center", Color.white, null, 60);
+            float size = Mathf.Max(ui.Dp(18), badge.size * 1.9f);
             var spot = new Rect(r.xMax - size - r.width * .05f, r.y + r.height * .06f, size, size * .72f);
-            GUI.DrawTexture(spot, Texture2D.whiteTexture, ScaleMode.StretchToFill, true, 0, new Color(.04f, .08f, .11f, .87f), 0, spot.height / 2);
-            GUI.Label(spot, seconds, badge);
+            ui.Box(spot, new Color(.04f, .08f, .11f, .87f), spot.height / 2);
+            ui.Label(spot, seconds, badge);
             return;
         }
-        float bar = Mathf.Max(3, r.height * .07f);
-        Fill(new Rect(r.x, r.yMax - bar, r.width * charge, bar), cost > 0 && charge < 1 ? new Color(.55f, .65f, 1f) : new Color(1f, .84f, .42f));
+        float bar = Mathf.Max(ui.Dp(3), r.height * .07f);
+        ui.Box(new Rect(r.x, r.yMax - bar, r.width * charge, bar), cost > 0 && charge < 1 ? new Color(.55f, .65f, 1f) : new Color(1f, .84f, .42f));
         if (charge >= 1)
-            GUI.DrawTexture(r, Texture2D.whiteTexture, ScaleMode.StretchToFill, true, 0, new Color(1f, .89f, .54f), 2, Mathf.Min(r.width, r.height) * w.radius / 100);
+            ui.Box(r, new Color(1f, .89f, .54f), Mathf.Min(r.width, r.height) * w.radius / 100, ui.Dp(2));
     }
     // Skill cut-in and shout, drawn over the HUD from the field's cast clock.
     internal void DrawCast()
@@ -304,13 +269,13 @@ internal sealed partial class StudioScreenView
         if (world.ShoutVisible)
         {
             var at = world.HeroScreen();
-            var talk = Style(Mathf.Clamp(Mathf.RoundToInt(Screen.width * .017f), 11, 22), "center", new Color(.09f, .13f, .18f));
-            var content = new GUIContent(world.ShoutText);
-            float width = Mathf.Min(Screen.width * .34f, talk.CalcSize(content).x + 24);
-            float height = talk.CalcHeight(content, width - 16) + 12;
+            var talk = new StudioText(Clamped(Screen.width * .017f, 11, 22), StudioAlign.Center, new Color(.09f, .13f, .18f));
+            string shout = world.ShoutText;
+            float width = Mathf.Min(Screen.width * .34f, ui.Width(shout, talk) + ui.Dp(24));
+            float height = ui.Height(shout, talk, width - ui.Dp(16)) + ui.Dp(12);
             var bubble = new Rect(at.x - width / 2, at.y - height, width, height);
-            GUI.DrawTexture(bubble, Texture2D.whiteTexture, ScaleMode.StretchToFill, true, 0, new Color(1, 1, 1, .94f), 0, 12);
-            GUI.Label(new Rect(bubble.x + 8, bubble.y + 6, bubble.width - 16, bubble.height - 12), content, talk);
+            ui.Box(bubble, new Color(1, 1, 1, .94f), ui.Dp(12));
+            ui.Label(new Rect(bubble.x + ui.Dp(8), bubble.y + ui.Dp(6), bubble.width - ui.Dp(16), bubble.height - ui.Dp(12)), shout, talk);
         }
         var c = world.Cast;
         if (!c.ShowsCutIn || c.skill?.cast == null || !c.skill.cast.cutin) return;
@@ -320,33 +285,23 @@ internal sealed partial class StudioScreenView
         var band = StudioWorld.Tint(cast.color, new Color(.11f, .23f, .34f));
         band.a = .94f * alpha;
         float bandHeight = Screen.height * .46f * ease;
-        var matrix = GUI.matrix;
-        GUIUtility.RotateAroundPivot(-5, new Vector2(Screen.width / 2f, Screen.height / 2f));
-        GUI.DrawTexture(new Rect(-Screen.width * .06f, Screen.height / 2f - bandHeight / 2, Screen.width * 1.12f, bandHeight),
-                        Texture2D.whiteTexture, ScaleMode.StretchToFill, true, 0, band, 0, 0);
-        GUI.matrix = matrix;
+        // The band is tilted 5° counter-clockwise around the screen centre.
+        ui.Box(new Rect(-Screen.width * .06f, Screen.height / 2f - bandHeight / 2, Screen.width * 1.12f, bandHeight), band, 0, 0, -5);
         string reference = !string.IsNullOrEmpty(cast.image) ? cast.image : c.actor?.Face();
         if (string.IsNullOrEmpty(reference) && c.actor?.id == "baekseol") reference = "builtin-player";
         var art = world.Connection.Texture(reference);
         if (art != null)
         {
             float shift = ((1 - ease) * 45 - p * 5 - leave * 14) / 100 * Screen.width * .52f;
-            GUI.DrawTexture(new Rect(Screen.width * .44f + shift, Screen.height * .02f, Screen.width * .52f, Screen.height * .86f),
-                            art, ScaleMode.ScaleToFit, true, 0, new Color(1, 1, 1, alpha), 0, 0);
+            ui.Picture(new Rect(Screen.width * .44f + shift, Screen.height * .02f, Screen.width * .52f, Screen.height * .86f),
+                       art, StudioFit.Fit, new Color(1, 1, 1, alpha));
         }
-        var title = Style(Mathf.Clamp(Mathf.RoundToInt(Screen.width * .054f), 18, 72), "left", new Color(1, 1, 1, alpha));
-        GUI.Label(new Rect(Screen.width * .06f, Screen.height * .34f, Screen.width * .5f, Screen.height * .16f),
-                  string.IsNullOrEmpty(cast.caption) ? c.skill.name : cast.caption, title);
+        var title = new StudioText(Clamped(Screen.width * .054f, 18, 72), StudioAlign.Left, new Color(1, 1, 1, alpha));
+        ui.Label(new Rect(Screen.width * .06f, Screen.height * .34f, Screen.width * .5f, Screen.height * .16f),
+                 string.IsNullOrEmpty(cast.caption) ? c.skill.name : cast.caption, title);
         if (!string.IsNullOrEmpty(cast.line))
-            GUI.Label(new Rect(Screen.width * .06f, Screen.height * .5f, Screen.width * .5f, Screen.height * .1f), cast.line,
-                      Style(Mathf.Clamp(Mathf.RoundToInt(Screen.width * .022f), 12, 30), "left", new Color(1, 1, 1, alpha)));
-    }
-    private static void Fill(Rect rect, Color color)
-    {
-        Color old = GUI.color;
-        GUI.color = color;
-        GUI.DrawTexture(rect, Texture2D.whiteTexture);
-        GUI.color = old;
+            ui.Label(new Rect(Screen.width * .06f, Screen.height * .5f, Screen.width * .5f, Screen.height * .1f), cast.line,
+                     new StudioText(Clamped(Screen.width * .022f, 12, 30), StudioAlign.Left, new Color(1, 1, 1, alpha)));
     }
     private string Label(StudioWidget w)
     {
@@ -434,7 +389,8 @@ internal sealed partial class StudioScreenView
         }
     }
 
-    private void DrawLine(StudioWidget w, Rect rect, GUIStyle style)
+    private string Key(StudioWidget w, string part) => string.Concat(Layout.id, "/", w.id, "/", part);
+    private void DrawLine(StudioWidget w, Rect rect, StudioText style)
     {
         var node = world.Line;
         if (node == null)
@@ -454,35 +410,33 @@ internal sealed partial class StudioScreenView
             if (texture != null)
             {
                 float width = rect.width * .16f;
-                GUI.DrawTexture(new Rect(node.side == "right" ? rect.xMax - width : rect.x, rect.y, width, rect.height), texture, ScaleMode.ScaleToFit);
+                ui.Picture(new Rect(node.side == "right" ? rect.xMax - width : rect.x, rect.y, width, rect.height), texture, StudioFit.Fit, Color.white);
                 if (node.side != "right") rect.x += width;
                 rect.width -= width;
             }
         }
         string text = (!string.IsNullOrEmpty(node.speakerName) ? node.speakerName : speaker != null ? speaker.name : "내레이션") + "\n" + world.StageText;
-        float contentWidth = Mathf.Max(16, rect.width - 22),
-              textHeight = style.CalcHeight(new GUIContent(text), contentWidth) + 8;
-        float itemSize=w.itemSkin!=null && w.itemSkin.size>=8 ? Mathf.Clamp(w.itemSkin.size*Mathf.Min(Screen.width/800f,1.4f),8,90) : style.fontSize;
-        float buttonHeight = Mathf.Max(34, itemSize * 2.2f);
-        float contentHeight = textHeight + Mathf.Max(1, node.choices.Length) * (buttonHeight + 4);
-        dialogueScroll = GUI.BeginScrollView(rect, dialogueScroll, new Rect(0, 0, contentWidth, contentHeight));
-        GUI.Label(new Rect(0, 0, contentWidth, textHeight), text, style);
+        float contentWidth = Mathf.Max(ui.Dp(16), rect.width - ui.Dp(22)),
+              textHeight = ui.Height(text, style, contentWidth) + ui.Dp(8);
+        float itemSize = w.itemSkin != null && w.itemSkin.size >= 8 ? ui.TextSize(w.itemSkin.size) : style.size;
+        float buttonHeight = Mathf.Max(ui.Dp(34), itemSize * 2.2f), gap = ui.Dp(4);
+        float contentHeight = textHeight + Mathf.Max(1, node.choices.Length) * (buttonHeight + gap);
+        dialogueScroll = ui.BeginScroll(Key(w, "line"), rect, new Rect(0, 0, contentWidth, contentHeight), dialogueScroll);
+        ui.Label(new Rect(0, 0, contentWidth, textHeight), text, style);
         int clicked = -2;
         if (node.choices.Length == 0)
         {
-            if (ItemButton(w,new Rect(0, textHeight, contentWidth, buttonHeight), string.IsNullOrEmpty(node.nextLabel) ? "다음 →" : node.nextLabel, style))
+            if (ItemButton(w, Key(w, "next"), new Rect(0, textHeight, contentWidth, buttonHeight), string.IsNullOrEmpty(node.nextLabel) ? "다음 →" : node.nextLabel, style))
                 clicked = -1;
         }
         else
             for (int i = 0; i < node.choices.Length; i++)
             {
-                var r = new Rect(0, textHeight + i * (buttonHeight + 4), contentWidth, buttonHeight);
-                if (w.itemSkin==null || w.itemSkin.size==0)Fill(r, new Color(.15f, .25f, .35f));
-                bool enabled=GUI.enabled;GUI.enabled=enabled&&world.StageChoiceAllowed(i);
-                if (ItemButton(w,r,node.choices[i].label,style))clicked=i;
-                GUI.enabled=enabled;
+                var r = new Rect(0, textHeight + i * (buttonHeight + gap), contentWidth, buttonHeight);
+                if (w.itemSkin == null || w.itemSkin.size == 0) ui.Box(r, new Color(.15f, .25f, .35f));
+                if (ItemButton(w, Key(w, "choice" + i), r, node.choices[i].label, style, world.StageChoiceAllowed(i))) clicked = i;
             }
-        GUI.EndScrollView();
+        ui.EndScroll();
         if (clicked != -2)
             world.Answer(clicked);
     }
@@ -508,7 +462,7 @@ internal sealed partial class StudioScreenView
         }
         return world.Connection.Texture(path);
     }
-    private int DrawShotChoices(StudioShotLayer layer, StudioLine line, Rect rect, GUIStyle style, Color fill, float radius)
+    private int DrawShotChoices(StudioShotLayer layer, StudioLine line, Rect rect, StudioText style, Color fill, float radius)
     {
         int count = Mathf.Max(1, line.choices.Length), columns = layer.ChoiceColumns(count);
         if(layer.manualChoices){
@@ -517,33 +471,31 @@ internal sealed partial class StudioScreenView
                 var s=layer.Slot(count,i);
                 var area=new Rect(rect.x+s.x*rect.width/100,rect.y+s.y*rect.height/100,s.w*rect.width/100,s.h*rect.height/100);
                 Color baseColor=StudioWorld.Tint(s.fill,fill);baseColor.a=fill.a;
-                if(GUIUtility.hotControl!=0 && area.Contains(Event.current.mousePosition))baseColor=StudioWorld.Tint(s.press,baseColor);
-                GUI.DrawTexture(area,Texture2D.whiteTexture,ScaleMode.StretchToFill,true,0,baseColor,0,Mathf.Min(area.width,area.height)*s.radius/100);
+                var skin=StudioSkin.Of(baseColor,StudioWorld.Tint(s.press,baseColor),Color.clear,0,Mathf.Min(area.width,area.height)*s.radius/100);
                 string text=line.choices.Length>0?line.choices[i].label:string.IsNullOrEmpty(line.nextLabel)?"다음":line.nextLabel;
-                bool enabled=GUI.enabled;GUI.enabled=enabled&&(line.choices.Length==0 || world.StageChoiceAllowed(i));
-                if(GUI.Button(area,text,Style(style.fontSize,layer.align,StudioWorld.Tint(s.color,Color.white))))answer=line.choices.Length>0?i:-1;
-                GUI.enabled=enabled;
+                bool allowed=line.choices.Length==0 || world.StageChoiceAllowed(i);
+                var ink=new StudioText(style.size,StudioText.Align(layer.align),StudioWorld.Tint(s.color,Color.white));
+                if(ui.Button(string.Concat("shot/",layer.id,"/",i.ToString(System.Globalization.CultureInfo.InvariantCulture)),area,text,ink,allowed,skin))answer=line.choices.Length>0?i:-1;
             }
             return answer;
         }
-        float gap = style.fontSize * .35f, rowHeight = Mathf.Max(20, style.fontSize * 1.9f);
+        float gap = style.size * .35f, rowHeight = Mathf.Max(ui.Dp(20), style.size * 1.9f);
         int rows = (count + columns - 1) / columns;
         float height = rows * (rowHeight + gap) - gap;
-        float width = Mathf.Max(2, rect.width - (height > rect.height ? 18 : 0));
+        float width = Mathf.Max(2, rect.width - (height > rect.height ? ui.Dp(18) : 0));
         float cellWidth = (width - gap * (columns - 1)) / columns;
         shotScroll.TryGetValue(layer.id, out var scroll);
-        shotScroll[layer.id] = GUI.BeginScrollView(rect, scroll, new Rect(0, 0, width, height));
+        shotScroll[layer.id] = ui.BeginScroll("shot/" + layer.id, rect, new Rect(0, 0, width, height), scroll);
         int chosen = -2;
+        var cell = StudioSkin.Of(fill, fill, Color.clear, 0, radius);
         for (int i = 0; i < count; i++)
         {
             var area = new Rect((i % columns) * (cellWidth + gap), (i / columns) * (rowHeight + gap), cellWidth, rowHeight);
-            GUI.DrawTexture(area, Texture2D.whiteTexture, ScaleMode.StretchToFill, true, 0, fill, 0, radius);
             string label = line.choices.Length > 0 ? line.choices[i].label : string.IsNullOrEmpty(line.nextLabel) ? "다음" : line.nextLabel;
-            bool enabled=GUI.enabled;GUI.enabled=enabled&&(line.choices.Length==0 || world.StageChoiceAllowed(i));
-            if (GUI.Button(area, label, style)) chosen = line.choices.Length > 0 ? i : -1;
-            GUI.enabled=enabled;
+            bool allowed = line.choices.Length==0 || world.StageChoiceAllowed(i);
+            if (ui.Button(string.Concat("shot/", layer.id, "/", i.ToString(System.Globalization.CultureInfo.InvariantCulture)), area, label, style, allowed, cell)) chosen = line.choices.Length > 0 ? i : -1;
         }
-        GUI.EndScrollView();
+        ui.EndScroll();
         return chosen;
     }
     private void DrawShot(StudioShot shot)
@@ -563,21 +515,18 @@ internal sealed partial class StudioScreenView
             var ink = StudioWorld.Tint(p.color, Color.white);
             ink.a = opacity;
             if (p.kind != "choices" && fill.a > 0)
-                GUI.DrawTexture(r, Texture2D.whiteTexture, ScaleMode.StretchToFill, true, 0, fill, 0, radius);
+                ui.Box(r, fill, radius);
             if (p.kind == "backdrop" || p.kind == "portrait" || p.kind == "art" || p.kind == "panel")
             {
                 var tex = ShotImage(p,line,speaker);
                 if (tex == null) continue;
-                var matrix = GUI.matrix;
-                if (p.flip) GUIUtility.ScaleAroundPivot(new Vector2(-1,1),r.center);
-                var mode = p.fit == "cover" ? ScaleMode.ScaleAndCrop : p.fit == "stretch" ? ScaleMode.StretchToFill : ScaleMode.ScaleToFit;
                 // Speaker focus darkens cast members who are not speaking on this line.
                 float light = shot.focus && !string.IsNullOrEmpty(p.actor) && !string.IsNullOrEmpty(line.speaker) && p.actor != line.speaker ? .42f : 1;
-                GUI.DrawTexture(r,tex,mode,true,0,new Color(light,light,light,opacity),0,radius);
-                GUI.matrix = matrix;
+                ui.Picture(r, tex, Fit(p.fit), new Color(light,light,light,opacity), radius, p.flip);
                 continue;
             }
-            var style = Style(Mathf.Clamp(Mathf.RoundToInt(p.size*Screen.width/800),8,180), p.align, ink);
+            // Shot text keeps scaling with the screen width, as in the studio's line composer.
+            var style = new StudioText(Mathf.Clamp(Mathf.RoundToInt(p.size*Screen.width/800),8,180), StudioText.Align(p.align), ink);
             if (p.kind == "choices")
             {
                 chosen = DrawShotChoices(p,line,r,style,fill,radius);
@@ -585,16 +534,15 @@ internal sealed partial class StudioScreenView
             }
             string text = p.kind == "text" ? world.StageText : p.kind == "caption" ? p.caption :
                 !string.IsNullOrEmpty(line.speakerName) ? line.speakerName : speaker?.name ?? "내레이션";
-            var content = new GUIContent(text);
-            float height = style.CalcHeight(content, r.width);
-            if (height <= r.height) GUI.Label(new Rect(r.x,r.y,r.width,height),content,style);
+            float height = ui.Height(text, style, r.width);
+            if (height <= r.height) ui.Label(new Rect(r.x,r.y,r.width,height),text,style);
             else {
-                float width = Mathf.Max(8,r.width-18);
-                var area = new Rect(0,0,width,style.CalcHeight(content,width));
+                float width = Mathf.Max(ui.Dp(8),r.width-ui.Dp(18));
+                var area = new Rect(0,0,width,ui.Height(text,style,width));
                 shotScroll.TryGetValue(p.id,out var scroll);
-                shotScroll[p.id]=GUI.BeginScrollView(r,scroll,area);
-                GUI.Label(area,content,style);
-                GUI.EndScrollView();
+                shotScroll[p.id]=ui.BeginScroll("shot/"+p.id,r,area,scroll);
+                ui.Label(area,text,style);
+                ui.EndScroll();
             }
         }
         if (chosen != -2) world.Answer(chosen);
@@ -602,30 +550,30 @@ internal sealed partial class StudioScreenView
 
     internal void Draw()
     {
-        GUI.depth = 0;
         PrepareFields();
         if (openChoices != null) { DrawChoices(); return; }
         if (!string.IsNullOrEmpty(world.Result) && !world.HasOverlay)
         {
             var panel =
                 new Rect(Screen.width * .25f, Screen.height * .32f, Screen.width * .5f, Screen.height * .35f);
-            Fill(panel, new Color(.07f, .12f, .2f, .95f));
-            GUI.Label(panel, world.Result, Style(24, "center", Color.white));
-            if (GUI.Button(new Rect(panel.x, panel.yMax - 48, panel.width, 48), "다시 시작"))
+            ui.Box(panel, new Color(.07f, .12f, .2f, .95f));
+            ui.Label(panel, world.Result, Fixed(24, StudioAlign.Center, Color.white));
+            if (ui.Button("world/result/restart", new Rect(panel.x, panel.yMax - ui.Dp(48), panel.width, ui.Dp(48)), "다시 시작",
+                          Fixed(16, StudioAlign.Center, Color.white), true, StudioSkin.Standard(ui.Density)))
                 world.Press("restart");
             return;
         }
         if (ActiveShot?.layers != null) { DrawShot(ActiveShot); return; }
         var full = new Rect(0, 0, Screen.width, Screen.height);
         var sceneArt = world.HasOverlay ? null : world.Connection.Texture(world.Line?.backdrop);
-        if (sceneArt != null) GUI.DrawTexture(full, sceneArt, ScaleMode.ScaleAndCrop);
+        if (sceneArt != null) ui.Picture(full, sceneArt, StudioFit.Cover, Color.white);
         Color tint = StudioWorld.Tint(Layout.tint, new Color(.04f, .08f, .14f));
         tint.a = world.Project.schema < 4 && !string.IsNullOrEmpty(world.Menu) ? .7f : Layout.shade / 100;
         if (tint.a > 0)
-            Fill(full, tint);
+            ui.Box(full, tint);
         var skin = world.Connection.Texture(Layout.skin);
         if (skin != null)
-            GUI.DrawTexture(full, skin, ScaleMode.ScaleAndCrop);
+            ui.Picture(full, skin, StudioFit.Cover, Color.white);
         foreach (var w in Layout.elements)
         {
             if (!world.Visible(w))
@@ -640,17 +588,15 @@ internal sealed partial class StudioScreenView
             if (w.type == "joystick")
             {
                 var ring = Ring(r);
-                GUI.DrawTexture(ring, Texture2D.whiteTexture, ScaleMode.StretchToFill, true, 0, background, 0, ring.width/2);
+                ui.Box(ring, background, ring.width/2);
                 var color = StudioWorld.Tint(w.stick?.ring ?? w.color,Color.white);
-                GUI.DrawTexture(ring, Texture2D.whiteTexture, ScaleMode.StretchToFill, true, 0, color, 2, ring.width/2);
-                var offset = heldStick == w || (!Application.isMobilePlatform && Time.unscaledTime-mouseHeldAt < .06f) ? stickOffset : Vector2.zero;
+                ui.Box(ring, color, ring.width/2, ui.Dp(2));
+                var offset = heldStick == w ? stickOffset : Vector2.zero;
                 float thumb=(w.stick!=null && w.stick.thumb>=15 ? w.stick.thumb : 38)/100f;
                 var center = ring.center + offset*ring.width*(w.stick == null ? .32f : (1-thumb)*.5f);
                 float radius = ring.width*thumb*.5f;
                 color=StudioWorld.Tint(w.stick?.knob ?? w.color,Color.white);
-                GUI.DrawTexture(new Rect(center.x-radius,center.y-radius,radius*2,radius*2),Texture2D.whiteTexture,ScaleMode.StretchToFill,true,0,color,0,radius);
-                if (!Application.isMobilePlatform && GUI.RepeatButton(r, "", GUIStyle.none))
-                { mouseDirection = StickAt(w,ring, Event.current.mousePosition); mouseHeldAt = Time.unscaledTime; }
+                ui.Box(new Rect(center.x-radius,center.y-radius,radius*2,radius*2), color, radius);
                 continue;
             }
             if(w.type=="button" && w.hotspot){ /* The authored shape remains the hit region. */ }
@@ -664,24 +610,17 @@ internal sealed partial class StudioScreenView
                 float radius = Mathf.Min(r.width, r.height) * w.radius / 100;
                 if (w.id == pressedId && Time.unscaledTime < pressUntil)
                     background = StudioWorld.Tint(w.pressedColor, background);
-                GUI.DrawTexture(r, Texture2D.whiteTexture, ScaleMode.StretchToFill, true, 0, background, 0,
-                                radius);
+                ui.Box(r, background, radius);
                 var art = world.Connection.Texture(w.image);
                 if (art != null)
-                    GUI.DrawTexture(r, art,
-                                    w.imageFit == "cover"     ? ScaleMode.ScaleAndCrop
-                                    : w.imageFit == "stretch" ? ScaleMode.StretchToFill
-                                                              : ScaleMode.ScaleToFit);
+                    ui.Picture(r, art, Fit(w.imageFit), Color.white);
                 if (w.borderWidth > 0)
-                    GUI.DrawTexture(r, Texture2D.whiteTexture, ScaleMode.StretchToFill, true, 0,
-                                    StudioWorld.Tint(w.borderColor, Color.white), w.borderWidth, radius);
+                    ui.Box(r, StudioWorld.Tint(w.borderColor, Color.white), radius, ui.Dp(w.borderWidth));
             }
             else
-                Fill(r, background);
+                ui.Box(r, background);
             if (w.type == "button" && w.meter) DrawMeter(w, r);
-            var style =
-                Style(Mathf.Clamp(Mathf.RoundToInt(w.fontSize * Mathf.Min(Screen.width / 800f, 1.4f)), 8, 90),
-                      w.align, StudioWorld.Tint(w.color, Color.white),w.fontFamily);
+            var style = Text(w.fontSize, w.align, StudioWorld.Tint(w.color, Color.white), w.fontFamily);
             if (w.type == "inventory" || w.type == "quests")
             {
                 world.DrawProgressWidget(w,r,style);
@@ -698,50 +637,28 @@ internal sealed partial class StudioScreenView
                 var path = w.type == "image" ? w.image : actor.Face();
                 if (w.type == "portrait" && string.IsNullOrEmpty(path) && actor.id == "baekseol") path = "builtin-player";
                 var texture = world.Connection.Texture(path);
-                if (texture == null && w.type == "portrait") GUI.Label(r, actor.name, style);
+                if (texture == null && w.type == "portrait") ui.Label(r, actor.name, style);
                 if (texture != null)
-                    GUI.DrawTexture(r, texture, ScaleMode.ScaleToFit);
+                    ui.Picture(r, texture, StudioFit.Fit, Color.white);
                 continue;
             }
-            if (w.type == "loading") Fill(new Rect(r.x,r.y,r.width*world.LoadingFraction,r.height), new Color(.12f,.5f,.56f));
+            if (w.type == "loading") ui.Box(new Rect(r.x,r.y,r.width*world.LoadingFraction,r.height), new Color(.12f,.5f,.56f));
             if (w.type == "hp")
-                Fill(new Rect(r.x, r.y, r.width * world.Health / world.Actor.health, r.height),
+                ui.Box(new Rect(r.x, r.y, r.width * world.Health / world.Actor.health, r.height),
                      new Color(.12f, .5f, .56f));
             if (w.type == "energy" && world.Actor.HasEnergy)
-                Fill(new Rect(r.x, r.y, r.width * Mathf.Clamp01((float)world.Energy / world.Actor.energy.max), r.height),
+                ui.Box(new Rect(r.x, r.y, r.width * Mathf.Clamp01((float)world.Energy / world.Actor.energy.max), r.height),
                      world.Energy >= world.Actor.energy.max ? new Color(.95f, .72f, .26f) : new Color(.3f, .4f, .82f));
             if (w.type == "boss" && world.Boss(out _, out int bossHp, out int bossMax, out int bossPhase))
             {
-                Fill(new Rect(r.x, r.y, r.width * Mathf.Clamp01((float)bossHp / bossMax), r.height), new Color(.72f, .17f, .27f));
-                Fill(new Rect(r.x + r.width * Mathf.Clamp(bossPhase, 1, 99) / 100f - 1, r.y, 2, r.height), new Color(1f, .91f, .66f, .85f));
+                ui.Box(new Rect(r.x, r.y, r.width * Mathf.Clamp01((float)bossHp / bossMax), r.height), new Color(.72f, .17f, .27f));
+                ui.Box(new Rect(r.x + r.width * Mathf.Clamp(bossPhase, 1, 99) / 100f - 1, r.y, ui.Dp(2), r.height), new Color(1f, .91f, .66f, .85f));
             }
-            if (w.type == "button" && !world.Enabled(w))
-            {
-                if(!w.hotspot && w.states==null)Fill(r, new Color(.1f, .12f, .15f, .5f));
-                GUI.Label(r, Label(w), style);
-                continue;
-            }
-            if (w.type == "button" && w.gesture==null && !Application.isMobilePlatform)
-            {
-                if (w.action == "left" || w.action == "right")
-                {
-                    if (GUI.RepeatButton(r, Label(w), style))
-                    {
-                        if (Time.unscaledTime - mouseHeldAt >= .06f){mouseAllowed=world.AllowProgramInput(w.action);if(mouseAllowed)world.Activate(w,false);}
-                        mouseDirection=mouseAllowed?(w.action=="left"?-1:1):0;
-                        mouseHeldAt = Time.unscaledTime;
-                    }
-                }
-                else if (GUI.Button(r, Label(w), style) && Hit(w,r,Event.current.mousePosition))
-                {
-                    pressedId = w.id;
-                    pressUntil = Time.unscaledTime + .18f;
-                    world.Activate(w);
-                    return;
-                }
-            }
-            else if (w.type != "panel")
-                GUI.Label(r, Label(w), style);
+            if (w.type == "button" && !world.Enabled(w) && !w.hotspot && w.states == null)
+                ui.Box(r, new Color(.1f, .12f, .15f, .5f));
+            // Buttons are pressed through the touch path in ReadInput, for fingers and the mouse alike.
+            if (w.type != "panel")
+                ui.Label(r, Label(w), style);
         }
     }
 }
