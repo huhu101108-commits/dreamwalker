@@ -194,6 +194,7 @@ public sealed partial class StudioWorld : MonoBehaviour
         flow = new StudioScreenFlow();
         LoadSettings();
         StartReports();
+        StartStore();
         hasTimers = Array.Exists(project.layouts,
                                  l => l.rules != null && Array.Exists(l.rules, r => r.@event == "elapsed"));
         ResetProgress();
@@ -353,7 +354,7 @@ public sealed partial class StudioWorld : MonoBehaviour
         }
         cameraSettings = map.camera ?? new StudioCamera();
         cameraOffset=CameraClamp(new Vector2(spawn.x-46/CameraZoom,spawn.y-36/CameraZoom));
-        SetCharacter(Project.Character(map.characterId), preserveHealth);
+        SetCharacter(Project.Character(Playable(map.characterId, Actor?.id)), preserveHealth);
         ApplyMapMemory();
         if (!restoring) { OpenStory(map.entryStory); Fire("enter"); }
         if (preserveHealth && !restoring && !string.IsNullOrEmpty(Project.frontScreens?.loading)) Present(Project.frontScreens.loading);
@@ -745,8 +746,9 @@ public sealed partial class StudioWorld : MonoBehaviour
         }
         if (action == "previousActor" || (action == "switch" && ShowingFront))
         {
-            int count = Project.characters.Length, at = Array.IndexOf(Project.characters, Actor);
-            Press("selectActor", Project.characters[(at + count + (action == "previousActor" ? -1 : 1)) % count].id);
+            var roster = Roster;
+            int count = roster.Length, at = Array.IndexOf(roster, Actor);
+            Press("selectActor", roster[(at + count + (action == "previousActor" ? -1 : 1)) % count].id);
             return;
         }
         if (ShowingFront && (action == "back" || action == "resume"))
@@ -819,7 +821,7 @@ public sealed partial class StudioWorld : MonoBehaviour
         if (action == "selectActor")
         {
             var actor = Project.Character(target);
-            if (actor != null)
+            if (actor != null && Owns(actor.id))
             {
                 skill = null;
                 SetCharacter(actor, true);
@@ -875,9 +877,10 @@ public sealed partial class StudioWorld : MonoBehaviour
         }
         if (action == "switch")
         {
-            int at = Array.IndexOf(Project.characters, Actor);
+            var roster = Roster;
+            int at = Array.IndexOf(roster, Actor);
             skill = null;
-            SetCharacter(Project.characters[(at + 1) % Project.characters.Length], true);
+            SetCharacter(roster[(at + 1) % roster.Length], true);
             Fire("switch");
             SyncControls();
             return;

@@ -16,19 +16,26 @@ export async function testCreatorPass(page, origin) {
     await p.locator('#editor').waitFor();
     await p.evaluate(() => edit(() => { project.saveId = 'creator-pass'; project.frontScreens = { seconds: 0.2 }; }));
 
-    // A new character renamed: list, card and work header follow once the field is left; the next field keeps focus.
+    // A new character renamed: Enter commits the name; list and card follow and the field keeps focus. Typing on in the
+    // next field waits for it, and leaving the fields shows its value too.
     await button('＋ 새 캐릭터').click();
     const name = c.getByLabel('이름', { exact: true });
     await name.fill('유리');
-    await name.press('Tab');
-    await p.waitForFunction(() => document.activeElement?.getAttribute('aria-label') === '소속 지역');
-    assert.equal(await c.getByLabel('작업 캐릭터', { exact: true }).locator('option:checked').textContent(), '유리');
+    await name.press('Enter');
     await c.locator('h2', { hasText: '유리' }).first().waitFor();
+    assert.equal(await c.getByLabel('작업 캐릭터', { exact: true }).locator('option:checked').textContent(), '유리');
+    assert.equal(await p.evaluate(() => document.activeElement?.getAttribute('aria-label')), '이름', 'the field keeps focus');
+    await name.press('Tab');
+    const region = c.getByLabel('소속 지역', { exact: true });
+    await region.fill('남부 항구');
+    assert.equal(await region.inputValue(), '남부 항구', 'typing in the next field is not interrupted');
+    await button('＋ 새 캐릭터').focus();
+    await c.getByText('남부 항구', { exact: true }).first().waitFor();
     // A notice closes on a tap.
     await p.evaluate(() => note('확인용 알림이에요.'));
     await p.locator('#note').click();
     assert.equal(await p.locator('#note').textContent(), '');
-    console.log('PASS tablet rename: list and card show the new name once the field is left, the next field keeps focus; a tapped notice closes');
+    console.log('PASS tablet rename: Enter shows the new name in the list and card and keeps focus; typing on in the next field is not interrupted; a tapped notice closes');
 
     // The lobby's settings button takes the top-right corner; a banner's buttons go together to a clear place.
     await p.evaluate(() => goTool('interface'));

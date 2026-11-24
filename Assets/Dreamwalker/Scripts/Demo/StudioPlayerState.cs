@@ -35,6 +35,8 @@ public class StudioPlayerSave
     public int version, hp;
     public float x, y;
     public string map, actor, result;
+    // Characters the player has, locked ones won included (the web save's owned list).
+    public string[] owned;
     public string[] flags, runRules, mapRules, cleared, stories, rewards;
     public StudioMapMemory[] maps;
     public StudioFoeMemory[] foes;
@@ -255,6 +257,7 @@ public sealed partial class StudioWorld
     }
     private void ResetProgress()
     {
+        OwnedReset();
         formValues.Clear();formDefaults.Clear();
         foreach(var layout in Project.layouts)foreach(var w in layout.elements)
             if(w.type=="input" && !string.IsNullOrEmpty(w.control?.key) && !formDefaults.ContainsKey(w.control.key))formDefaults[w.control.key]=w.control.initial;
@@ -321,6 +324,7 @@ public sealed partial class StudioWorld
             mapRules = flow.MapRules,
             maps = new List<StudioMapMemory>(mapHistory.Values).ToArray(),
             cleared = new List<string>(mapsDone).ToArray(),
+            owned = new List<string>(ownedCharacters).ToArray(),
             stories = new List<string>(storiesDone).ToArray(),
             rewards = new List<string>(rewards).ToArray(),
             foes = foes.ConvertAll(
@@ -402,8 +406,9 @@ public sealed partial class StudioWorld
             if (entry?.key != null && bag.ContainsKey(entry.id))
                 gear[entry.key] = entry.id;
         ShopRestore(saved.shop);
+        foreach (var id in saved.owned ?? Array.Empty<string>()) if (Project.Character(id) != null) ownedCharacters.Add(id);
         Enter(Project.Map(saved.map), false, true);
-        SetCharacter(Project.Character(saved.actor), false);
+        SetCharacter(Project.Character(Playable(saved.actor, null)), false);
         flow.Restore(saved.flags, saved.runRules, saved.mapRules);
         Health = Mathf.Clamp(saved.hp, 1, Actor.health);
         Warp(new Vector2(OriginX + Mathf.Clamp(saved.x, 1, Map.width - 1) * UnitX,
@@ -458,6 +463,13 @@ public sealed partial class StudioWorld
             }
             if (!complete || !rewards.Add(q.id))
                 continue;
+            if (q.rewardKind == "currency")
+            {
+                Grant(new StudioReward { kind = "currency", id = q.reward, count = q.count });
+                // The server wallet pays a quest's currency once per player; its answer replaces the device's amount.
+                if (Project.shop?.server == true) ServerShop("claim", q.id, 1);
+                continue;
+            }
             bag.TryGetValue(q.reward, out int n);
             bag[q.reward] = Math.Min(999999, n + q.count);
         }

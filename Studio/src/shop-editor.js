@@ -8,20 +8,22 @@ function shopUses(kind, id) {
   const s = shopOf(), uses = [];
   const gives = (list) => list.some((g) => g.kind === kind && g.id === id);
   for (const p of s.products) if ((kind === 'currency' && p.cost.kind === 'currency' && p.cost.id === id) || gives(p.gives)) uses.push('상품 ' + p.name);
-  for (const b of s.banners) if ((kind === 'currency' && b.cost.currency === id) || b.tiers.some((t) => gives(t.entries))) uses.push('뽑기 ' + b.name);
+  for (const b of s.banners) if ((kind === 'currency' && b.cost.currency === id) || b.tiers.some((t) => gives(t.entries)) || gives(b.duplicate ? [b.duplicate] : [])) uses.push('뽑기 ' + b.name);
+  for (const q of project.quests || []) if (kind === 'currency' && q.rewardKind === 'currency' && q.reward === id) uses.push('의뢰 ' + q.name);
   return uses;
 }
-function rewardFields(g, remove) {
-  const s = shopOf(), choices = g.kind === 'item' ? optionMap(project.items || []) : optionMap(s.currencies);
+// kinds: what this reward may be (a duplicate reward cannot be a character). A character comes once.
+function rewardFields(g, remove, kinds = GACHA_KINDS) {
+  const s = shopOf(), list = (kind) => (kind === 'item' ? project.items || [] : kind === 'character' ? project.characters : s.currencies);
   return box('shop-reward',
-    selectField('종류', g.kind, GACHA_KINDS, (v) => edit(() => {
+    selectField('종류', g.kind, kinds, (v) => edit(() => {
       g.kind = v;
-      g.id = (v === 'item' ? project.items || [] : s.currencies)[0]?.id || '';
-      if (v === 'item') g.count = Math.min(g.count, 999);
+      g.id = list(v)[0]?.id || '';
+      g.count = v === 'character' ? 1 : v === 'item' ? Math.min(g.count, 999) : g.count;
     })),
-    selectField('대상', g.id, choices, (v) => edit(() => { g.id = v; })),
-    bindNumber('수량', g, 'count', 1, g.kind === 'item' ? 999 : SHOP_LIMIT.amount, 1),
-    action('빼기', remove, 'quiet'));
+    selectField('대상', g.id, optionMap(list(g.kind)), (v) => edit(() => { g.id = v; })),
+    ...(g.kind === 'character' ? [el('small', '캐릭터는 한 번만 얻어요. 이미 있으면 중복 보상으로 바뀌어요.')] : [bindNumber('수량', g, 'count', 1, g.kind === 'item' ? 999 : SHOP_LIMIT.amount, 1)]),
+    ...(remove ? [action('빼기', remove, 'quiet')] : []));
 }
 function firstReward() {
   const s = shopOf();
@@ -81,8 +83,19 @@ function bannerFields(b, s) {
     row(selectField('비용 재화', b.cost.currency, optionMap(s.currencies), (v) => edit(() => { b.cost.currency = v; })),
       bindNumber('1회 비용', b.cost, 'amount', 1, SHOP_LIMIT.amount, 1, refresh)),
     row(bindNumber('연속 뽑기 횟수 (0은 없음)', b, 'multi', 0, 10, 1, refresh),
-      bindNumber('천장 (N회째 최고 등급 확정, 0은 없음)', b, 'pity', 0, 1000, 1, refresh)),
-    heading('등급과 보상'), sum);
+      bindNumber('천장 (N회째 최고 등급 확정, 0은 없음)', b, 'pity', 0, 1000, 1, refresh)));
+  // A character reward the player already has becomes this reward instead.
+  if (b.tiers.some((t) => t.entries.some((e) => e.kind === 'character'))) {
+    const dup = box('group');
+    dup.append(el('strong', '이미 가진 캐릭터가 나오면'));
+    if (b.duplicate) dup.append(rewardFields(b.duplicate, () => edit(() => { delete b.duplicate; }), { item: GACHA_KINDS.item, currency: GACHA_KINDS.currency }));
+    else dup.append(el('p', '아무것도 주지 않아요.'), action('대신 줄 보상 정하기', () => {
+      const g = firstReward();
+      edit(() => { b.duplicate = g; });
+    }, 'quiet'));
+    root.append(dup);
+  }
+  root.append(heading('등급과 보상'), sum);
   b.tiers.forEach((t, i) => {
     const total = gachaWeight(t), tier = box('group shop-tier');
     const token = {};
@@ -160,6 +173,13 @@ function simulationPanel(b) {
   return d;
 }
 function drawCurrencies(side, s) {
+  // The server wallet keeps currencies, pity and purchases on the server: for online games that sell or give premium
+  // currency. Off, everything stays in the device save.
+  side.append(heading('서버 지갑'));
+  if (!s.currencies.length) side.append(el('small', '재화를 만든 뒤 켤 수 있어요. 재화·뽑기·결제를 서버가 정하고 보관해요.'));
+  else side.append(checkField('서버 지갑 사용 (온라인 게임)', !!s.server, (v) => ensureShop((shop) => { if (v) shop.server = true; else delete shop.server; })),
+    el('small', s.server ? '재화·천장·구매 수와 뽑기 결과를 서버가 정하고 기기 게스트별로 보관해요. 원화 상품은 스토어 결제를 서버가 확인한 뒤 지급해요. 확인 키는 호스팅의 비밀 값으로 넣어요(README «서버 지갑과 결제 확인»).'
+      : '꺼져 있으면 재화와 뽑기가 기기 저장에만 있어요. 유료 재화를 파는 온라인 게임은 켜세요.'));
   side.append(heading('재화'));
   for (const c of s.currencies)
     side.append(box('group',

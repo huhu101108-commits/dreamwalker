@@ -145,6 +145,7 @@ class FieldRun {
     this.rewards = new Set();
     this.bag = new Map();
     this.gear = new Map();
+    this.ownedReset();
     this.progressVersion = 0;
     this.combatTick = 0;
     this.combatState = {};
@@ -159,6 +160,15 @@ class FieldRun {
   get character() {
     return named(this.world.characters, this.characterId);
   }
+  // Characters the player has: every one that is not locked, and locked ones won from pulls or rewards.
+  ownedReset() { this.owned = new Set(this.world.characters.filter((c) => !c.locked).map((c) => c.id)); }
+  get roster() { return this.world.characters.filter((c) => this.owned.has(c.id)); }
+  // The character to play a map with: its start character when the player has it, else the one in play.
+  playable(id, previous = '') {
+    return this.owned.has(id) ? id : this.owned.has(previous) ? previous : this.roster[0]?.id || id;
+  }
+  owns(id) { return this.owned.has(id); }
+  get serverShop() { return !!this.world.shop?.server; }
   get enemiesLeft() {
     let living = 0;
     for (const e of this.foes) if (e.hp > 0) living++;
@@ -216,15 +226,19 @@ class FieldRun {
     if (g.kind === 'currency') {
       const c = named(this.world.shop?.currencies || [], g.id);
       if (c) this.wallet.set(g.id, Math.min(c.max, (this.wallet.get(g.id) || 0) + g.count));
+    } else if (g.kind === 'character') {
+      if (named(this.world.characters, g.id)) this.owned.add(g.id);
     } else if (named(this.world.items || [], g.id)) this.bag.set(g.id, Math.min(999999, (this.bag.get(g.id) || 0) + g.count));
     this.progressVersion++;
   }
   // 'ok', or why not: short (currency), limit (bought enough), store (a paid product the host must charge first).
+  // With the server wallet, the server buys and pulls ('server'): the host sends the request and applies the answer.
   buy(id, paid = false) {
     const p = named(this.world.shop?.products || [], id);
     if (!p) return 'missing';
     if (p.limit && (this.bought.get(id) || 0) >= p.limit) return 'limit';
     if (p.cost.kind === 'money' && !paid) return 'store';
+    if (this.serverShop && !paid) return 'server';
     if (p.cost.kind === 'currency') {
       const have = this.wallet.get(p.cost.id) || 0;
       if (have < p.cost.amount) return 'short';
@@ -243,15 +257,9 @@ class FieldRun {
     if (!b) return 'missing';
     const have = this.wallet.get(b.cost.currency) || 0, price = b.cost.amount * count;
     if (have < price) return 'short';
+    if (this.serverShop) return 'server';
     this.wallet.set(b.cost.currency, have - price);
-    let since = this.pity.get(id) || 0;
-    const results = [];
-    for (let i = 0; i < count; i++) {
-      const t = b.tiers[gachaTier(b, since, roll(SHOP_LIMIT.rate))], e = t.entries[gachaEntry(t, roll(gachaWeight(t)))];
-      since = t.top ? 0 : since + 1;
-      this.grant(e);
-      results.push({ banner: id, tier: t.name, top: t.top, kind: e.kind, id: e.id, count: e.count });
-    }
+    const { results, since } = gachaRun(b, this.pity.get(id) || 0, count, roll, this);
     this.pity.set(id, since);
     this.progressVersion++;
     this.draws = [...results.slice().reverse(), ...this.draws].slice(0, SHOP_LIMIT.history);
@@ -270,9 +278,26 @@ class FieldRun {
     for (const [id, n] of pairs(saved.wallet)) { const c = named(s.currencies, id); if (c && integer(n, 0, SHOP_LIMIT.amount)) this.wallet.set(id, Math.min(n, c.max)); }
     for (const [id, n] of pairs(saved.pity)) if (named(s.banners, id) && integer(n, 0, 1000)) this.pity.set(id, n);
     for (const [id, n] of pairs(saved.bought)) if (named(s.products, id) && integer(n, 1, 999)) this.bought.set(id, n);
-    this.draws = (Array.isArray(saved.draws) ? saved.draws : []).filter((d) => d && named(s.banners, d.banner) && ['item', 'currency'].includes(d.kind) &&
-      typeof d.tier === 'string' && typeof d.id === 'string' && integer(d.count, 1, SHOP_LIMIT.amount)).slice(0, SHOP_LIMIT.history)
-      .map(({ banner, tier, top, kind, id, count }) => ({ banner, tier: tier.slice(0, 20), top: top === true, kind, id, count }));
+    this.draws = shopDraws(this.world, saved.draws);
+  }
+  // The server's answer to a server-wallet request: its wallet, pity and purchase counts replace the device's, its
+  // items and characters join the player's, and a pull or purchase shows its result.
+  applyServerShop(state, results = null, title = '') {
+    const s = this.world.shop;
+    if (!s || !state || typeof state !== 'object') return false;
+    const pairs = (xs) => (Array.isArray(xs) ? xs.map((x) => (x && typeof x === 'object' && !Array.isArray(x) ? [x.key, x.count] : x))
+      .filter((x) => Array.isArray(x) && x.length === 2) : []);
+    this.wallet = new Map(s.currencies.map((c) => [c.id, 0]));
+    for (const [id, n] of pairs(state.wallet)) { const c = named(s.currencies, id); if (c && integer(n, 0, SHOP_LIMIT.amount)) this.wallet.set(id, Math.min(n, c.max)); }
+    this.pity = new Map(pairs(state.pity).filter(([id, n]) => named(s.banners, id) && integer(n, 0, 1000)));
+    this.bought = new Map(pairs(state.bought).filter(([id, n]) => named(s.products, id) && integer(n, 1, 999)));
+    for (const [id, n] of pairs(state.items)) if (named(this.world.items || [], id) && integer(n, 1, 999999)) this.bag.set(id, Math.max(this.bag.get(id) || 0, n));
+    for (const id of Array.isArray(state.owned) ? state.owned : []) if (named(this.world.characters, id)) this.owned.add(id);
+    this.draws = shopDraws(this.world, state.draws);
+    if (Array.isArray(results)) this.shopPanel = { kind: 'result', title, rewards: shopRewards(this.world, results, false, 10) };
+    this.progressVersion++;
+    this.serial++;
+    return true;
   }
   rememberMap() {
     if (!this.map || !this.hero) return;
@@ -314,6 +339,7 @@ class FieldRun {
       rewards: [...this.rewards],
       bag: [...this.bag],
       gear: [...this.gear],
+      owned: [...this.owned],
       ...(this.world.shop ? { shop: this.shopSave() } : {}),
       enemies: this.foes.map((e) => [
         e.id,
@@ -383,7 +409,9 @@ class FieldRun {
     this.completedStories = new Set(data.stories);
     this.enter(data.map, 'restore');
     this.mapRules = new Set(data.mapRules);
-    this.characterId = data.actor;
+    this.ownedReset();
+    for (const id of Array.isArray(data.owned) ? data.owned : []) if (named(this.world.characters, id)) this.owned.add(id);
+    this.characterId = this.playable(data.actor);
     Object.assign(this.hero, {
       hp: clamp(data.hp, 1, this.character.health),
       x: clamp(data.x, 1, this.map.width - 1),
@@ -422,7 +450,7 @@ class FieldRun {
     this.map = named(this.world.scenes, id);
     this.sceneAge=mode==='restore'?Infinity:0;
     this.serial++;
-    this.characterId = this.map.characterId;
+    this.characterId = this.playable(this.map.characterId, this.characterId);
     this.evade=null;
     this.cast=null;
     const memory = mode === 'restart' ? null : this.mapMemory.get(id);
@@ -545,7 +573,11 @@ class FieldRun {
       )
         continue;
       this.rewards.add(q.id);
-      this.bag.set(q.reward, Math.min(999999, (this.bag.get(q.reward) || 0) + q.count));
+      if (q.rewardKind === 'currency') {
+        this.grant({ kind: 'currency', id: q.reward, count: q.count });
+        // The server wallet pays a quest's currency once per player; its answer replaces the device's amount.
+        if (this.serverShop) (this.hostRequests ??= []).push({ action: 'serverShop', target: 'claim', value: q.id, count: 1 });
+      } else this.bag.set(q.reward, Math.min(999999, (this.bag.get(q.reward) || 0) + q.count));
       this.progressVersion++;
     }
   }
@@ -747,6 +779,7 @@ class FieldRun {
       const multi = named(this.world.shop?.banners || [], target)?.multi || 0;
       const done = action === 'buy' ? this.buy(target) : this.draw(target, action === 'drawMulti' ? multi : 1);
       if (done === 'store') (this.hostRequests ??= []).push({ action: 'store', target, value: '' });
+      else if (done === 'server') (this.hostRequests ??= []).push({ action: 'serverShop', target: action === 'buy' ? 'buy' : 'draw', value: target, count: action === 'drawMulti' ? multi : 1 });
       else if (done === 'ok') (this.hostRequests ??= []).push({ action: 'shopSaved', target, value: '' });
       else if (done !== 'missing') (this.hostRequests ??= []).push({ action: 'say', target: 'shop.' + done, value: '' });
       this.serial++;
@@ -778,7 +811,7 @@ class FieldRun {
       return;
     }
     if (action === 'previousActor' || (action === 'switch' && front)) {
-      const roster = this.world.characters, delta = action === 'previousActor' ? -1 : 1;
+      const roster = this.roster, delta = action === 'previousActor' ? -1 : 1;
       this.chooseActor(roster[(roster.indexOf(this.character) + delta + roster.length) % roster.length].id);
       return;
     }
@@ -801,6 +834,7 @@ class FieldRun {
       this.eventMachine?.restore(null,0);
       this.bag.clear();
       this.gear.clear();
+      this.ownedReset();
       this.shopReset();
       this.progressVersion++;
       this.enter(this.world.startMap, 'restart');
@@ -846,7 +880,7 @@ class FieldRun {
       return;
     }
     if (action === 'selectActor') {
-      this.chooseActor(target);
+      if (this.owned.has(target)) this.chooseActor(target);
       return;
     }
     if (action === 'skip' && this.dialogue) {
@@ -900,7 +934,7 @@ class FieldRun {
       return;
     }
     if (action === 'switch') {
-      const roster = this.world.characters;
+      const roster = this.roster;
       this.chooseActor(roster[(roster.indexOf(this.character) + 1) % roster.length].id);
       return;
     }

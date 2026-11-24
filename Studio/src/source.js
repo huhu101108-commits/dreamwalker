@@ -391,7 +391,7 @@ function frameDeviceValues(doc, relay) {
   return values;
 }
 // The game frame has no network of its own. Only these requests are forwarded, with this page's guest cookie.
-const RELAYED = /^\/api\/(?:arena\/(?:session|saves|save|transfer|claim)|reports(?:\/session)?)(?:\?[\w=&%.-]*)?$/;
+const RELAYED = /^\/api\/(?:arena\/(?:session|saves|save|transfer|claim|wallet|shop|receipt)|reports(?:\/session)?)(?:\?[\w=&%.-]*)?$/;
 async function relayGameRequest(frame, m) {
   if (m?.dreamwalker === 'open-arena') { window.open('/arena', '_blank', 'noopener'); return; }
   // A link button of the game: only web pages and mail addresses, in a new tab without access back to the studio.

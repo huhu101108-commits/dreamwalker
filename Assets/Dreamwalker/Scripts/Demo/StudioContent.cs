@@ -77,6 +77,8 @@ public class StudioTuning
 public class StudioCharacter
 {
     public string id, name, region, summary, color, sprite, portrait, passive;
+    // locked: joins the roster from a pull or a reward (상점 · 뽑기), not at the start.
+    public bool locked;
     public int health;
     public float speedScale, jumpScale, attackScale, reachScale;
     public StudioSkill[] skills;
@@ -480,7 +482,8 @@ internal static class StudioOutline
     }
 }
 [Serializable] public class StudioItem { public string id, name, slot; public int power; }
-[Serializable] public class StudioQuest { public string id, name, kind, target, reward; public int count, goal; }
+// rewardKind: "currency" pays the shop currency reward names; otherwise reward is an item.
+[Serializable] public class StudioQuest { public string id, name, kind, target, reward, rewardKind; public int count, goal; }
 [Serializable] public class StudioClip {
     public string key,fx,cue,sound; public int cueTick;
     public StudioFrame[] frames; public StudioClipPaint paint; public StudioClipMarkers markers;

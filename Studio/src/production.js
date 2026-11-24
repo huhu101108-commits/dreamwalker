@@ -216,8 +216,13 @@ function drawRPG() {
           'target',
           optionMap(q.kind === 'clear' ? project.scenes : project.stories),
         )]),
-        bindSelect('보상 장비', q, 'reward', optionMap(project.items)),
-        bindNumber('보상 수량', q, 'count', 1, 999, 1),
+        // A quest pays an item, or a currency of the shop (상점 · 뽑기) such as the gems a gacha costs.
+        ...(project.shop?.currencies.length ? [selectField('보상 종류', q.rewardKind || 'item', { item: '장비 아이템', currency: '재화' }, (v) => edit(() => {
+          if (v === 'currency') { q.rewardKind = 'currency'; q.reward = project.shop.currencies[0].id; }
+          else { delete q.rewardKind; q.reward = project.items[0]?.id || ''; q.count = Math.min(q.count, 999); }
+        }))] : []),
+        q.rewardKind === 'currency' ? bindSelect('보상 재화', q, 'reward', optionMap(project.shop.currencies)) : bindSelect('보상 장비', q, 'reward', optionMap(project.items)),
+        bindNumber('보상 수량', q, 'count', 1, q.rewardKind === 'currency' ? 99999 : 999, 1),
         action('의뢰 삭제', () => edit(() => project.quests.splice(project.quests.indexOf(q), 1))),
       ),
     );

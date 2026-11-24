@@ -201,6 +201,10 @@ async function arenaApi(req,env,op) {
   }
   if (!player) err(401,'기기 게스트로 입장하세요.');
   if (['saves','save','transfer'].includes(op)) return cloudApi(db,req,player,op,b);
+  if (['wallet','shop','receipt'].includes(op)) {
+    if (!post) err(405,'POST 요청이 필요해요.');
+    return walletApi(env,db,player,op,b);
+  }
   if (op==='me') {
     const room=await arenaCurrent(db,player.id);
     const wallet=await arenaQuery(db,'SELECT credits,medals,wins FROM dw_players WHERE id=?',player.id).first();

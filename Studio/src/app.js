@@ -147,13 +147,18 @@ function bindSelect(label, obj, key, options, redraw = true) {
 // Typing saves each letter without redrawing, so the field keeps its focus. Once a value is committed (leaving the
 // field or Enter), the tool redraws so names show in lists, cards and headers: after a press in progress has
 // clicked, keeping the field or button the person moved to and the page position.
-let commitDrawPending = false, pointerHeld = false;
+// Moving on to type in another field waits: the redraw comes when that one is committed or focus leaves the fields,
+// so it never replaces a field being typed in.
+let commitDrawPending = false, commitFrom = null, pointerHeld = false;
+const typingField = (n) => !!n?.matches?.('input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]), textarea');
 addEventListener('pointerdown', () => { pointerHeld = true; }, true);
 for (const type of ['pointerup', 'pointercancel'])
   addEventListener(type, () => { pointerHeld = false; if (commitDrawPending) setTimeout(commitDraw); }, true);
+addEventListener('focusout', (e) => { if (commitDrawPending && !typingField(e.relatedTarget) && !pointerHeld) setTimeout(commitDraw); }, true);
 function afterFieldCommit(input) {
   if (!input?.isConnected || !input.closest('#content')) return;
   commitDrawPending = true;
+  commitFrom = input;
   if (!pointerHeld) setTimeout(commitDraw);
 }
 function fieldName(n) {
@@ -161,7 +166,11 @@ function fieldName(n) {
 }
 function commitDraw() {
   if (!commitDrawPending || !project) return;
+  // Typing in another field: wait for it.
+  const typing = document.activeElement;
+  if (typingField(typing) && $('#content').contains(typing) && typing !== commitFrom) return;
   commitDrawPending = false;
+  commitFrom = null;
   const content = $('#content'), active = document.activeElement, name = content.contains(active) ? fieldName(active) : '';
   const same = (root) => [...root.querySelectorAll('input,select,textarea,button')].filter((n) => fieldName(n) === name);
   const index = name ? same(content).indexOf(active) : -1;

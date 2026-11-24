@@ -49,7 +49,17 @@ const banners = p.shop.banners.map((b) => {
   return { id: b.id, odds: m.gachaOdds(p, b), effective: eff ? [String(eff.pulls), eff.percent] : null, pulls };
 });
 const percents = [[1, 1], [600, 1], [600, 3], [5100 * 3, 4], [94300 * 7, 10], [1, 3], [2, 3], [100000, 7], [99999, 1]].map(([n, d]) => [n, d, m.oddsPercent(n, d)]);
-const text = JSON.stringify({ project: { items: p.items, shop: p.shop }, banners, percents }, null, 1) + '\n';
+// Character rewards: one the holder already has becomes the banner's duplicate reward (gachaGrant).
+const characterBanner = structuredClone(p.shop.banners[0]);
+characterBanner.tiers[0].entries = [{ kind: 'character', id: 'yuri', count: 1, weight: 1 }];
+characterBanner.duplicate = { kind: 'currency', id: 'gem', count: 50 };
+const grants = [];
+for (const owned of [false, true]) for (const [tier, entry] of [[0, 0], [1, 0], [2, 1]]) {
+  const given = [], t = characterBanner.tiers[tier];
+  const record = m.gachaGrant({ owns: () => owned, grant: (g) => given.push({ kind: g.kind, id: g.id, count: g.count }) }, characterBanner, t, t.entries[entry]);
+  grants.push({ owned, tier, entry, record, given });
+}
+const text = JSON.stringify({ project: { items: p.items, shop: p.shop }, banners, percents, characterBanner, grants }, null, 1) + '\n';
 const target = new URL('./native-check/gacha.json', import.meta.url);
 if (process.argv.includes('--check')) {
   if ((await readFile(target, 'utf8').catch(() => '')) !== text) {

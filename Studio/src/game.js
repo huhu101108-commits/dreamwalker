@@ -304,7 +304,34 @@ function launchGame(mapId, screenId = '', inspection = false) {
   // Paid products: the web has no store. Studio test plays complete a test purchase so the flow can be checked.
   function buyWithMoney(id) {
     if (!preview) return say(systemText(run.world, 'shop.store'));
+    // A studio test play pays with a test receipt; the server wallet checks it like a store purchase.
+    if (run.serverShop) return shopServer('receipt', named(run.world.shop.products, id)?.cost.sku || '');
     if (run.buy(id, true) === 'ok') { persistShop(); render(); say(systemText(run.world, 'shop.testPaid')); }
+  }
+  // The server wallet (shop.server): the server buys, pulls and pays quest currency; the game shows its answer and keeps
+  // it in the device save. One purchase or pull at a time; quest payments do not wait.
+  let shopBusy = false;
+  async function shopServer(op, id = '', count = 1, quiet = false) {
+    const words = (name) => systemText(run.world, name);
+    if (!serverReachable()) { if (!quiet) say(words('cloud.offline')); return; }
+    const exclusive = op !== 'claim' && op !== 'wallet';
+    if (exclusive && shopBusy) return;
+    if (exclusive) shopBusy = true;
+    try {
+      await arenaCall('session', {});
+      const r = op === 'wallet' ? await arenaCall('wallet', { game: cloudGame })
+        : op === 'receipt' ? await arenaCall('receipt', { game: cloudGame, store: 'test', sku: id, token: crypto.randomUUID() })
+        : await arenaCall('shop', { game: cloudGame, action: op, id, count });
+      run.applyServerShop(r.state, r.error || !Array.isArray(r.results) || op === 'claim' ? null : r.results, r.title || '');
+      persistShop();
+      render();
+      if (r.error) say(words(['short', 'limit'].includes(r.error) ? 'shop.' + r.error : 'shop.server'));
+      else if (op === 'receipt') say(words(r.paid ? 'shop.bought' : 'shop.testPaid'));
+    } catch {
+      if (!quiet) say(words(op === 'receipt' ? 'shop.verify' : 'shop.server'));
+    } finally {
+      if (exclusive) shopBusy = false;
+    }
   }
   // A purchase or pull is kept at once, also while a menu is open: the last device save gets the new wallet and bag.
   function persistShop() {
@@ -312,7 +339,7 @@ function launchGame(mapId, screenId = '', inspection = false) {
     try {
       const text = saveStore?.getItem(saveKey);
       if (!text) return;
-      const next = JSON.stringify(Object.assign(JSON.parse(text), { bag: [...run.bag], gear: [...run.gear], shop: run.shopSave() }));
+      const next = JSON.stringify(Object.assign(JSON.parse(text), { bag: [...run.bag], gear: [...run.gear], owned: [...run.owned], shop: run.shopSave() }));
       if (next !== text) { saveStore.setItem(saveKey, next); lastSaved = next; }
     } catch {}
   }
@@ -324,6 +351,8 @@ function launchGame(mapId, screenId = '', inspection = false) {
   }
   if(options){if(!options.resume || !continueProgress())beginInspectionAt(run,{...options,screenId});}
   else if(!inspection)run.startPresentation(screenId);
+  // A server-wallet game shows the server's amounts from the start.
+  if (run.serverShop) shopServer('wallet', '', 1, true);
   const replay=options?.replayTape&&validFieldTake(options.replayTape)?options.replayTape:null;
   const take=replay||options?.recordInputs?new FieldInputTake(run,replay):null;
   let frame,
@@ -661,6 +690,7 @@ function launchGame(mapId, screenId = '', inspection = false) {
       if (r.action === 'reports') setReports(r.target);
       else if (r.action === 'say') say(systemText(run.world, r.target));
       else if (r.action === 'store') buyWithMoney(r.target);
+      else if (r.action === 'serverShop') shopServer(r.target, r.value, r.count || 1);
       else if (r.action === 'shopSaved') persistShop();
       else if (r.action === 'saveGame') saveProgress(true);
       else if (r.action === 'loadGame') {

@@ -110,6 +110,11 @@ assemblies.set('Assembly-CSharp-Editor', { name: 'Assembly-CSharp-Editor', prede
 const precompiled = new Map();
 for (const folder of packageFolders.values())
   walk(folder, true, (path) => { if (path.endsWith('.dll') && !precompiled.has(basename(path))) precompiled.set(basename(path), path); });
+// Precompiled assemblies Unity references from every assembly that does not override its references (such as the
+// Newtonsoft.Json the Unity services packages use): those whose import settings are not "explicitly referenced".
+const autoPrecompiled = [...precompiled.values()].filter((path) => {
+  try { return !/isExplicitlyReferenced: 1/.test(readFileSync(path + '.meta', 'utf8')); } catch { return false; }
+});
 
 function semverAtLeast(have, need) {
   const a = String(have).split(/[.-]/).map(Number), b = String(need).split(/[.-]/).map(Number);
@@ -126,6 +131,12 @@ function versionDefines(def) {
   }).map((v) => v.define);
 }
 const isTest = (a) => (a.def.defineConstraints || []).includes('UNITY_INCLUDE_TESTS');
+// includePlatforms / excludePlatforms: an assembly builds only for the platforms it allows, and Unity leaves references
+// to assemblies that are not built for the target out (package stubs stand in for store-specific code).
+const forPlatform = (a, platform) => {
+  const include = a.def.includePlatforms || [], exclude = a.def.excludePlatforms || [];
+  return include.length ? include.includes(platform) : !exclude.includes(platform);
+};
 const editorOnly = (a) => a.editorOnly || (a.def.includePlatforms || []).length === 1 && a.def.includePlatforms[0] === 'Editor';
 
 const sdk = execFileSync('dotnet', ['--list-sdks'], { encoding: 'utf8' }).trim().split('\n').at(-1);
@@ -160,7 +171,8 @@ function compile(label, name, files, references, defines, unsafe) {
 function build(label, editor) {
   const built = new Map(), building = new Set();
   const base = [...(editor ? [...engine, ...editorDlls] : engine), ...shims];
-  const wanted = (a) => a.files.length > 0 && (editor || !editorOnly(a) && !isTest(a));
+  const platform = editor ? 'Editor' : 'Android';
+  const wanted = (a) => a.files.length > 0 && (editor || !editorOnly(a) && !isTest(a)) && (a.predefined || forPlatform(a, platform));
   function compileAssembly(a) {
     if (built.has(a.name)) return built.get(a.name);
     if (building.has(a.name)) throw Error('Assembly reference cycle at ' + a.name);
@@ -173,11 +185,14 @@ function build(label, editor) {
         (o.project || o.name === 'UnityEngine.UI') && wanted(o)).map((o) => o.name);
       if (a.name === 'Assembly-CSharp-Editor') names.push('Assembly-CSharp');
     }
+    // uGUI was part of the engine; Unity still gives every assembly with engine references UnityEngine.UI.
+    if (!def.noEngineReferences && !a.predefined && a.name !== 'UnityEngine.UI' && !names.includes('UnityEngine.UI') && assemblies.has('UnityEngine.UI'))
+      names = [...names, 'UnityEngine.UI'];
     let ok = true;
     for (const ref of names) {
       const target = assemblies.get(ref);
       if (target) {
-        if (!target.files.length || !editor && editorOnly(target)) continue;
+        if (!target.files.length || !editor && editorOnly(target) || !target.predefined && !forPlatform(target, platform)) continue;
         const path = compileAssembly(target);
         if (path) refs.push(path); else ok = false;
       } else if (!engineModules.has(ref) && !ref.startsWith('GUID:') && installedName(ref)) {
@@ -188,6 +203,7 @@ function build(label, editor) {
       if (precompiled.has(dll)) refs.push(precompiled.get(dll));
       else { console.log('  ' + a.name + ' needs ' + dll + ', which no installed package provides'); ok = false; }
     }
+    if (!def.overrideReferences) refs.push(...autoPrecompiled);
     building.delete(a.name);
     if (!ok) { console.log('SKIP Unity ' + version + ' ' + label + ' ' + a.name + ': a reference did not compile'); built.set(a.name, null); return null; }
     const defines = [...(editor ? editorDefines : common), ...versionDefines(def), ...(isTest(a) ? ['UNITY_INCLUDE_TESTS'] : [])];

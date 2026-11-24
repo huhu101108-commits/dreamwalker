@@ -131,6 +131,10 @@ public static class StudioSystemText
         { "gacha.since", "마지막 {등급} 이후 {횟수}회" },
         { "gacha.effective", "천장 포함 {등급} 평균 확률 {확률}% (평균 {횟수}회)" },
         { "gacha.history", "최근 뽑기" },
+        { "gacha.new", "NEW" },
+        { "gacha.owned", "보유 중" },
+        { "shop.server", "서버에 연결하지 못했어요. 잠시 뒤 다시 시도하세요." },
+        { "shop.verify", "결제를 확인하지 못했어요. 결제가 되었다면 다시 실행하면 지급돼요." },
     };
     public static string Default(string name) => name != null && defaults.TryGetValue(name, out string text) ? text : "";
     public static IEnumerable<string> Names => defaults.Keys;

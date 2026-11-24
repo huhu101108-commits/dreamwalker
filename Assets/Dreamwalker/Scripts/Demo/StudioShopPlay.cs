@@ -7,7 +7,6 @@ using UnityEngine;
 namespace Dreamwalker.Demo
 {
 [Serializable] public class StudioCount { public string key; public int count; }
-[Serializable] public class StudioDrawRecord { public string banner, tier, kind, id; public bool top; public int count; }
 [Serializable] public class StudioShopSave { public StudioCount[] wallet, pity, bought; public StudioDrawRecord[] draws; }
 public sealed class StudioShopPanel { public string kind, banner, title; public List<StudioDrawRecord> rewards = new List<StudioDrawRecord>(); }
 
@@ -18,7 +17,17 @@ public static class StudioPurchases
 {
     public delegate void Purchase(string sku, int priceWon, Action<bool> done);
     public static Purchase Handler;
+    // A store adapter that reports each purchase's store and token (StudioUnityPurchasing with Unity IAP): Prepare starts
+    // it with the project's paid products, ReceiptHandler buys, Confirm finishes a purchase once the game has kept what
+    // it gave, and Pending receives purchases the store delivers again (one interrupted before it was confirmed).
+    public static Action<StudioProject> Prepare;
+    public delegate void ReceiptPurchase(string sku, int priceWon, Action<StudioReceipt> done);
+    public static ReceiptPurchase ReceiptHandler;
+    public static Action<StudioReceipt> Confirm;
+    public static Action<StudioReceipt> Pending;
 }
+// store: "google", "apple" or "test" (the editor's fake store); token: the purchase token or transaction ID.
+public sealed class StudioReceipt { public bool ok; public string store, sku, token; }
 
 // The player's store and gacha state, the same rules as FieldRun.buy/draw in the studio: wallet, pulls since the last
 // top result, purchase counts and the last 30 pulls, kept in the progress save.
@@ -41,14 +50,17 @@ public sealed partial class StudioWorld
     private void Grant(StudioReward g)
     {
         if (g.kind == "currency") { var c = Currency(g.id); if (c != null) wallet[g.id] = (int)Math.Min(c.max, (long)Owned(g.id) + g.count); }
+        else if (g.kind == "character") { if (Project.Character(g.id) != null) ownedCharacters.Add(g.id); }
         else if (Item(g.id) != null) bag[g.id] = (int)Math.Min(999999, (long)(bag.TryGetValue(g.id, out int n) ? n : 0) + g.count);
     }
+    private StudioDrawRecord PullReward(StudioBanner b, StudioTier t, StudioReward e) => StudioGacha.Grant(b, t, e, Owns, Grant);
     private string Buy(string id, bool paid)
     {
         var p = Array.Find(Project.shop?.products ?? Array.Empty<StudioProduct>(), v => v.id == id);
         if (p == null) return "missing";
         if (p.limit > 0 && (bought.TryGetValue(id, out int had) ? had : 0) >= p.limit) return "limit";
         if (p.cost.kind == "money" && !paid) return "store";
+        if (Project.shop.server && !paid) return "server";
         if (p.cost.kind == "currency")
         {
             if (Owned(p.cost.id) < p.cost.amount) return "short";
@@ -67,6 +79,7 @@ public sealed partial class StudioWorld
         if (b == null) return "missing";
         long price = (long)b.cost.amount * count;
         if (Owned(b.cost.currency) < price) return "short";
+        if (Project.shop.server) return "server";
         wallet[b.cost.currency] = (int)(Owned(b.cost.currency) - price);
         int since = pityCount.TryGetValue(id, out int s) ? s : 0;
         var panel = new StudioShopPanel { kind = "result", title = b.name };
@@ -75,8 +88,7 @@ public sealed partial class StudioWorld
             var t = b.tiers[StudioGacha.Tier(b, since, RandomNumberGenerator.GetInt32(StudioGacha.Rate))];
             var e = t.entries[StudioGacha.Entry(t, RandomNumberGenerator.GetInt32(StudioGacha.Weight(t)))];
             since = t.top ? 0 : since + 1;
-            Grant(e);
-            panel.rewards.Add(new StudioDrawRecord { banner = id, tier = t.name, top = t.top, kind = e.kind, id = e.id, count = e.count });
+            panel.rewards.Add(PullReward(b, t, e));
         }
         pityCount[id] = since;
         for (int i = 0; i < panel.rewards.Count; i++) draws.Insert(0, panel.rewards[i]);
@@ -88,9 +100,11 @@ public sealed partial class StudioWorld
     {
         if (action == "odds") { if (Banner(target) != null) { ShopPanel = new StudioShopPanel { kind = "odds", banner = target }; shopScroll = Vector2.zero; } return true; }
         if (action != "buy" && action != "draw" && action != "drawMulti") return false;
-        string done = action == "buy" ? Buy(target, false) : Draw(target, action == "drawMulti" ? Banner(target)?.multi ?? 0 : 1);
+        int count = action == "drawMulti" ? Banner(target)?.multi ?? 0 : 1;
+        string done = action == "buy" ? Buy(target, false) : Draw(target, count);
         shopScroll = Vector2.zero;
         if (done == "store") BuyWithMoney(target);
+        else if (done == "server") ServerShop(action == "buy" ? "buy" : "draw", target, count);
         else if (done != "ok" && done != "missing") Notice(StudioLocalization.Text("shop." + done));
         if (done == "ok") PersistShop();
         return true;
@@ -109,6 +123,7 @@ public sealed partial class StudioWorld
         foreach (var pair in gear) equipment.Add(new StudioEquipEntry { key = pair.Key, id = pair.Value });
         saved.bag = inventory.ToArray();
         saved.gear = equipment.ToArray();
+        saved.owned = new List<string>(ownedCharacters).ToArray();
         saved.shop = ShopSave();
         string json = JsonUtility.ToJson(saved);
         PlayerPrefs.SetString(SaveKey, json);
@@ -118,6 +133,19 @@ public sealed partial class StudioWorld
     private void BuyWithMoney(string id)
     {
         var p = Array.Find(Project.shop.products, v => v.id == id);
+        // A server-wallet game has the server check the store's receipt and pay; the purchase is confirmed after that.
+        if (Project.shop.server)
+        {
+            if (StudioPurchases.ReceiptHandler != null) StudioPurchases.ReceiptHandler(p.cost.sku, p.cost.amount, ReceiptArrived);
+            else if (Application.isEditor || Debug.isDebugBuild) ReceiptArrived(new StudioReceipt { ok = true, store = "test", sku = p.cost.sku, token = Guid.NewGuid().ToString("N") });
+            else Notice(StudioLocalization.Text("shop.store"));
+            return;
+        }
+        if (StudioPurchases.ReceiptHandler != null)
+        {
+            StudioPurchases.ReceiptHandler(p.cost.sku, p.cost.amount, receipt => { if (receipt.ok) KeepPurchase(receipt); });
+            return;
+        }
         if (StudioPurchases.Handler != null)
         {
             StudioPurchases.Handler(p.cost.sku, p.cost.amount, ok =>
@@ -151,7 +179,7 @@ public sealed partial class StudioWorld
         foreach (var c in saved.bought ?? Array.Empty<StudioCount>())
             if (c != null && Array.Exists(shop.products ?? Array.Empty<StudioProduct>(), p => p.id == c.key) && c.count >= 1 && c.count <= 999) bought[c.key] = c.count;
         foreach (var d in saved.draws ?? Array.Empty<StudioDrawRecord>())
-            if (d != null && Banner(d.banner) != null && (d.kind == "item" || d.kind == "currency") && d.count >= 1 && draws.Count < DrawHistory) draws.Add(d);
+            if (d != null && Banner(d.banner) != null && (d.kind == "item" || d.kind == "currency" || d.kind == "character") && d.count >= 1 && draws.Count < DrawHistory) draws.Add(d);
     }
     private string WalletText(string text)
     {
@@ -159,7 +187,11 @@ public sealed partial class StudioWorld
         return System.Text.RegularExpressions.Regex.Replace(text, @"\{재화:([a-zA-Z0-9_-]{1,50})\}",
             m => Owned(m.Groups[1].Value).ToString(System.Globalization.CultureInfo.InvariantCulture));
     }
-    private string Counted(StudioDrawRecord g) => StudioGacha.RewardName(Project, new StudioReward { kind = g.kind, id = g.id }) + (g.count > 1 ? " ×" + g.count : "");
+    private string Counted(StudioDrawRecord g) =>
+        (g.kind == "character" && !g.dup ? StudioLocalization.Text("gacha.new") + " " : "") +
+        StudioGacha.RewardName(Project, new StudioReward { kind = g.kind, id = g.id }) + (g.count > 1 ? " ×" + g.count : "") +
+        (g.dup ? " · " + StudioLocalization.Text("gacha.owned") + (!string.IsNullOrEmpty(g.instead?.kind)
+            ? " → " + StudioGacha.RewardName(Project, g.instead) + (g.instead.count > 1 ? " ×" + g.instead.count : "") : "") : "");
     // The built-in panel above every screen: a banner's probability disclosure, or what a purchase or pull gave.
     private void DrawShopPanel()
     {

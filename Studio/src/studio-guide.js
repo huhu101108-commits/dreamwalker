@@ -17,6 +17,7 @@ const STUDIO_GUIDE = [
     ['카메라', 's:카메라 · 배경 움직임', '카메라 시차 따라가기']] },
   { tab: 'characters', name: '캐릭터', for: '캐릭터 능력치·스킬, 표정·프로필, 초상 움직임, 게이지와 컷인 연출', features: [
     ['캐릭터 정보', 'h:캐릭터 속성', '이름 소개 체력 그림'], ['스킬 만들기', 'h:스킬 구성', '스킬 동작 쿨타임'],
+    ['잠긴 캐릭터 (뽑기로 얻기)', 'l:처음엔 잠김', '잠금 해금 캐릭터 뽑기 획득'],
     ['표정 세트', 's:표정 세트', '표정 이미지'], ['프로필 항목', 's:프로필 항목', '소속 생일 성우'],
     ['초상 움직임', 's:초상 움직임', '숨쉬기 깜박임 입'], ['스킬 게이지', 's:스킬 게이지 · 필살기 자원', '필살기 게이지 자원'],
     ['컷인·외침', 's:스킬 연출 · 컷인 / 외침 / 음성', '컷인 외침 음성 연출']] },
@@ -35,9 +36,9 @@ const STUDIO_GUIDE = [
   { tab: 'locales', name: '번역 · 언어', for: '언어 추가, 표에서 번역, CSV로 번역가와 주고받기, 게임 기본 문구 바꾸기', features: [
     ['번역 언어 추가', 'b:＋ 번역 언어 추가', '영어 일본어 중국어 다국어'], ['번역 표', 'h:번역 · 언어', '번역 원문 바뀜'], ['언어 목록', 'h:언어 목록', 'CSV 기본 언어']] },
   { tab: 'rpg', name: '아이템 · 의뢰', for: '장비 아이템과 의뢰(완료 조건·보상)', features: [['아이템 만들기', 'h:아이템 · 장비', '장비 무기 공격력'], ['의뢰 만들기', 'h:의뢰 · 보상', '퀘스트 보상 조건']] },
-  { tab: 'shop', name: '상점 · 뽑기', for: '재화·상품·뽑기(등급 확률·천장)를 만들고 확률 공개 화면과 시뮬레이션으로 확인', features: [
+  { tab: 'shop', name: '상점 · 뽑기', for: '재화·상품·뽑기(등급 확률·천장)·캐릭터 뽑기를 만들고 확률 공개 화면과 시뮬레이션으로 확인, 서버 지갑과 결제 확인', features: [
     ['재화 만들기', 'b:＋ 재화', '젬 골드 결정 화폐'], ['재화 목록', 'h:재화', '시작 수량 최대'], ['상품 만들기', 'h:상품', '가격 원화 결제 스토어'],
-    ['뽑기 · 확률 공개', 'h:뽑기 · 확률 공개', '가챠 확률 천장 /odds']] },
+    ['뽑기 · 확률 공개', 'h:뽑기 · 확률 공개', '가챠 확률 천장 /odds 캐릭터 뽑기 중복 보상'], ['서버 지갑', 'h:서버 지갑', '서버 결제 영수증 검증 유료 재화 인앱 결제 IAP']] },
   { tab: 'rules', name: '전투 규칙 · Unity', for: '전투 규칙·이벤트 규칙, 같은 입력으로 비교, 온라인 친선전 게시와 Unity 연결', features: [
     ['전투 규칙', 'h:전투 규칙', '적중 보호막 반격'], ['이벤트 규칙', 's:이벤트 규칙 설계', '변수 신호 타이머'],
     ['같은 입력으로 비교', 's:같은 입력으로 규칙 비교', '재생 기록'], ['온라인 친선전', 'h:온라인 친선전', '대전 게시 PVP'], ['Unity 연결', 'h:Unity 연결', 'Unity 플레이']] },
@@ -63,7 +64,7 @@ function featureElement(anchor, root = $('#content')) {
   if (kind === 'h') return all('h2,h3').find((n) => n.textContent.trim() === text);
   if (kind === 's') return all('summary').find((n) => n.textContent.trim().startsWith(text));
   if (kind === 'b') return all('button').find((n) => n.textContent.trim() === text);
-  if (kind === 'l') return all('label.control > span').find((n) => n.textContent.trim().startsWith(text))?.parentElement;
+  if (kind === 'l') return all('label.control > span, label.check > span').find((n) => n.textContent.trim().startsWith(text))?.parentElement;
   return null;
 }
 // Some tools draw after loading (game source); a feature is looked for until it appears.
