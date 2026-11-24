@@ -143,7 +143,7 @@
 - 출발점은 제작 브랜치 `a901115`다. 상용 게임 기준으로 부족했던 점 중 이 작업 환경에서 만들고 검사할 수 있는 것을 먼저 보완했다.
 - **uGUI 전환**: Unity의 모든 게임 화면을 IMGUI에서 uGUI(`com.unity.ugui` 2.0.0)로 옮겼다. 화면 코드는 그리기 계층(`Assets/Dreamwalker/Scripts/UI/StudioPainter.cs`) 하나만 쓰며, uGUI 구현(`StudioCanvasPainter`)과 비교용 IMGUI 구현(`StudioImmediatePainter`, 에디터 메뉴로만 켬)이 같은 호출을 받는다. 글자·고정 크기는 스튜디오 미리보기와 같은 CSS 픽셀 기준에 화면 밀도를 곱한다.
 - **출시 빌드 기본값**: 릴리스 빌드에서 스튜디오 연결 패널 숨김, 플레이 중 60 FPS 목표와 화면 켜짐 유지, Escape(안드로이드 뒤로 가기)로 열린 메뉴·화면 닫기(웹과 같음). 플레이를 마치면 원래 값으로 돌린다.
-- **Unity 검증 경로**: 런타임·에디터 스크립트에 어셈블리 정의를 두고 Unity Test Framework 1.4.5 테스트(에디터 테스트 6건, 플레이 테스트 1건)를 추가했다. 라이선스 시크릿이 있으면 `unity-editor.yml`이 GameCI로 테스트를 실행하고 개발용 APK를 만든다. 컴파일 검사는 어셈블리 정의·uGUI·Test Framework까지 Unity처럼 구성한다.
+- **Unity 검증 경로**: 런타임·에디터 스크립트에 어셈블리 정의를 두고 Unity Test Framework 1.4.5 테스트(에디터 테스트 7건, 플레이 테스트 1건)를 추가했다. 라이선스 시크릿이 있으면 `unity-editor.yml`이 GameCI로 테스트를 실행하고 개발용 APK를 만든다. 컴파일 검사는 어셈블리 정의·uGUI·Test Framework까지 Unity처럼 구성한다.
 - **대사 초상 움직임**: 캐릭터 `faceMotion`(숨쉬기 0~3단계, 기본 초상의 눈 감은·말하는 그림)과 표정별 `blink`/`talk` 그림. 웹(대사창·이 줄 화면·오프라인 HTML)과 Unity가 같은 규칙(`portraitPose`/`StudioPortraitMotion`)으로 깜박임·입 움직임·숨쉬기를 그린다. 값이 없는 프로젝트와 프리셋은 그대로 동작하고, 초상 그림은 캐릭터 설정 프리셋에 복사하지 않는다.
 - **호환**: 프로젝트 형식(schema 4)은 바꾸지 않았다. Unity 프로젝트는 패키지 두 개(uGUI, Test Framework)와 어셈블리 정의가 추가되므로 처음 열 때 다시 임포트한다. 장면이 쓰는 스크립트의 GUID는 바뀌지 않는다.
 - **검증(2026-11-24, 이 작업 환경)**: [검증표의 uGUI 전환·초상 움직임 검수](VERIFICATION.md#ugui-전환초상-움직임-검수-2026-11-24)에 기록했다.
