@@ -16,6 +16,7 @@ public class StudioProject
     public int schema;
     public string title, startMap, saveId, customJson;
     public StudioLocale locale;
+    public StudioShop shop;
     public bool authoredKeysOnly;
     public StudioTuning tuning;
     public StudioMix mix;

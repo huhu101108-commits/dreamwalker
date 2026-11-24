@@ -5,12 +5,20 @@ function actionFields(owner, chained = false, prefix = '') {
     delete choices.right;
   }
   if (!project.stories.length) delete choices.startStory;
+  const shop = project.shop || emptyShop(), multi = shop.banners.filter((b) => b.multi > 0);
+  if (!shop.products.length) delete choices.buy;
+  if (!shop.banners.length) { delete choices.draw; delete choices.odds; }
+  if (!multi.length) delete choices.drawMulti;
   const targetsFor = (k) =>
     ({
       open: project.layouts,
       gotoMap: project.scenes,
       startStory: project.stories,
       selectActor: project.characters,
+      buy: shop.products,
+      draw: shop.banners,
+      odds: shop.banners,
+      drawMulti: multi,
     })[k];
   const root = box(
     'control-grid',
@@ -25,7 +33,7 @@ function actionFields(owner, chained = false, prefix = '') {
   if (targets)
     root.append(
       bindSelect(
-        prefix+{ open: '열 화면', gotoMap: '이동할 맵', startStory: '재생할 대화', selectActor: '교대할 캐릭터' }[
+        prefix+{ open: '열 화면', gotoMap: '이동할 맵', startStory: '재생할 대화', selectActor: '교대할 캐릭터', buy: '살 상품', draw: '뽑기', odds: '확률을 보여 줄 뽑기', drawMulti: '뽑기' }[
           owner.action
         ],
         owner,

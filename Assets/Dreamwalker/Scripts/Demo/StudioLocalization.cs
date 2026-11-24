@@ -198,6 +198,13 @@ public static class StudioLocalization
             }
         foreach (var it in p.items ?? Array.Empty<StudioItem>()) Add("item/" + it.id + "/name", () => it.name, v => it.name = v);
         foreach (var q in p.quests ?? Array.Empty<StudioQuest>()) Add("quest/" + q.id + "/name", () => q.name, v => q.name = v);
+        foreach (var c in p.shop?.currencies ?? Array.Empty<StudioCurrency>()) Add("shop/currency/" + c.id + "/name", () => c.name, v => c.name = v);
+        foreach (var x in p.shop?.products ?? Array.Empty<StudioProduct>()) Add("shop/product/" + x.id + "/name", () => x.name, v => x.name = v);
+        foreach (var b in p.shop?.banners ?? Array.Empty<StudioBanner>())
+        {
+            Add("shop/banner/" + b.id + "/name", () => b.name, v => b.name = v);
+            foreach (var t in b.tiers ?? Array.Empty<StudioTier>()) Add("shop/banner/" + b.id + "/tier/" + t.id + "/name", () => t.name, v => t.name = v);
+        }
         return list;
     }
 }

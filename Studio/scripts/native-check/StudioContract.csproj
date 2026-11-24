@@ -15,6 +15,8 @@
     <Compile Include="UiGeometry.cs" />
     <Compile Include="PortraitMotion.cs" />
     <Compile Include="Locale.cs" />
+    <Compile Include="Gacha.cs" />
+    <Compile Include="../../../Assets/Dreamwalker/Scripts/Demo/StudioGacha.cs" />
     <Compile Include="../../../Assets/Dreamwalker/Scripts/Demo/StudioLocalization.cs" />
     <Compile Include="../../../Assets/Dreamwalker/Scripts/Demo/StudioSystemText.cs" />
     <Compile Include="../../../Assets/Dreamwalker/Scripts/UI/StudioUiGeometry.cs" />
@@ -23,6 +25,7 @@
     <None Update="ui-geometry.json" CopyToOutputDirectory="PreserveNewest" />
     <None Update="portrait-motion.json" CopyToOutputDirectory="PreserveNewest" />
     <None Update="locale.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="gacha.json" CopyToOutputDirectory="PreserveNewest" />
     <None Update="character-stage.json" CopyToOutputDirectory="PreserveNewest" />
     <None Update="rule-replay.json" CopyToOutputDirectory="PreserveNewest" />
     <None Update="field-rule-replay.json" CopyToOutputDirectory="PreserveNewest" />

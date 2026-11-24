@@ -137,6 +137,7 @@ class FieldRun {
     this.mapMemory = new Map();
     this.cast = null;
     this.castSerial = 0;
+    this.shopReset();
     this.enter(mapId || world.startMap, directEntry ? 'restore' : 'travel');
     if (!directEntry) this.fire('start');
   }
@@ -187,7 +188,77 @@ class FieldRun {
     );
   }
   get paused() {
-    return !!(this.presentation || this.dialogue || this.result || this.screen?.pauseGame);
+    return !!(this.presentation || this.dialogue || this.result || this.screen?.pauseGame || this.shopPanel);
+  }
+  // Store and gacha: the wallet starts at each currency's start amount; pity counts pulls since the last top result.
+  shopReset() {
+    this.wallet = new Map((this.world.shop?.currencies || []).map((c) => [c.id, c.start]));
+    this.pity = new Map();
+    this.bought = new Map();
+    this.draws = [];
+    this.shopPanel = null;
+  }
+  grant(g) {
+    if (g.kind === 'currency') {
+      const c = named(this.world.shop?.currencies || [], g.id);
+      if (c) this.wallet.set(g.id, Math.min(c.max, (this.wallet.get(g.id) || 0) + g.count));
+    } else if (named(this.world.items || [], g.id)) this.bag.set(g.id, Math.min(999999, (this.bag.get(g.id) || 0) + g.count));
+    this.progressVersion++;
+  }
+  // 'ok', or why not: short (currency), limit (bought enough), store (a paid product the host must charge first).
+  buy(id, paid = false) {
+    const p = named(this.world.shop?.products || [], id);
+    if (!p) return 'missing';
+    if (p.limit && (this.bought.get(id) || 0) >= p.limit) return 'limit';
+    if (p.cost.kind === 'money' && !paid) return 'store';
+    if (p.cost.kind === 'currency') {
+      const have = this.wallet.get(p.cost.id) || 0;
+      if (have < p.cost.amount) return 'short';
+      this.wallet.set(p.cost.id, have - p.cost.amount);
+    }
+    for (const g of p.gives) this.grant(g);
+    this.bought.set(id, (this.bought.get(id) || 0) + 1);
+    this.progressVersion++;
+    this.shopPanel = { kind: 'result', title: p.name, rewards: p.gives.map((g) => ({ ...g, tier: '', top: false })) };
+    this.serial++;
+    return 'ok';
+  }
+  // roll(n): a uniform integer below n. The tier roll is drawn even when pity decides, then the reward roll.
+  draw(id, count = 1, roll = secureBelow) {
+    const b = named(this.world.shop?.banners || [], id);
+    if (!b) return 'missing';
+    const have = this.wallet.get(b.cost.currency) || 0, price = b.cost.amount * count;
+    if (have < price) return 'short';
+    this.wallet.set(b.cost.currency, have - price);
+    let since = this.pity.get(id) || 0;
+    const results = [];
+    for (let i = 0; i < count; i++) {
+      const t = b.tiers[gachaTier(b, since, roll(SHOP_LIMIT.rate))], e = t.entries[gachaEntry(t, roll(gachaWeight(t)))];
+      since = t.top ? 0 : since + 1;
+      this.grant(e);
+      results.push({ banner: id, tier: t.name, top: t.top, kind: e.kind, id: e.id, count: e.count });
+    }
+    this.pity.set(id, since);
+    this.progressVersion++;
+    this.draws = [...results.slice().reverse(), ...this.draws].slice(0, SHOP_LIMIT.history);
+    this.shopPanel = { kind: 'result', title: b.name, rewards: results };
+    this.serial++;
+    return 'ok';
+  }
+  shopSave() {
+    return { wallet: [...this.wallet], pity: [...this.pity], bought: [...this.bought], draws: this.draws.map((d) => ({ ...d })) };
+  }
+  shopRestore(saved) {
+    this.shopReset();
+    const s = this.world.shop;
+    if (!s || !saved || typeof saved !== 'object') return;
+    const pairs = (xs) => (Array.isArray(xs) ? xs.filter((x) => Array.isArray(x) && x.length === 2) : []);
+    for (const [id, n] of pairs(saved.wallet)) { const c = named(s.currencies, id); if (c && integer(n, 0, SHOP_LIMIT.amount)) this.wallet.set(id, Math.min(n, c.max)); }
+    for (const [id, n] of pairs(saved.pity)) if (named(s.banners, id) && integer(n, 0, 1000)) this.pity.set(id, n);
+    for (const [id, n] of pairs(saved.bought)) if (named(s.products, id) && integer(n, 1, 999)) this.bought.set(id, n);
+    this.draws = (Array.isArray(saved.draws) ? saved.draws : []).filter((d) => d && named(s.banners, d.banner) && ['item', 'currency'].includes(d.kind) &&
+      typeof d.tier === 'string' && typeof d.id === 'string' && integer(d.count, 1, SHOP_LIMIT.amount)).slice(0, SHOP_LIMIT.history)
+      .map(({ banner, tier, top, kind, id, count }) => ({ banner, tier: tier.slice(0, 20), top: top === true, kind, id, count }));
   }
   rememberMap() {
     if (!this.map || !this.hero) return;
@@ -227,6 +298,7 @@ class FieldRun {
       rewards: [...this.rewards],
       bag: [...this.bag],
       gear: [...this.gear],
+      ...(this.world.shop ? { shop: this.shopSave() } : {}),
       enemies: this.foes.map((e) => [
         e.id,
         e.hp,
@@ -281,6 +353,7 @@ class FieldRun {
           this.bag.has(id) && this.world.characters.some((c) => key === c.id + ':' + named(items, id).slot),
       ),
     );
+    this.shopRestore(data.shop);
     this.progressVersion++;
     this.mapMemory = new Map(data.maps);
     this.flags = new Set(data.flags);
@@ -592,12 +665,25 @@ class FieldRun {
     this.serial++;return true;
   }
   press(action, target = '') {
+    // The built-in shop panel sits above every screen and closes first.
+    if (this.shopPanel && (action === 'back' || action === 'resume' || action === 'closePanel')) { this.shopPanel = null; this.serial++; return; }
     if(this.dispatchProgram('input',action)?.consumed)return false;
     const route=({beginGame:'next',confirmActor:'next',back:'back',resume:'resume'})[action];
     if(route && this.followScreenRoute(route))return;
     // The host opens the online friendly match: the studio's match page in a browser, the match screen in Unity.
     if (action === 'online') { this.onlineRequests = (this.onlineRequests || 0) + 1; this.serial++; return; }
     // Cloud saves and device transfer go through the host's server connection; the input of a claim holds the code.
+    // Purchases and pulls tell the host what to say.
+    if (action === 'buy' || action === 'draw' || action === 'drawMulti') {
+      const multi = named(this.world.shop?.banners || [], target)?.multi || 0;
+      const done = action === 'buy' ? this.buy(target) : this.draw(target, action === 'drawMulti' ? multi : 1);
+      if (done === 'store') (this.hostRequests ??= []).push({ action: 'store', target, value: '' });
+      else if (done === 'ok') (this.hostRequests ??= []).push({ action: 'shopSaved', target, value: '' });
+      else if (done !== 'missing') (this.hostRequests ??= []).push({ action: 'say', target: 'shop.' + done, value: '' });
+      this.serial++;
+      return;
+    }
+    if (action === 'odds') { if (named(this.world.shop?.banners || [], target)) { this.shopPanel = { kind: 'odds', banner: target }; this.serial++; } return; }
     if (['cloudSave', 'cloudLoad', 'transferIssue', 'transferClaim', 'reports'].includes(action)) {
       const value = action === 'transferClaim' ? this.inputValues.get(target) ?? this.inputDefaults.get(target) ?? '' : '';
       (this.hostRequests ??= []).push({ action, target, value });
@@ -636,6 +722,7 @@ class FieldRun {
       this.eventMachine?.restore(null,0);
       this.bag.clear();
       this.gear.clear();
+      this.shopReset();
       this.progressVersion++;
       this.enter(this.world.startMap, 'restart');
       this.fire('start');

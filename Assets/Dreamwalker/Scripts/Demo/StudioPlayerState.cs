@@ -43,6 +43,7 @@ public class StudioPlayerSave
     public int combatTick;
     public StudioActorRules[] combatStates;
     public StudioProgramBucket eventState;
+    public StudioShopSave shop;
 }
 public sealed partial class StudioWorld
 {
@@ -64,6 +65,7 @@ public sealed partial class StudioWorld
             text = System.Text.RegularExpressions.Regex.Replace(text,@"\{입력:([a-zA-Z0-9_가-힣-]{1,50})\}",
                 m => formValues.TryGetValue(m.Groups[1].Value,out string value) || formDefaults.TryGetValue(m.Groups[1].Value,out value) ||
                      hostValues.TryGetValue(m.Groups[1].Value,out value) ? value : "");
+        text = WalletText(text);
         return Actor != null ? Actor.ProfileText(text) : text;
     }
     internal void CommitField(StudioWidget w,string raw) {
@@ -260,6 +262,7 @@ public sealed partial class StudioWorld
         rewards.Clear();
         bag.Clear();
         gear.Clear();
+        ShopReset();
         nextProgressSave = Time.unscaledTime + 5;
         lastPose = lastSpriteRef = null;
     }
@@ -329,6 +332,7 @@ public sealed partial class StudioWorld
         foreach (var pair in gear)
             equipment.Add(new StudioEquipEntry { key = pair.Key, id = pair.Value });
         snapshot.gear = equipment.ToArray();
+        if (Project.shop != null) snapshot.shop = ShopSave();
         string json = JsonUtility.ToJson(snapshot);
         if (json != lastCheckpoint)
         {
@@ -391,6 +395,7 @@ public sealed partial class StudioWorld
         foreach (var entry in saved.gear ?? Array.Empty<StudioEquipEntry>())
             if (entry?.key != null && bag.ContainsKey(entry.id))
                 gear[entry.key] = entry.id;
+        ShopRestore(saved.shop);
         Enter(Project.Map(saved.map), false, true);
         SetCharacter(Project.Character(saved.actor), false);
         flow.Restore(saved.flags, saved.runRules, saved.mapRules);

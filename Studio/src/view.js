@@ -353,11 +353,11 @@ function updateWidget(n, w, state) {
   else if (w.type === 'map') n.textContent = w.text || state.map.name;
   else if (w.type === 'inventory'){n.replaceChildren(el('button',say('items.open')));}
   else if (w.type === 'quests') n.textContent = say('quests.title');
-  else if (w.type === 'text') n.textContent = profileText(state.inputs?controlText(w.text,state.inputs,state.inputDefaults):w.text, c);
+  else if (w.type === 'text') n.textContent = profileText(walletText(state.inputs?controlText(w.text,state.inputs,state.inputDefaults):w.text, state.wallet), c);
   else if (w.type === 'button'){
     const s=w.states,disabled=n.disabled||state.previewState==='disabled',selected=state.previewState==='selected'||(s?.flag&&state.flags?.has(s.flag));
     const mark=s?(disabled?s.disabledMark:selected?s.selectedMark:''):'';
-    n.textContent=(mark?mark+' ':'')+(profileText(state.inputs?controlText(w.text,state.inputs,state.inputDefaults):w.text,c)||getActionLabel(w.action,c,world));
+    n.textContent=(mark?mark+' ':'')+(profileText(walletText(state.inputs?controlText(w.text,state.inputs,state.inputDefaults):w.text,state.wallet),c)||getActionLabel(w.action,c,world));
     if(s){
       n.style.backgroundColor=disabled?s.disabled:selected?s.selected:w.background+Math.round(w.opacity*2.55).toString(16).padStart(2,'0');
       if(s.flag)n.setAttribute('aria-pressed',String(!!selected));
@@ -415,6 +415,56 @@ function playCue(kind, volume = 1) {
       gain.disconnect();
     };
   } catch {}
+}
+// The built-in store panel above every screen: a banner's probability disclosure, or what a purchase or pull gave.
+function shopPanelView(world, state, close) {
+  const say = (name) => systemText(world, name), p = state.shopPanel, panel = box('shop-panel'), card = box('shop-card');
+  const named2 = (list, id) => (list || []).find((v) => v.id === id);
+  const rewardName = (g) => (g.kind === 'item' ? named2(world.items, g.id)?.name : named2(world.shop?.currencies, g.id)?.name) || g.id;
+  const counted = (g) => rewardName(g) + (g.count > 1 ? ' ×' + g.count : '');
+  panel.setAttribute('role', 'dialog');
+  panel.append(card);
+  if (p.kind === 'odds') {
+    const b = named2(world.shop?.banners, p.banner);
+    if (!b) return panel;
+    const o = gachaOdds(world, b), cur = named2(world.shop.currencies, b.cost.currency), eff = gachaEffective(b);
+    panel.setAttribute('aria-label', b.name + ' · ' + say('gacha.odds'));
+    card.append(el('h2', b.name + ' · ' + say('gacha.odds')), el('p', say('gacha.price').replaceAll('{가격}', b.cost.amount + ' ' + (cur?.name || ''))));
+    if (b.pity) {
+      card.append(el('p', say('gacha.pity').replaceAll('{횟수}', b.pity).replaceAll('{등급}', o.top)),
+        el('p', say('gacha.since').replaceAll('{등급}', o.top).replaceAll('{횟수}', state.pity?.get(b.id) || 0)));
+      if (eff) card.append(el('p', say('gacha.effective').replaceAll('{등급}', o.top).replaceAll('{확률}', eff.percent).replaceAll('{횟수}', eff.pulls)));
+    } else card.append(el('p', say('gacha.noPity')));
+    for (const t of o.tiers) {
+      const table = el('table');
+      table.className = 'odds-table';
+      table.append(el('caption', t.name + ' · ' + t.percent + '%'));
+      for (const e of t.entries) {
+        const tr = el('tr');
+        tr.append(el('td', counted(e)), el('td', e.percent + '%'));
+        table.append(tr);
+      }
+      card.append(table);
+    }
+    const mine = (state.draws || []).filter((d) => d.banner === b.id).slice(0, 10);
+    if (mine.length) {
+      const list = el('ul');
+      for (const d of mine) list.append(el('li', d.tier + ' · ' + counted(d)));
+      card.append(el('h3', say('gacha.history')), list);
+    }
+  } else {
+    panel.setAttribute('aria-label', p.title + ' · ' + say('shop.got'));
+    const list = el('ul');
+    list.className = 'shop-results';
+    for (const g of p.rewards) {
+      const item = el('li', (g.tier ? g.tier + ' · ' : '') + counted(g));
+      if (g.top) item.className = 'top';
+      list.append(item);
+    }
+    card.append(el('h2', p.title + ' · ' + say('shop.got')), list);
+  }
+  card.append(action(say('shop.close'), close));
+  return panel;
 }
 function paintProgressWidget(n, w, run) {
   const say = (name) => systemText(run.world, name);

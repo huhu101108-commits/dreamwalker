@@ -65,6 +65,11 @@ const swap = m.widget('swap', 'button', 10, 38, 40, 10, { action: 'language', ta
 screen.elements.push(named, level, swap);
 p.items = [{ id: 'sword', name: '서리검', slot: 'weapon', power: 3 }];
 p.quests = [{ id: 'first', name: '첫 의뢰', kind: 'clear', target: p.startMap, reward: 'sword', count: 1 }];
+p.shop = { currencies: [{ id: 'gem', name: '결정', start: 100, max: 9999, icon: '' }],
+  products: [{ id: 'pack', name: '결정 꾸러미', cost: { kind: 'money', amount: 1200, sku: 'gem.pack' }, gives: [{ kind: 'currency', id: 'gem', count: 300 }], limit: 0 }],
+  banners: [{ id: 'snow', name: '설원 뽑기', image: '', cost: { currency: 'gem', amount: 160 }, multi: 10, pity: 0,
+    tiers: [{ id: 'top', name: '전설', rate: 2000, top: true, entries: [{ kind: 'item', id: 'sword', count: 1, weight: 1 }] },
+      { id: 'low', name: '일반', rate: 98000, top: false, entries: [{ kind: 'currency', id: 'gem', count: 5, weight: 1 }] }] }] };
 p.locales = { ...m.emptyLocales(), languages: [{ code: 'en', name: 'English' }, { code: 'ja', name: '日本語' }], system: { 'result.clear': '탐험 성공' } };
 const slots = new Map(m.textSlots(p, { system: true }).map((s) => [s.key, s]));
 const say = (key, code, text, from = slots.get(key).owner[slots.get(key).field]) => m.setTranslation(p, key, code, text, from);
@@ -79,6 +84,7 @@ for (const [key, text] of [
   ['screen/' + screen.id + '/callsign/message', 'Use one word.'], ['screen/' + screen.id + '/level/option/1', 'Normal'],
   ['screen/' + screen.id + '/swap/text', 'Language: {언어}'], ['item/sword/name', 'Frost Sword'], ['quest/first/name', 'First Job'],
   ['system/button.jump', 'Jump'], ['system/result.clear', 'Explored'], ['system/dialogue.next', 'Next →'],
+  ['shop/currency/gem/name', 'Crystal'], ['shop/banner/snow/name', 'Snowfield Pull'], ['shop/banner/snow/tier/top/name', 'Legend'],
 ]) say(key, 'en', text);
 say('character/' + lead.id + '/name', 'ja', '白雪');
 say('story/prologue/line/n2/text', 'ja', '古い原文の訳', '예전 원문');
@@ -99,7 +105,7 @@ const project = {
     ...pick(n, ['id', 'speaker', 'text', 'speakerName', 'nextLabel', 'choices']),
     ...(n.shot ? { shot: { layers: n.shot.layers.map((l) => pick(l, ['id', 'kind', 'caption'])) } } : {}) })) })),
   layouts: packed.layouts.map((l) => ({ id: l.id, name: l.name, kind: l.kind, elements: l.elements.map((w) => pick(w, ['id', 'type', 'text', 'action', 'target', 'control'])) })),
-  items: packed.items, quests: packed.quests,
+  items: packed.items, quests: packed.quests, shop: packed.shop,
 };
 const read = (world) => m.textSlots(world, { play: true }).map((s) => [s.key, s.owner[s.field]]);
 const keys = read(structuredClone(project));

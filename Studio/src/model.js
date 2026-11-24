@@ -158,6 +158,10 @@ Object.assign(INPUTS, {
   transferIssue: '기기 이전 코드 받기',
   transferClaim: '이전 코드로 진행 가져오기',
   reports: '오류 보고 동의 바꾸기',
+  buy: '상품 구매',
+  draw: '뽑기 1회',
+  drawMulti: '연속 뽑기',
+  odds: '확률 정보 보기',
 });
 const screenActions = () => INPUTS;
 const UI_EVENTS = {
@@ -224,6 +228,9 @@ function actionRefOK(d, action, target) {
   if (action === 'transferClaim') return signalKey(target);
   // '' switches the player's choice; on and off set it.
   if (action === 'reports') return ['', 'on', 'off'].includes(target);
+  if (action === 'buy') return !!named(d.shop?.products || [], target);
+  if (action === 'draw' || action === 'odds') return !!named(d.shop?.banners || [], target);
+  if (action === 'drawMulti') return (named(d.shop?.banners || [], target)?.multi || 0) > 0;
   return target === '';
 }
 function menuProgram(name,base={action:'back',target:'',steps:[]}) {
@@ -950,7 +957,7 @@ function problem(d) {
     for (const o of s.objects) if (!sceneObjectOK(d,s,o))
         return s.name + '의 개체 좌표 또는 연결을 확인하세요.';
   }
-  return productionProblem(d) || workProblem(d) || localeProblem(d);
+  return productionProblem(d) || workProblem(d) || localeProblem(d) || shopProblem(d);
 }
 function sceneObjectOK(d,s,o) {
   return !!o && !(
@@ -2171,7 +2178,7 @@ const LOCALE_LIMIT={languages:12,keys:60000,text:1200};
 const LANGUAGES={ko:'한국어',en:'English',ja:'日本語','zh-Hans':'简体中文','zh-Hant':'繁體中文',es:'Español',fr:'Français',de:'Deutsch',
   'pt-BR':'Português (Brasil)',ru:'Русский',it:'Italiano',th:'ไทย',vi:'Tiếng Việt',id:'Bahasa Indonesia',tr:'Türkçe'};
 const localeCode=v=>typeof v==='string'&&/^[a-z]{2,3}(?:-[A-Z][a-z]{3})?(?:-(?:[A-Z]{2}|[0-9]{3}))?$/.test(v);
-const LOCALE_KEY=/^(?:title|(?:character|map|story|screen|item|quest)(?:\/[A-Za-z0-9_-]{1,50}){2,5}|system\/[A-Za-z]{1,20}\.[A-Za-z0-9]{1,20})$/;
+const LOCALE_KEY=/^(?:title|(?:character|map|story|screen|item|quest|shop)(?:\/[A-Za-z0-9_-]{1,50}){2,5}|system\/[A-Za-z]{1,20}\.[A-Za-z0-9]{1,20})$/;
 // Text the game itself shows: labels of buttons left without text, HUD and list wording, results and save messages.
 // Creators may reword each in the base language (locales.system) and translate it like any other text.
 const SYSTEM_TEXT={
@@ -2182,7 +2189,7 @@ const SYSTEM_TEXT={
   'button.startStory':'대화','button.selectActor':'캐릭터 선택','button.flagOn':'상태 켜기','button.flagOff':'상태 끄기',
   'button.signal':'이벤트','button.online':'온라인 친선전','button.language':'언어',
   'button.cloudSave':'클라우드 저장','button.cloudLoad':'클라우드 불러오기','button.transferIssue':'기기 이전 코드','button.transferClaim':'코드로 이전',
-  'button.reports':'오류 보고',
+  'button.reports':'오류 보고','button.buy':'구매','button.draw':'뽑기','button.drawMulti':'연속 뽑기','button.odds':'확률 정보',
   'hud.loading':'로딩','hud.enemies':'남은 적','hud.energy':'스킬 게이지','hud.noEnergy':'없음','hud.boss':'보스',
   'dialogue.narrator':'내레이션','dialogue.next':'다음 대사 →','dialogue.end':'대화 마치기','dialogue.nextShort':'다음','dialogue.choice':'선택',
   'roadmap.read':'대화 읽기','roadmap.continue':'계속','roadmap.finish':'스토리 마치기',
@@ -2206,10 +2213,15 @@ const SYSTEM_TEXT={
   'cloud.badCode':'이전 코드가 맞지 않거나 기간이 지났어요.',
   'reports.on':'켜짐','reports.off':'꺼짐','reports.agreed':'오류 보고를 켰어요. 게임 오류가 나면 오류 내용·게임 버전·기기 종류를 보내요.',
   'reports.stopped':'오류 보고를 껐어요.',
+  'shop.short':'재화가 부족해요.','shop.limit':'구매 한도에 도달했어요.','shop.bought':'구매했어요.','shop.close':'닫기',
+  'shop.store':'이 실행 환경에서는 결제할 수 없어요.','shop.testPaid':'테스트 결제로 구매했어요. 실제 결제는 일어나지 않았어요.',
+  'shop.got':'획득','gacha.odds':'확률 정보','gacha.price':'1회 {가격}','gacha.pity':'{횟수}회째 뽑기에서 {등급} 확정',
+  'gacha.noPity':'천장 없음','gacha.since':'마지막 {등급} 이후 {횟수}회','gacha.effective':'천장 포함 {등급} 평균 확률 {확률}% (평균 {횟수}회)',
+  'gacha.history':'최근 뽑기',
 };
-const SYSTEM_GROUPS={cloud:'클라우드 저장·기기 이전',reports:'오류 보고',button:'버튼 기본 문구',hud:'HUD',dialogue:'대화',roadmap:'스토리 로드맵',items:'장비',gear:'장비 부위',quests:'의뢰',
+const SYSTEM_GROUPS={shop:'상점',gacha:'뽑기 확률 정보',cloud:'클라우드 저장·기기 이전',reports:'오류 보고',button:'버튼 기본 문구',hud:'HUD',dialogue:'대화',roadmap:'스토리 로드맵',items:'장비',gear:'장비 부위',quests:'의뢰',
   result:'결과 화면',status:'진행 안내',save:'진행 저장',bar:'웹 플레이 막대',input:'입력 컨트롤',online:'온라인'};
-const LOCALE_GROUPS={character:'캐릭터',map:'맵',story:'대사',screen:'UI 화면',item:'아이템 · 의뢰',quest:'아이템 · 의뢰',system:'게임 기본 문구',title:'게임 제목'};
+const LOCALE_GROUPS={character:'캐릭터',map:'맵',story:'대사',screen:'UI 화면',item:'아이템 · 의뢰',quest:'아이템 · 의뢰',shop:'상점 · 뽑기',system:'게임 기본 문구',title:'게임 제목'};
 const plainObject=v=>!!v&&typeof v==='object'&&!Array.isArray(v);
 const localeHash=text=>motionSeed(String(text)).toString(16).padStart(8,'0');
 const localeBase=doc=>doc?.locales?.base||'ko';
@@ -2267,6 +2279,12 @@ function textSlots(doc,{play=false,system=false}={}){
   }
   for(const v of doc.items||[])add('item/'+v.id+'/name',v,'name',50,'아이템 · '+v.name);
   for(const q of doc.quests||[])add('quest/'+q.id+'/name',q,'name',50,'의뢰 · '+q.name);
+  for(const c of doc.shop?.currencies||[])add('shop/currency/'+c.id+'/name',c,'name',20,'재화 · '+c.name);
+  for(const p of doc.shop?.products||[])add('shop/product/'+p.id+'/name',p,'name',40,'상품 · '+p.name);
+  for(const b of doc.shop?.banners||[]){
+    add('shop/banner/'+b.id+'/name',b,'name',40,'뽑기 · '+b.name);
+    for(const t of b.tiers||[])add('shop/banner/'+b.id+'/tier/'+t.id+'/name',t,'name',20,'뽑기 · '+b.name+' · 등급 '+t.name);
+  }
   if(system)for(const name of Object.keys(SYSTEM_TEXT)){
     const owner={text:doc.locales?.system?.[name]||SYSTEM_TEXT[name]};
     out.push({key:'system/'+name,owner,field:'text',max:200,where:(SYSTEM_GROUPS[name.split('.')[0]]||'')+' · '+SYSTEM_TEXT[name],system:name});
@@ -2285,7 +2303,7 @@ function setTranslation(doc,key,code,text,from){
   (loc.strings[key]??={})[code]={text:text.slice(0,LOCALE_LIMIT.text),src:localeHash(from)};
 }
 // {…} tokens that the game fills in: a translation must keep the same ones as its original.
-const textTokens=text=>(String(text).match(/\{(?:입력|프로필|변수|언어|코드)(?::[^{}]*)?\}/g)||[]).sort().join('\n');
+const textTokens=text=>(String(text).match(/\{(?:입력|프로필|변수|언어|코드|재화|횟수|등급|확률|가격)(?::[^{}]*)?\}/g)||[]).sort().join('\n');
 function emptyLocales(){return {base:'ko',baseName:'한국어',languages:[],system:{},strings:{}};}
 function localeProblem(d){
   const loc=d.locales;
@@ -2428,4 +2446,108 @@ function pruneTranslations(doc){
   const used=localeKeys(doc);let n=0;
   for(const k of Object.keys(doc.locales?.strings||{}))if(!used.has(k)){delete doc.locales.strings[k];n++;}
   return n;
+}
+
+// ── Store and gacha ───────────────────────────────────────────────────────────────────────────────────────────────────
+// project.shop (optional): the creator's currencies, products and gacha banners. Tier rates are integers in 0.001%
+// units (100000 = 100%); an entry's chance is its tier's rate split by weight. Pity: the pity-th pull since the last
+// top-tier result is a top-tier result. gachaOdds is the disclosure table both runtimes show; gachaPull is the draw rule,
+// mirrored by StudioGacha in Unity (scripts/native-check/gacha.json).
+const SHOP_LIMIT={currencies:8,products:100,gives:10,banners:30,tiers:6,entries:100,rate:100000,amount:99999999,history:30};
+const GACHA_KINDS={item:'아이템',currency:'재화'};
+const emptyShop=()=>({currencies:[],products:[],banners:[]});
+const newCurrency=(id,name)=>({id,name,start:0,max:9999999,icon:''});
+const newProduct=(id,name,currency)=>({id,name,cost:{kind:'currency',id:currency,amount:100},gives:[],limit:0});
+function newBanner(id,name,currency){
+  return {id,name,image:'',cost:{currency,amount:160},multi:10,pity:0,
+    tiers:[{id:uid(),name:'최고 등급',rate:2000,top:true,entries:[]},{id:uid(),name:'일반',rate:98000,top:false,entries:[]}]};
+}
+function shopReward(d,g){
+  return !!g&&['item','currency'].includes(g.kind)&&integer(g.count,1,g.kind==='item'?999:SHOP_LIMIT.amount)&&
+    (g.kind==='item'?!!named(d.items||[],g.id):!!named(d.shop?.currencies||[],g.id));
+}
+function shopProblem(d){
+  const s=d.shop;
+  if(s===undefined)return '';
+  const where='상점 · 뽑기 / ';
+  if(!plainObject(s)||!rows(s.currencies,0,SHOP_LIMIT.currencies)||!rows(s.products,0,SHOP_LIMIT.products)||!rows(s.banners,0,SHOP_LIMIT.banners))
+    return where+'재화·상품·뽑기 목록과 ID를 확인하세요.';
+  for(const c of s.currencies)
+    if(!textValue(c.name,20,true)||!integer(c.max,1,SHOP_LIMIT.amount)||!integer(c.start,0,c.max)||!mediaRef(c.icon))
+      return where+(c.name||c.id)+' / 재화 이름, 시작 수량과 최대치를 확인하세요.';
+  const currency=id=>!!named(s.currencies,id);
+  for(const p of s.products){
+    const c=p.cost;
+    if(!textValue(p.name,40,true)||!integer(p.limit,0,999)||!Array.isArray(p.gives)||p.gives.length<1||p.gives.length>SHOP_LIMIT.gives||
+      !p.gives.every(g=>shopReward(d,g))||!plainObject(c)||
+      !(c.kind==='currency'?currency(c.id)&&integer(c.amount,1,SHOP_LIMIT.amount):
+        c.kind==='money'&&integer(c.amount,100,10000000)&&typeof c.sku==='string'&&/^[a-z0-9][a-z0-9._]{0,99}$/.test(c.sku)))
+      return where+(p.name||p.id)+' / 상품 가격(재화 또는 원화와 스토어 상품 ID)과 지급 내용을 확인하세요.';
+  }
+  const skus=s.products.filter(p=>p.cost.kind==='money').map(p=>p.cost.sku);
+  if(new Set(skus).size!==skus.length)return where+'스토어 상품 ID가 겹쳐요.';
+  for(const b of s.banners){
+    const at=where+(b.name||b.id)+' / ';
+    if(!textValue(b.name,40,true)||!mediaRef(b.image)||!plainObject(b.cost)||!currency(b.cost.currency)||!integer(b.cost.amount,1,SHOP_LIMIT.amount)||
+      !(b.multi===0||integer(b.multi,2,10))||!integer(b.pity,0,1000))return at+'뽑기 이름, 비용, 연속 뽑기 수와 천장을 확인하세요.';
+    if(!rows(b.tiers,1,SHOP_LIMIT.tiers)||b.tiers.some(t=>!textValue(t.name,20,true)||!integer(t.rate,0,SHOP_LIMIT.rate)||typeof t.top!=='boolean'||
+      !Array.isArray(t.entries)||t.entries.length>SHOP_LIMIT.entries||(t.rate>0&&!t.entries.length)||
+      !t.entries.every(e=>shopReward(d,e)&&integer(e.weight,1,1000000))))return at+'등급 이름, 확률, 보상과 가중치를 확인하세요.';
+    if(b.tiers.reduce((n,t)=>n+t.rate,0)!==SHOP_LIMIT.rate)return at+'등급 확률의 합이 100%가 되도록 정하세요.';
+    const tops=b.tiers.filter(t=>t.top);
+    if(tops.length>1||(b.pity>0&&(tops.length!==1||tops[0].rate===0||!tops[0].entries.length)))return at+'천장을 쓰려면 확률이 있는 최고 등급을 하나 표시하세요.';
+  }
+  return '';
+}
+// Percent with three decimals from an exact fraction of 0.001% units (rate×weight/total), rounded half up.
+function oddsPercent(numerator,denominator){
+  const thousandths=Math.floor((numerator*2+denominator)/(2*denominator));
+  return (thousandths/1000).toFixed(3);
+}
+// The disclosure: every reward with its chance, each tier's chance, and the pity rule.
+function gachaOdds(d,b){
+  const name=g=>g.kind==='item'?named(d.items||[],g.id)?.name||g.id:named(d.shop?.currencies||[],g.id)?.name||g.id;
+  return {banner:b.id,name:b.name,pity:b.pity,top:b.tiers.find(t=>t.top)?.name||'',
+    tiers:b.tiers.map(t=>{
+      const total=t.entries.reduce((n,e)=>n+e.weight,0);
+      return {name:t.name,top:t.top,percent:oddsPercent(t.rate,1),
+        entries:t.entries.map(e=>({kind:e.kind,id:e.id,count:e.count,name:name(e),percent:total?oddsPercent(t.rate*e.weight,total):'0.000'}))};
+    })};
+}
+// One pull. tierRoll: an integer below 100000; entryRoll: an integer below the tier's total weight (drawn after the tier).
+// Returns the tier and entry indexes and the pulls since the last top-tier result after this pull.
+function gachaTier(b,sinceTop,tierRoll){
+  const top=b.tiers.findIndex(t=>t.top);
+  if(b.pity>0&&top>=0&&sinceTop+1>=b.pity)return top;
+  let edge=0;
+  for(let i=0;i<b.tiers.length;i++){edge+=b.tiers[i].rate;if(tierRoll<edge)return i;}
+  return b.tiers.length-1;
+}
+function gachaEntry(t,entryRoll){
+  let edge=0;
+  for(let i=0;i<t.entries.length;i++){edge+=t.entries[i].weight;if(entryRoll<edge)return i;}
+  return t.entries.length-1;
+}
+function gachaPull(b,sinceTop,tierRoll,entryRoll){
+  const tier=gachaTier(b,sinceTop,tierRoll),entry=gachaEntry(b.tiers[tier],entryRoll);
+  return {tier,entry,sinceTop:b.tiers[tier].top?0:sinceTop+1};
+}
+const gachaWeight=t=>t.entries.reduce((n,e)=>n+e.weight,0);
+// With hard pity N and top chance p per pull, the average pulls per top result are (1-(1-p)^N)/p.
+function gachaEffective(b){
+  const top=b.tiers.find(t=>t.top);
+  if(!top||!top.rate)return null;
+  const p=top.rate/SHOP_LIMIT.rate,pulls=b.pity>0?(1-Math.pow(1-p,b.pity))/p:1/p;
+  return {pulls:Math.round(pulls*10)/10,percent:(Math.round(100000/pulls)/1000).toFixed(3)};
+}
+// {재화:id} shows the player's amount of a currency.
+function walletText(text,wallet){
+  if(typeof text!=='string'||!text.includes('{재화:')||!wallet)return text;
+  return text.replace(/\{재화:([a-zA-Z0-9_-]{1,50})\}/g,(_,id)=>String(wallet.get(id)??0));
+}
+// Uniform integers below n from the platform's secure random source, without modulo bias.
+function secureBelow(n){
+  const limit=Math.floor(0x100000000/n)*n,buf=new Uint32Array(1);
+  do crypto.getRandomValues(buf);while(buf[0]>=limit);
+  return buf[0]%n;
 }

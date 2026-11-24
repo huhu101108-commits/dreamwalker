@@ -288,6 +288,21 @@ function launchGame(mapId, screenId = '', inspection = false) {
     run.serial++; render();
     say(systemText(run.world, on ? 'reports.agreed' : 'reports.stopped'));
   }
+  // Paid products: the web has no store. Studio test plays complete a test purchase so the flow can be checked.
+  function buyWithMoney(id) {
+    if (!preview) return say(systemText(run.world, 'shop.store'));
+    if (run.buy(id, true) === 'ok') { persistShop(); render(); say(systemText(run.world, 'shop.testPaid')); }
+  }
+  // A purchase or pull is kept at once, also while a menu is open: the last device save gets the new wallet and bag.
+  function persistShop() {
+    saveProgress();
+    try {
+      const text = saveStore?.getItem(saveKey);
+      if (!text) return;
+      const next = JSON.stringify(Object.assign(JSON.parse(text), { bag: [...run.bag], gear: [...run.gear], shop: run.shopSave() }));
+      if (next !== text) { saveStore.setItem(saveKey, next); lastSaved = next; }
+    } catch {}
+  }
   // Keeps the cloud copy of a device that has used it current, at most once a minute.
   function syncCloud() {
     if (inspection || !cloudRev() || cloudBusy || Date.now() - cloudAt < 60000) return;
@@ -580,6 +595,7 @@ function launchGame(mapId, screenId = '', inspection = false) {
         layer.append(n);
         widgets.push({ w, n });
       }
+    if (run.shopPanel) layer.append(shopPanelView(run.world, run, () => { run.press('closePanel'); render(); }));
     $('#controls').replaceChildren();
     for (const key of controls()) {
       const b = el('button', getActionLabel(key, run.character, run.world));
@@ -620,7 +636,12 @@ function launchGame(mapId, screenId = '', inspection = false) {
   }
   function render() {
     if ((run.onlineRequests || 0) !== onlineSeen) { onlineSeen = run.onlineRequests || 0; openOnlineMatch(); }
-    for (const r of run.hostRequests?.splice(0) || []) r.action === 'reports' ? setReports(r.target) : cloud(r.action, r.target, r.value);
+    for (const r of run.hostRequests?.splice(0) || [])
+      if (r.action === 'reports') setReports(r.target);
+      else if (r.action === 'say') say(systemText(run.world, r.target));
+      else if (r.action === 'store') buyWithMoney(r.target);
+      else if (r.action === 'shopSaved') persistShop();
+      else cloud(r.action, r.target, r.value);
     if (run.languageSerial !== languageSeen) {
       languageSeen = run.languageSerial;
       // Only a choice the player made is remembered; until then the browser's languages decide.
@@ -744,7 +765,7 @@ function launchGame(mapId, screenId = '', inspection = false) {
   }
   function paintHUD() {
     const inputs = run.hostInputs?.size ? new Map([...run.inputValues, ...run.hostInputs]) : run.inputValues;
-    const state = { world: run.world, flags:run.flags,inputs, inputDefaults:run.inputDefaults, character: run.character, hp: run.hero.hp, map: run.map, enemies: run.enemiesLeft, loading: run.loadingFraction, energy: run.energy, boss: run.boss };
+    const state = { world: run.world, wallet: run.wallet, flags:run.flags,inputs, inputDefaults:run.inputDefaults, character: run.character, hp: run.hero.hp, map: run.map, enemies: run.enemiesLeft, loading: run.loadingFraction, energy: run.energy, boss: run.boss };
     const stamp = state.hp + '|' + state.enemies + '|' + run.progressVersion + '|' + Math.round(100 * state.loading) + '|' +
       (state.energy ? state.energy.now + '/' + state.energy.max : '') + '|' + (state.boss ? state.boss.id + ':' + state.boss.hp : '');
     if (hudStamp !== stamp) {

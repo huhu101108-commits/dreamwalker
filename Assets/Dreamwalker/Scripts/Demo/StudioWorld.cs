@@ -53,7 +53,7 @@ public sealed partial class StudioWorld : MonoBehaviour
                                                         : Story != null ? (string.IsNullOrEmpty(Line.layout) ? Map.dialogueId : Line.layout)
                                                         : string.IsNullOrEmpty(Menu) ? Map.hudId
                                                                                      : Menu);
-    public bool Paused => !string.IsNullOrEmpty(front) || Story != null || !string.IsNullOrEmpty(Result) ||
+    public bool Paused => ShopPanel != null || !string.IsNullOrEmpty(front) || Story != null || !string.IsNullOrEmpty(Result) ||
                           (Project.schema < 4 ? !string.IsNullOrEmpty(Menu) : CurrentLayout.pauseGame);
     public bool Running { get; private set; }
     public StudioConnection Connection { get; private set; }
@@ -706,6 +706,9 @@ public sealed partial class StudioWorld : MonoBehaviour
     }
     private void PressCore(string action,string target)
     {
+        // The built-in shop panel sits above every screen and closes first.
+        if (ShopPanel != null && (action == "back" || action == "resume" || action == "closePanel")) { ShopPanel = null; return; }
+        if (ShopAction(action, target)) return;
         if (CloudAction(action)) { CloudPress(action, target); return; }
         if (action == "reports") { SetReports(target); return; }
         // A language button: the next language in the list, or the one it names. The choice is kept on this device.
@@ -1270,7 +1273,7 @@ public sealed partial class StudioWorld : MonoBehaviour
     {
         if (StudioOnlineArena.Visible) return;
         if (!Running) return;
-        screenView.Draw(); screenView.DrawCast(); DrawSceneTransition(); DrawDiagnostics(); DrawNotice();
+        screenView.Draw(); screenView.DrawCast(); DrawSceneTransition(); DrawDiagnostics(); DrawShopPanel(); DrawNotice();
         if (!Paused || CurrentLayout == null || (!HasOverlay && Line?.shot?.layers != null) ||
             (ShowingFront && front == Project.frontScreens?.loading)) return;
         bool recovery = Array.Exists(CurrentLayout.elements, w => Visible(w) && Enabled(w) &&
