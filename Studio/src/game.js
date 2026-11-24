@@ -115,7 +115,11 @@ function startLanguage(doc, chosen = '') {
   const editor = relayedFrame ? GAME_DATA.relay === 'preview' : typeof GAME_DATA === 'undefined' ? location.pathname !== '/play' : !!GAME_DATA.inspection;
   return pickLanguage(localeCodes(doc), [chosen, deviceValue(languageKey(doc)) || '', ...(editor ? [] : navigator.languages || [navigator.language])]);
 }
+// The game in the window, until it has shut down. A window closed a moment ago delivers its close event later, after a
+// new game may have started in it, so a new game finishes the earlier one first and ignores that late event.
+let endGame = null;
 function launchGame(mapId, screenId = '', inspection = false) {
+  endGame?.();
   const direct=inspection && typeof inspection==='object' && !inspection.fromStart && (inspection.storyId||inspection.objectId||inspection.screenId);
   const ruleCapture=inspection?.traceRules&&!inspection.resume&&typeof FieldRuleCapture==='function'?new FieldRuleCapture():null;
   const chosenLanguage = inspection && typeof inspection === 'object' ? inspection.language || '' : '';
@@ -124,6 +128,7 @@ function launchGame(mapId, screenId = '', inspection = false) {
     stage = $('#arena'),
     layer = $('#overlay'),
     actors = $('#actors');
+  let ended = false;
   const audioBus=gameAudio(run.world,modal);
   // Player settings (sound, line speed, auto lines) are kept per game on this device, like the language. Test plays
   // started for inspection keep the defaults.
@@ -875,7 +880,7 @@ function launchGame(mapId, screenId = '', inspection = false) {
     }
     render();
     // A button can end the game during render (게임 종료); a closed game asks for no more frames.
-    if (modal.open) frame = requestAnimationFrame(loop);
+    if (!ended && modal.open) frame = requestAnimationFrame(loop);
   }
   const down = (e) => {
     if(replay)return;
@@ -925,12 +930,13 @@ function launchGame(mapId, screenId = '', inspection = false) {
   };
   $('#stop').onclick = () => modal.close();
   $('#controls').hidden = true;
+  let unbindReplay=null;
   if(replay){
     const stopInput=e=>{if(stage.contains(e.target)||$('#controls').contains(e.target)||e.target.closest('button')!==$('#stop')&&e.target.closest('.bar')){
       e.preventDefault();e.stopImmediatePropagation();
     }};
     for(const type of ['pointerdown','click','input'])modal.addEventListener(type,stopInput,true);
-    modal.addEventListener('close',()=>{for(const type of ['pointerdown','click','input'])modal.removeEventListener(type,stopInput,true);},{once:true});
+    unbindReplay=()=>{for(const type of ['pointerdown','click','input'])modal.removeEventListener(type,stopInput,true);};
   }
   const sizeObserver=new ResizeObserver(()=>{for(const {w,n} of widgets)if(w.anchor)setWidgetGeometry(n,w,layer.clientWidth,layer.clientHeight);});
   sizeObserver.observe(layer);modal.showModal();
@@ -946,7 +952,11 @@ function launchGame(mapId, screenId = '', inspection = false) {
   window.addEventListener('blur', blur);
   const storeOnHide=()=>{if(document.hidden){saveProgress();metrics?.record(performance.now(),run.map.id,false);}};
   const storeOnExit=()=>saveProgress();window.addEventListener('pagehide',storeOnExit);document.addEventListener('visibilitychange',storeOnHide);
-  modal.onclose = () => {
+  function shutDown() {
+    if (ended) return;
+    ended = true;
+    if (endGame === shutDown) endGame = null;
+    unbindReplay?.();
     window.removeEventListener('pagehide',storeOnExit);document.removeEventListener('visibilitychange',storeOnHide);
     if(take){
       if(replay){if(take.done)sample.replayResult=take.final;}
@@ -972,6 +982,9 @@ function launchGame(mapId, screenId = '', inspection = false) {
     actors.replaceChildren();
     layer.replaceChildren();
     if (location.pathname === '/play') document.body.classList.remove('game-only');
-  };
+  }
+  endGame = shutDown;
+  // Only a close of this game's window: a late event from an earlier game arrives while this one is open.
+  modal.onclose = () => { if (!modal.open) shutDown(); };
   return modal;
 }

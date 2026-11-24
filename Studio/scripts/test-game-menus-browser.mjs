@@ -97,16 +97,24 @@ export async function testGameMenus(page, origin) {
     await button('출격').waitFor();
     console.log('PASS standby screen after the quiet while closes on a touch; save notice stays up; link opens; play goes out to the map and the menu comes home');
 
-    // Quitting closes the game; the next play keeps the settings.
+    // Quitting closes the game; the next play keeps the settings. The standby wait goes back to 30 s so the next plays
+    // stay on the home screen while they are checked.
+    await p.evaluate(() => edit(() => { project.layouts.find((l) => l.rules.some((r) => r.event === 'idle')).rules[0].seconds = 30; }));
     await button('게임 종료').click();
     await p.waitForFunction(() => !document.querySelector('#game[open]'));
     await p.evaluate(() => launchGame(activeMap().id));
     await button('설정').click();
     assert.equal(await hud.getByLabel('배경음', { exact: true }).inputValue(), '30');
     assert.equal(await hud.getByLabel('대사 자동 진행', { exact: true }).isChecked(), true);
+    // Closed and started again at once: the first game's late close event leaves the second one running.
+    await p.evaluate(() => { document.querySelector('#game').close(); launchGame(activeMap().id); });
+    await p.waitForTimeout(300);
+    await button('출격').waitFor();
+    await button('설정').click();
+    await button('돌아가기').waitFor();
     await p.evaluate(() => document.querySelector('#game').close());
     assert.deepEqual(errors, []);
-    console.log('PASS quitting closes the game; the next play opens with the same device settings');
+    console.log('PASS quitting closes the game; the next play opens with the same device settings, also when started again at once');
   } finally {
     await context.close();
   }
