@@ -144,60 +144,34 @@ function travel(from, to) {
 function bindSelect(label, obj, key, options, redraw = true) {
   return selectField(label, obj[key], options, (v) => edit(() => (obj[key] = v), redraw));
 }
-// Typing saves each letter without redrawing, so the field keeps its focus. Once a value is committed (leaving the
-// field or Enter), the tool redraws so names show in lists, cards and headers: after a press in progress has
-// clicked, keeping the field or button the person moved to and the page position.
-// Moving on to type in another field waits: the redraw comes when that one is committed or focus leaves the fields,
-// so it never replaces a field being typed in.
-let commitDrawPending = false, commitFrom = null, pointerHeld = false;
-const typingField = (n) => !!n?.matches?.('input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]), textarea');
-addEventListener('pointerdown', () => { pointerHeld = true; }, true);
-for (const type of ['pointerup', 'pointercancel'])
-  addEventListener(type, () => { pointerHeld = false; if (commitDrawPending) setTimeout(commitDraw); }, true);
-addEventListener('focusout', (e) => { if (commitDrawPending && !typingField(e.relatedTarget) && !pointerHeld) setTimeout(commitDraw); }, true);
-function afterFieldCommit(input) {
-  if (!input?.isConnected || !input.closest('#content')) return;
-  commitDrawPending = true;
-  commitFrom = input;
-  if (!pointerHeld) setTimeout(commitDraw);
+// Typing saves each letter without redrawing, so the field keeps its focus and a press in progress is never cut off.
+// What the tool shows of a value elsewhere follows as it is typed: a name in a picker (the option with the object's
+// id) and the places the tool marks with shows() (a card's heading, a slot's tab).
+let shown = [];
+function shows(node, obj, key, format = (v) => v) {
+  shown.push({ node, obj, key, format });
+  return node;
 }
-function fieldName(n) {
-  return n?.getAttribute?.('aria-label') || (n?.tagName === 'BUTTON' ? n.textContent.trim() : '');
-}
-function commitDraw() {
-  if (!commitDrawPending || !project) return;
-  // Typing in another field: wait for it.
-  const typing = document.activeElement;
-  if (typingField(typing) && $('#content').contains(typing) && typing !== commitFrom) return;
-  commitDrawPending = false;
-  commitFrom = null;
-  const content = $('#content'), active = document.activeElement, name = content.contains(active) ? fieldName(active) : '';
-  const same = (root) => [...root.querySelectorAll('input,select,textarea,button')].filter((n) => fieldName(n) === name);
-  const index = name ? same(content).indexOf(active) : -1;
-  let range = null;
-  try { range = active && typeof active.selectionStart === 'number' ? [active.selectionStart, active.selectionEnd] : null; } catch {}
-  const x = window.scrollX, y = window.scrollY;
-  draw();
-  window.scrollTo(x, y);
-  const next = index >= 0 ? same($('#content'))[index] : null;
-  if (!next) return;
-  next.focus({ preventScroll: true });
-  try { if (range) next.setSelectionRange(range[0], range[1]); } catch {}
+function follow(obj, key, before) {
+  for (const s of shown) if (s.obj === obj && s.key === key && s.node.isConnected) s.node.textContent = s.format(obj[key]);
+  if (key !== 'name' || typeof obj.id !== 'string') return;
+  for (const o of $('#content').querySelectorAll('option'))
+    if (o.value === obj.id && o.textContent === before) o.textContent = obj[key];
 }
 function bindText(label, obj, key, max = 50, multi = false) {
   const token = {};
-  const field = textField(label, obj[key], (v) => edit(() => (obj[key] = v), false, token), max, multi);
-  field.querySelector('input,textarea').addEventListener('change', (e) => afterFieldCommit(e.target));
-  return field;
+  return textField(label, obj[key], (v) => {
+    const before = obj[key];
+    edit(() => (obj[key] = v), false, token);
+    follow(obj, key, before);
+  }, max, multi);
 }
 function bindNumber(label, obj, key, min, max, step, update) {
   const token = {};
-  const field = numberField(label, obj[key], min, max, step, (v) => {
+  return numberField(label, obj[key], min, max, step, (v) => {
     edit(() => (obj[key] = v), false, token);
     update?.();
   });
-  field.querySelector('input').addEventListener('change', (e) => afterFieldCommit(e.target));
-  return field;
 }
 function bindColor(label, obj, key, update) {
   const token = {};
@@ -216,6 +190,7 @@ function draw() {
     if (section.dataset.key) expandedSections.set(section.dataset.key, section.open);
   $('#title').textContent = project.title;
   $('#content').replaceChildren();
+  shown = [];
   lastGroup = null;
   for (const b of $('#tabs').querySelectorAll('[data-tab]')) {
     if(b.dataset.tab===tab) $('#current-area').textContent=b.textContent;

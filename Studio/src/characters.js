@@ -38,9 +38,9 @@ function drawCharacters() {
   } else image.append(el('span', '전신 이미지 등록 전'));
   const info = box(
     'character-info',
-    el('small', c.region || '지역 미지정'),
-    el('h2', c.name),
-    el('p', c.summary || ''),
+    shows(el('small', c.region || '지역 미지정'), c, 'region', (v) => v || '지역 미지정'),
+    shows(el('h2', c.name), c, 'name'),
+    shows(el('p', c.summary || ''), c, 'summary'),
     profileChips(c),
   );
   a.append(box('character-card', image, info), expressionSection(c), faceMotionSection(c), profileSection(c), heading('스킬 구성'));
@@ -48,14 +48,14 @@ function drawCharacters() {
   selectedSlot = clamp(selectedSlot, 0, c.skills.length - 1);
   c.skills.forEach((s, i) =>
     bar.append(
-      action(
+      shows(action(
         '슬롯 ' + (i + 1) + ' · ' + s.name,
         () => {
           selectedSlot = i;
           draw();
         },
         i === selectedSlot ? 'on' : '',
-      ),
+      ), s, 'name', (v) => '슬롯 ' + (i + 1) + ' · ' + v),
     ),
   );
   a.append(bar);

@@ -72,8 +72,15 @@ export async function testServerWallet(page, origin) {
     await p.locator('.shop-panel').getByText('전설 · NEW 유리').waitFor();
     await p.locator('.shop-panel').getByRole('button').last().click();
     await shown('결정 400');
-    await hud.getByRole('button', { name: '교대', exact: true }).click();
-    await p.waitForFunction(() => document.querySelector('#game[open] .hp-label')?.textContent.startsWith('유리'));
+    // Switching goes round the roster in order (earlier flows may have left other characters in the team version).
+    const label = () => p.evaluate(() => document.querySelector('#game[open] .hp-label')?.textContent || '');
+    const count = await p.evaluate(() => project.characters.length);
+    for (let i = 0; i < count && !(await label()).startsWith('유리　'); i++) {
+      const before = await label();
+      await hud.getByRole('button', { name: '교대', exact: true }).click();
+      await p.waitForFunction((b) => (document.querySelector('#game[open] .hp-label')?.textContent || '') !== b, before, { timeout: 3000 }).catch(() => {});
+    }
+    assert.ok((await label()).startsWith('유리　'), 'the pulled character is in the roster');
     await hud.getByRole('button', { name: '뽑기', exact: true }).click();
     await p.locator('.shop-panel').getByText('전설 · 유리 · 보유 중 → 결정 ×40').waitFor();
     await p.locator('.shop-panel').getByRole('button').last().click();

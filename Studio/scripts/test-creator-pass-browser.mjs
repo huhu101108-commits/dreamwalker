@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 
-// What a first small game showed at tablet size: a renamed character shows its new name in the list and card at once
-// and the next field keeps the focus; notices give their space back; the lobby's settings button and a banner's
-// buttons go to clear places; an exported game file carries the game's name.
+// What a first small game showed at tablet size: a renamed character, skill or map shows its new name in the pickers,
+// card and tabs as it is typed, without a redraw taking the field or a press in progress away; notices give their
+// space back; the lobby's settings button and a banner's buttons go to clear places; an exported game file carries the
+// game's name.
 export async function testCreatorPass(page, origin) {
   assert.equal(new URL(origin).hostname, '127.0.0.1');
   const context = await page.context().browser().newContext({ viewport: { width: 1280, height: 800 }, hasTouch: true, acceptDownloads: true });
@@ -16,26 +17,32 @@ export async function testCreatorPass(page, origin) {
     await p.locator('#editor').waitFor();
     await p.evaluate(() => edit(() => { project.saveId = 'creator-pass'; project.frontScreens = { seconds: 0.2 }; }));
 
-    // A new character renamed: Enter commits the name; list and card follow and the field keeps focus. Typing on in the
-    // next field waits for it, and leaving the fields shows its value too.
+    // A new character renamed: the picker and card follow each letter and the field keeps its focus; so do the
+    // region on the card, a skill's slot tab and a map's name in the map picker.
     await button('＋ 새 캐릭터').click();
     const name = c.getByLabel('이름', { exact: true });
     await name.fill('유리');
-    await name.press('Enter');
-    await c.locator('h2', { hasText: '유리' }).first().waitFor();
+    await c.locator('.character-info h2', { hasText: '유리' }).waitFor();
     assert.equal(await c.getByLabel('작업 캐릭터', { exact: true }).locator('option:checked').textContent(), '유리');
     assert.equal(await p.evaluate(() => document.activeElement?.getAttribute('aria-label')), '이름', 'the field keeps focus');
     await name.press('Tab');
     const region = c.getByLabel('소속 지역', { exact: true });
     await region.fill('남부 항구');
     assert.equal(await region.inputValue(), '남부 항구', 'typing in the next field is not interrupted');
+    await c.locator('.character-info small', { hasText: '남부 항구' }).waitFor();
+    await c.getByLabel('스킬 이름', { exact: true }).fill('파도 베기');
+    await button('슬롯 1 · 파도 베기').waitFor();
+    const field = await c.getByLabel('스킬 이름', { exact: true }).elementHandle();
     await button('＋ 새 캐릭터').focus();
-    await c.getByText('남부 항구', { exact: true }).first().waitFor();
+    assert.equal(await field.evaluate((n) => n.isConnected), true, 'leaving a field does not redraw the tool');
+    await p.evaluate(() => goTool('scene'));
+    await c.getByLabel('맵 이름', { exact: true }).fill('항구 마을');
+    assert.equal(await c.getByLabel('작업 맵', { exact: true }).locator('option:checked').textContent(), '항구 마을');
     // A notice closes on a tap.
     await p.evaluate(() => note('확인용 알림이에요.'));
     await p.locator('#note').click();
     assert.equal(await p.locator('#note').textContent(), '');
-    console.log('PASS tablet rename: Enter shows the new name in the list and card and keeps focus; typing on in the next field is not interrupted; a tapped notice closes');
+    console.log('PASS tablet rename: character, region, skill and map names follow in the pickers, card and tabs as they are typed, without a redraw; a tapped notice closes');
 
     // The lobby's settings button takes the top-right corner; a banner's buttons go together to a clear place.
     await p.evaluate(() => goTool('interface'));
