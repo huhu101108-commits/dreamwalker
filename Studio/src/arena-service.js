@@ -153,8 +153,9 @@ async function cloudApi(db,req,player,op,b) {
   }
   if (op==='transfer') {
     const code=newTransferCode(),expires=Date.now()+CLOUD.codeHours*3600000;
-    await arenaQuery(db,'DELETE FROM dw_transfers WHERE player=?',player.id).run();
-    await arenaQuery(db,'INSERT INTO dw_transfers(code,player,expires) VALUES(?,?,?)',await hash(code),player.id,expires).run();
+    // One code per player: a new code replaces the earlier one, also when two requests arrive together.
+    await arenaQuery(db,'INSERT INTO dw_transfers(code,player,expires) VALUES(?,?,?) ON CONFLICT(player) DO UPDATE SET code=excluded.code,expires=excluded.expires',
+      await hash(code),player.id,expires).run();
     return json({code:code.slice(0,4)+'-'+code.slice(4,8)+'-'+code.slice(8),expires});
   }
   err(404,'서비스 경로를 찾을 수 없어요.');
@@ -179,7 +180,8 @@ async function arenaApi(req,env,op) {
   let b={};
   if (post) {
     if (!req.headers.get('content-type')?.startsWith('application/json')) err(415,'JSON 요청이 필요해요.');
-    b=JSON.parse(new TextDecoder().decode(await limitedFileBody(req,op==='save'?CLOUD.bytes+4096:4096)));
+    // A save is limited by its characters below; its request may take up to 4 bytes a character (UTF-8 and escapes).
+    b=JSON.parse(new TextDecoder().decode(await limitedFileBody(req,op==='save'?CLOUD.bytes*4+4096:4096)));
     if (!b || Array.isArray(b) || typeof b!=='object') err(400,'요청 형식을 확인하세요.');
   }
   if (op==='status') {

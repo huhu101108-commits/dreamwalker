@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { startInField } from './browser-field.mjs';
 
 // Store and gacha on a tablet-sized QA copy: a currency, a banner with two tiers and pity, the live disclosure and a
 // 10,000-pull simulation in the 상점 · 뽑기 tab; then buttons on the HUD, a pull, the result and the probability panel.
@@ -59,8 +60,9 @@ export async function testShopBrowser(page, origin) {
         widget('rates', 'button', 80, 18, 16, 9, { action: 'odds', target: id }),
         widget('purse', 'text', 30, 18, 30, 8, { text: '결정 {재화:' + gem + '}' }));
     }), banner);
+    await startInField(p);
     assert.equal(await p.evaluate(() => problem(project)), '');
-    await p.evaluate(() => launchGame(activeMap().id, '', { fromStart: false }));
+    await p.evaluate(() => launchGame(activeMap().id));
     const game = p.locator('#game[open]'), hud = game.locator('#overlay');
     await game.waitFor();
     await hud.getByText('결정 1600').waitFor();

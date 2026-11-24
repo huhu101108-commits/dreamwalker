@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { startInField } from './browser-field.mjs';
 
 // Error reports at tablet size: a player who agreed hits an error on the public play page; the editor sees one group
 // in 검수·빌드 and resolves it. Then a draft with its own web code plays in the sandboxed frame, where the studio page
@@ -46,6 +47,7 @@ export async function testErrorReports(page, origin) {
     // A draft with its own web code plays in the sandboxed frame; cloud save goes through the studio page.
     await p.goto(origin + '/?tool=interface');
     await editor.waitFor();
+    await startInField(p);
     await p.evaluate(async () => {
       const base = await getSourceBase(), hud = project.layouts.find((l) => l.id === activeMap().hudId);
       edit(() => {

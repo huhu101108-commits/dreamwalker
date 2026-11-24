@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { startInField } from './browser-field.mjs';
 
 // Cloud save and device transfer between two browsers (two devices) at tablet size: device A saves its progress to
 // the cloud and issues a transfer code; device B types the code, takes over the guest and opens A's progress.
@@ -29,8 +30,9 @@ export async function testCloudTransfer(page, origin) {
       return project.layouts.filter((l) => Object.values(project.frontScreens || {}).includes(l.id))
         .flatMap((l) => l.elements.filter((w) => w.type === 'button' && ['beginGame', 'confirmActor'].includes(w.action)).map((w) => w.text || getActionLabel(w.action)));
     });
+    await startInField(p);
     assert.equal(await p.evaluate(() => problem(project)), '');
-    // Play the draft and walk any title and character select into the field.
+    // Play the draft in the field.
     await p.evaluate(() => launchGame(activeMap().id));
     const game = p.locator('#game[open]'), hud = game.locator('#overlay');
     await game.waitFor();

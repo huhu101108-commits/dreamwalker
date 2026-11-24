@@ -1,5 +1,7 @@
 // Replay the same local input schedule. This is a transport stress fixture, separate from a live match.
-function replayNetwork(world, rtt, loss, jitter, disconnect = 0) {
+function replayNetwork(project, rtt, loss, jitter, disconnect = 0) {
+  // A run writes its language into the world it plays, so it gets a copy of the project.
+  const world = structuredClone(project);
   const ticks = 180,
     queue = [],
     received = new Map(),

@@ -5,7 +5,7 @@ import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 
 const ctx = vm.createContext({ crypto, structuredClone, TextEncoder });
-for (const file of ['model', 'rule-machine', 'simulation']) vm.runInContext(await readFile('src/' + file + '.js', 'utf8'), ctx);
+for (const file of ['model', 'rule-machine', 'simulation', 'network-test']) vm.runInContext(await readFile('src/' + file + '.js', 'utf8'), ctx);
 const m = vm.runInContext(`({seed,problem,widget,newStory,newNode,newInputSpec,FieldRun,INPUTS,actionRefOK,textSlots,localeKeys,translationState,
   setTranslation,emptyLocales,localizeWorld,worldLanguage,systemText,pickLanguage,localeCsv,csvRows,csvCell,importLocaleCsv,pruneTranslations,
   mergeProject,playableWorld,packNativeWorld,roadmapStory,newEpisode,localeHash,SYSTEM_TEXT,LOCALE_LIMIT,languageName,localeCodes})`, ctx);
@@ -89,6 +89,10 @@ assert.equal(m.systemText(run.world, 'button.jump'), 'Jump');
 assert.equal(m.systemText(run.world, 'result.clear'), '탐험 성공', 'an untranslated built-in text uses the creator\'s rewording');
 assert.equal(m.systemText(run.world, 'button.menu'), m.SYSTEM_TEXT['button.menu']);
 assert.equal(lead.name, '백설', 'the project is untouched');
+// Studio tools that play the project themselves (the network replay) play a copy, so {언어} and choices stay as written.
+const before = JSON.stringify(p);
+vm.runInContext('replayNetwork', ctx)(p, 60, 0, 0);
+assert.equal(JSON.stringify(p), before, 'the network replay leaves the project as written');
 // Language buttons: next in the list, then a named language; each change counts once.
 run.press('language');
 assert.equal(run.language, 'ja');

@@ -108,10 +108,12 @@ async function serverCall(path, init = {}) {
   if (!reply.status) throw Error('relay');
   return { ok: reply.status >= 200 && reply.status < 300, status: reply.status, json: async () => reply.data };
 }
-// The player's language is kept per game on this device; the first visit follows the browser's languages.
+// The player's language is kept per game on this device; the first visit follows the browser's languages. Test plays
+// in the editor open in the base language unless a language was chosen, so authors see what they wrote.
 const languageKey = (doc) => 'dreamwalker-language-v1:' + (doc.saveId || doc.startMap);
 function startLanguage(doc, chosen = '') {
-  return pickLanguage(localeCodes(doc), [chosen, deviceValue(languageKey(doc)) || '', ...(navigator.languages || [navigator.language])]);
+  const editor = relayedFrame ? GAME_DATA.relay === 'preview' : typeof GAME_DATA === 'undefined' ? location.pathname !== '/play' : !!GAME_DATA.inspection;
+  return pickLanguage(localeCodes(doc), [chosen, deviceValue(languageKey(doc)) || '', ...(editor ? [] : navigator.languages || [navigator.language])]);
 }
 function launchGame(mapId, screenId = '', inspection = false) {
   const direct=inspection && typeof inspection==='object' && !inspection.fromStart && (inspection.storyId||inspection.objectId||inspection.screenId);
@@ -764,11 +766,12 @@ function launchGame(mapId, screenId = '', inspection = false) {
       }
   }
   function paintHUD() {
-    const inputs = run.hostInputs?.size ? new Map([...run.inputValues, ...run.hostInputs]) : run.inputValues;
-    const state = { world: run.world, wallet: run.wallet, flags:run.flags,inputs, inputDefaults:run.inputDefaults, character: run.character, hp: run.hero.hp, map: run.map, enemies: run.enemiesLeft, loading: run.loadingFraction, energy: run.energy, boss: run.boss };
+    const state = { world: run.world, wallet: run.wallet, flags:run.flags,inputs:run.inputValues, inputDefaults:run.inputDefaults, character: run.character, hp: run.hero.hp, map: run.map, enemies: run.enemiesLeft, loading: run.loadingFraction, energy: run.energy, boss: run.boss };
     const stamp = state.hp + '|' + state.enemies + '|' + run.progressVersion + '|' + Math.round(100 * state.loading) + '|' +
       (state.energy ? state.energy.now + '/' + state.energy.max : '') + '|' + (state.boss ? state.boss.id + ':' + state.boss.hp : '');
     if (hudStamp !== stamp) {
+      // Values the host shows but saves never keep ({입력:기기이전코드}, {입력:오류보고}) join only when repainting.
+      if (run.hostInputs?.size) state.inputs = new Map([...run.inputValues, ...run.hostInputs]);
       for (const { w, n } of widgets)
         if(w.type==='input'){if(!n.contains(document.activeElement))showInputValue(n,w,readControl(w,run.screen.id,run.inputValues));}
         else if (w.type === 'inventory' || w.type === 'quests') paintProgressWidget(n, w, run);

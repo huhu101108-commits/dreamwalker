@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { startInField } from './browser-field.mjs';
 
 // Translation on a tablet-sized QA copy: add a language, translate in the table, review a changed original, send the
 // table to a translator as CSV and read it back, place a language button, then play in English and switch in the game.
@@ -100,6 +101,7 @@ export async function testLocalization(page, origin) {
     console.log('PASS translator CSV on a tablet: download has the base and English columns, an edited file imports one cell');
 
     // Play in English, then switch language with the HUD button.
+    await startInField(p);
     await button('이 언어로 테스트 플레이', editor).click();
     const game = p.locator('#game[open]');
     await game.waitFor();

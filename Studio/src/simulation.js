@@ -102,6 +102,7 @@ function slashTouches(hero, target, reach, from, to) {
 }
 
 class FieldRun {
+  // world: a play copy. The run writes its language into it (localizeWorld), so never pass the editor's project.
   constructor(world, mapId, directEntry = false, ruleCapture = null, language = '') {
     if(world.menuFunctions?.length) world={...world,layouts:resolvedScreens(world)};
     this.world = world;
