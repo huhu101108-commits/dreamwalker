@@ -15,8 +15,33 @@ function drawScreenShortcuts(a, layout) {
     });
   }
   const shortcuts = box('screen-shortcuts');
-  for (const [role, name] of Object.entries(FRONT_SCREENS))
+  for (const [role, name] of Object.entries(FRONT_NAMES))
     shortcuts.append(action(name, () => fronts[role] ? select(fronts[role]) : make([role]), layout.id === fronts[role] ? 'on' : ''));
+  // A settings screen of device settings, remembered as the 설정 screen; the home screen gets a button to it.
+  const settingsId = named(project.layouts, fronts.settings || '') ? fronts.settings : '';
+  shortcuts.append(action('설정 화면', () => {
+    if (settingsId) return select(settingsId);
+    if (project.layouts.length >= LIMIT.layouts) return note('UI 화면 한도에 도달했어요.');
+    edit(() => {
+      const screen = settingsScreen(uid()), config = project.frontScreens ||= { seconds: 0.8 };
+      project.layouts.push(screen);
+      config.settings = screen.id;
+      const home = named(project.layouts, config.home || '');
+      if (home && home.elements.length < LIMIT.widgets) home.elements.push(newMenuButton(home, '설정', { action: 'open', target: screen.id }));
+      layoutId = screen.id; elementId = '';
+    });
+  }, layout.id === settingsId ? 'on' : ''));
+  // A standby screen opens after a while without input, on the home screen when there is one.
+  const standby = project.layouts.find(l => l.rules.some(r => r.event === 'idle'));
+  shortcuts.append(action('대기 화면', () => {
+    if (standby) return select(standby.id);
+    if (project.layouts.length >= LIMIT.layouts) return note('UI 화면 한도에 도달했어요.');
+    edit(() => {
+      const screen = standbyScreen(uid(), named(project.layouts, fronts.home || '') ? fronts.home : '', 30);
+      project.layouts.push(screen);
+      layoutId = screen.id; elementId = '';
+    });
+  }, layout.id === standby?.id ? 'on' : ''));
   for (const [name,id] of [['전투 HUD',m.hudId],['게임 메뉴',m.menuId],['대화창',m.dialogueId]])
     shortcuts.append(action(name, () => select(id), layout.id === id ? 'on' : ''));
   shortcuts.append(screenResultButton('clear','클리어 화면'),screenResultButton('defeat','패배 화면'));
@@ -24,10 +49,11 @@ function drawScreenShortcuts(a, layout) {
   if (Object.keys(FRONT_SCREENS).some(role => !fronts[role]))
     a.append(action('시작 화면 세트 만들기', () => make(['title','roster','loading'])));
   const setup = el('details');
-  setup.append(el('summary','게임 시작 순서 · 화면 연결'));
-  for (const [role, name] of Object.entries(FRONT_SCREENS)) {
-    const options = project.layouts.filter(l => l.kind === 'custom' &&
-      !Object.keys(FRONT_SCREENS).some(k => k !== role && fronts[k] === l.id));
+  setup.append(el('summary','게임 시작 순서 · 화면 연결'),
+    el('p','시작 화면 → 캐릭터 선택 → 홈 화면 → 로딩 → 맵 순서로 이어지고 비운 화면은 건너뛰어요. 홈 화면은 «홈 화면으로» 버튼으로 다시 열고 «플레이 시작»으로 맵에 들어가요.'));
+  for (const [role, name] of Object.entries(FRONT_NAMES)) {
+    const options = project.layouts.filter(l => (l.kind === 'custom' || l.id === fronts[role]) &&
+      !FRONT_ORDER.some(k => k !== role && fronts[k] === l.id));
     setup.append(selectField(name + ' 연결', fronts[role] || '', { '':'건너뛰기', ...optionMap(options) },
       id => edit(() => { (project.frontScreens ||= {})[role] = id; })));
   }

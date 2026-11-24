@@ -382,10 +382,10 @@ function playProject(mapId, screenId = '', inspection = false) {
     : launchGame(mapId, screenId, inspection);
 }
 // The device values a game frame reads (see deviceValue in game.js), and the only keys it may change.
-const DEVICE_KEYS = /^dreamwalker-(?:cloud|reports|language)-v1:[\w-]{1,60}$/;
+const DEVICE_KEYS = /^dreamwalker-(?:cloud|reports|language|settings)-v1:[\w-]{1,60}$/;
 function frameDeviceValues(doc, relay) {
   const game = doc.saveId || doc.startMap, values = {};
-  for (const key of ['dreamwalker-language-v1:' + game, 'dreamwalker-reports-v1:' + game,
+  for (const key of ['dreamwalker-language-v1:' + game, 'dreamwalker-reports-v1:' + game, 'dreamwalker-settings-v1:' + game,
     'dreamwalker-cloud-v1:' + ((relay === 'preview' ? 'preview-' : '') + game).slice(0, 50)])
     try { const v = localStorage.getItem(key); if (v !== null) values[key] = v; } catch {}
   return values;
@@ -394,8 +394,10 @@ function frameDeviceValues(doc, relay) {
 const RELAYED = /^\/api\/(?:arena\/(?:session|saves|save|transfer|claim)|reports(?:\/session)?)(?:\?[\w=&%.-]*)?$/;
 async function relayGameRequest(frame, m) {
   if (m?.dreamwalker === 'open-arena') { window.open('/arena', '_blank', 'noopener'); return; }
+  // A link button of the game: only web pages and mail addresses, in a new tab without access back to the studio.
+  if (m?.dreamwalker === 'open-link') { if (linkTarget(m.url)) window.open(m.url, '_blank', 'noopener,noreferrer'); return; }
   if (m?.dreamwalker === 'device-value') {
-    if (typeof m.key === 'string' && DEVICE_KEYS.test(m.key) && typeof m.value === 'string' && m.value.length <= 20)
+    if (typeof m.key === 'string' && DEVICE_KEYS.test(m.key) && typeof m.value === 'string' && m.value.length <= 200)
       try { localStorage.setItem(m.key, m.value); } catch {}
     return;
   }

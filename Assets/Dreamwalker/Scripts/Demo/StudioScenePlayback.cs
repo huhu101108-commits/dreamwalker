@@ -23,7 +23,7 @@ public sealed partial class StudioWorld
     private void BeginStage()
     {
         stageSound?.Stop();pendingStageSound=null;
-        stageTime.Reset(Line);layerPosition.Clear();layerVisibility.Clear();stageCamera=null;
+        stageTime.Reset(Line);layerPosition.Clear();layerVisibility.Clear();stageCamera=null;autoWaited=0;
         if(Line?.stageTrack?.cues!=null)foreach(var c in Line.stageTrack.cues)if(c.kind=="sound")Connection.Sound(c.sound);
         stageTime.Step(0,EmitStageCue);
     }
@@ -43,9 +43,13 @@ public sealed partial class StudioWorld
         var clip=Connection.Sound(pendingStageSound);
         if(clip!=null){PlayAuthoredFx(ref stageSound,clip);pendingStageSound=null;}
     }
+    // The player's auto lines move on once a line has been readable for a while, unless it asks for a choice.
     private void StepStage(float dt){
         if(stageTime.line!=Line)BeginStage();
-        bool advance=stageTime.Step(Mathf.Clamp(dt,0,.1f),EmitStageCue);PlayStageSound();
+        float step=Mathf.Clamp(dt,0,.1f);
+        bool advance=stageTime.Step(step,EmitStageCue);PlayStageSound();
+        autoWaited+=step*60;
+        if(!advance&&Settings.autoAdvance&&Line!=null&&Line.choices.Length==0&&autoWaited+.0001f>=AutoWait())advance=true;
         if(advance)Answer();
     }
     private void FinishStageFlags()=>stageTime.Finish(EmitStageCue);
@@ -53,7 +57,7 @@ public sealed partial class StudioWorld
         if(Line==null || i<0 || i>=Line.choices.Length)return false;
         var c=Line.choices[i];return flow.Matches(c.flag,c.on);
     }
-    internal string StageText => Line?.stageTrack?.Visible(Line.text,(int)(stageTime.ticks+.0001f))??Line?.text;
+    internal string StageText => Line?.stageTrack?.Visible(Line.text,(int)(stageTime.ticks+.0001f),Settings.textSpeed)??Line?.text;
     internal bool StageLayerVisible(StudioShotLayer p)=>layerVisibility.TryGetValue(p.id,out var cue)?cue.kind=="show":p.visible;
     internal Vector2 StageLayerOffset(StudioShotLayer p){
         Vector2 offset=layerPosition.TryGetValue(p.id,out var cue)?new Vector2(cue.dx,cue.dy):Vector2.zero;

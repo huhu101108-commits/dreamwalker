@@ -91,5 +91,52 @@ namespace Dreamwalker.Tests
             yield return Frames(2);
             Assert.IsNull(GameObject.Find("Dreamwalker Game UI"), "leaving the game removes its canvas");
         }
+
+        // The UI design tool's home, settings and standby screens (Studio/scripts/unity-test-fixture.mjs): the start
+        // order reaches the home screen, a quiet second opens the standby screen, play goes to the map and the map menu
+        // comes back home.
+        [UnityTest]
+        public IEnumerator HomeStandbyAndSettingsScreensFollowTheStudio()
+        {
+            var json = File.ReadAllText(Path.Combine(Application.dataPath, "Dreamwalker/Tests/Play/studio-menus-release.json"));
+            var release = JsonUtility.FromJson<StudioRelease>(json);
+            var connection = player.AddComponent<StudioConnection>();
+            connection.enabled = false;
+            var world = player.AddComponent<StudioWorld>();
+            world.Play(release.project, connection);
+            yield return Frames(3);
+            world.Press("beginGame");
+            yield return Frames(2);
+            world.Press("confirmActor");
+            yield return Frames(2);
+            Assert.AreEqual("home", world.CurrentLayout.id, "a confirmed character goes to the home screen");
+            CollectionAssert.Contains(Shown("Dreamwalker Game UI"), "출격");
+
+            float until = Time.realtimeSinceStartup + 6;
+            while (world.CurrentLayout?.id != "standby" && Time.realtimeSinceStartup < until) yield return null;
+            Assert.AreEqual("standby", world.CurrentLayout.id, "a quiet second opens the standby screen");
+            world.Press("back");
+            yield return Frames(2);
+            Assert.AreEqual("home", world.CurrentLayout.id);
+            world.Press("open", "settings");
+            yield return Frames(2);
+            Assert.AreEqual("settings", world.CurrentLayout.id);
+            world.Press("back");
+            world.Press("back");
+            yield return Frames(2);
+            Assert.AreEqual("front-title", world.CurrentLayout.id, "back on the home screen goes to the title screen");
+            world.Press("beginGame");
+            world.Press("confirmActor");
+            world.Press("play");
+            until = Time.realtimeSinceStartup + 12;
+            while (world.CurrentLayout?.id != "default-hud" && Time.realtimeSinceStartup < until) yield return null;
+            Assert.AreEqual("default-hud", world.CurrentLayout.id, "play goes through loading to the map");
+            world.Press("menu");
+            world.Press("home");
+            yield return Frames(2);
+            Assert.AreEqual("home", world.CurrentLayout.id, "the map menu comes back home");
+            world.Leave();
+            yield return Frames(2);
+        }
     }
 }

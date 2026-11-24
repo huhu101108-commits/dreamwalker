@@ -192,6 +192,7 @@ public sealed partial class StudioWorld : MonoBehaviour
         Language = StudioLocalization.Apply(project, StudioLocalization.Pick(StudioLocalization.Codes(project),
             new[] { PlayerPrefs.GetString(LanguageKey, ""), DeviceLanguage() }));
         flow = new StudioScreenFlow();
+        LoadSettings();
         StartReports();
         hasTimers = Array.Exists(project.layouts,
                                  l => l.rules != null && Array.Exists(l.rules, r => r.@event == "elapsed"));
@@ -227,10 +228,11 @@ public sealed partial class StudioWorld : MonoBehaviour
         var f = Project.frontScreens;
         if(!string.IsNullOrEmpty(f?.entry)){
             if(f.entry=="$field")return;
-            if(f.entry==f.title||f.entry==f.roster||f.entry==f.loading)Present(f.entry);
+            if(IsFront(f.entry))Present(f.entry);
             else {flow.Open(f.entry);SyncControls();}return;
         }
-        if (f != null) Present(!string.IsNullOrEmpty(f.title) ? f.title : !string.IsNullOrEmpty(f.roster) ? f.roster : f.loading);
+        // The first front screen of the start order: title → character choice → home → loading.
+        foreach (var role in FrontOrder) { string id = FrontScreen(role); if (id != null) { Present(id); return; } }
     }
     private void Present(string id)
     {
@@ -672,7 +674,7 @@ public sealed partial class StudioWorld : MonoBehaviour
         Present(null);flow.CloseAll();Menu="";
         var f=Project.frontScreens;
         if(target=="$field")FinishOverlay();
-        else if(target==f?.title||target==f?.roster||target==f?.loading)Present(target);
+        else if(IsFront(target))Present(target);
         else flow.Open(target);
         SyncControls();return true;
     }
@@ -706,6 +708,7 @@ public sealed partial class StudioWorld : MonoBehaviour
     }
     private void PressCore(string action,string target)
     {
+        idleTime = 0;
         // The built-in shop panel sits above every screen and closes first.
         if (ShopPanel != null && (action == "back" || action == "resume" || action == "closePanel")) { ShopPanel = null; return; }
         if (ShopAction(action, target)) return;
@@ -731,12 +734,13 @@ public sealed partial class StudioWorld : MonoBehaviour
             (GetComponent<StudioOnlineArena>() ?? gameObject.AddComponent<StudioOnlineArena>()).Open();
             return;
         }
+        if (MenuAction(action, target)) return;
         var f = Project.frontScreens;
         if ((action=="beginGame"||action=="confirmActor")&&FollowScreenRoute("next"))return;
         if ((action=="back"||action=="resume")&&FollowScreenRoute(action))return;
         if (action == "beginGame" || action == "confirmActor")
         {
-            Present(action == "beginGame" && !string.IsNullOrEmpty(f?.roster) ? f.roster : f?.loading);
+            Present(NextFront(action));
             return;
         }
         if (action == "previousActor" || (action == "switch" && ShowingFront))
@@ -747,6 +751,8 @@ public sealed partial class StudioWorld : MonoBehaviour
         }
         if (ShowingFront && (action == "back" || action == "resume"))
         {
+            // Back on the home screen goes to the title screen when there is one, never to the map.
+            if (action == "back" && front == FrontScreen("home")) { if (FrontScreen("title") != null) Present(f.title); return; }
             Present(action == "back" && front == f?.roster ? f?.title : null);
             return;
         }
@@ -764,7 +770,7 @@ public sealed partial class StudioWorld : MonoBehaviour
         if (action == "open")
         {
             if (Project.Layout(target) != null) {
-                if (target == f?.title || target == f?.roster || target == f?.loading) Present(target);
+                if (IsFront(target)) Present(target);
                 else flow.Open(target);
             }
             SyncControls();
@@ -1250,6 +1256,7 @@ public sealed partial class StudioWorld : MonoBehaviour
             frontAge += Time.unscaledDeltaTime;
             if (LoadingFraction >= 1 || frontAge >= Mathf.Max(8, Project.frontScreens.seconds)) {if(!FollowScreenRoute("next"))Present(null);}
         }
+        else StepIdle();
         if(!ShowingFront)sceneAge+=Time.unscaledDeltaTime*60;
         if(Line!=null && !HasOverlay)StepStage(Time.unscaledDeltaTime);
         screenView.ReadInput(motor);
@@ -1279,7 +1286,7 @@ public sealed partial class StudioWorld : MonoBehaviour
         bool recovery = Array.Exists(CurrentLayout.elements, w => Visible(w) && Enabled(w) &&
             (w.type == "dialogue" && Story != null || w.type == "button" && (w.action == "back" || w.action == "resume" ||
              w.action == "restart" || w.action == "newRun" || w.action == "gotoMap" || w.action == "open" ||
-             w.action == "beginGame" || w.action == "confirmActor" ||
+             w.action == "beginGame" || w.action == "confirmActor" || w.action == "play" || w.action == "home" ||
              (Story != null && (w.action == "skip" || w.action == "nextLine")))));
         if (!recovery && Painter.Button("world/close", new Rect(Screen.width-Painter.Dp(104),Painter.Dp(4),Painter.Dp(100),Painter.Dp(38)),StudioLocalization.Text("bar.close"),
                 new StudioText(Mathf.RoundToInt(Painter.Dp(14)),StudioAlign.Center,Color.white),true,StudioSkin.Standard(Painter.Density)))

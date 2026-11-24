@@ -49,7 +49,10 @@ export async function testLocalization(page, origin) {
     await button('＋ 번역 언어 추가', editor).click();
     await button('English · 0%', editor).waitFor();
     const row = (key) => editor.locator('.locale-row[data-key="' + key + '"]');
+    // The table shows 40 rows at a time; a row further down is reached with «항목 더 보기».
     const fill = async (key, text) => {
+      for (let i = 0; i < 10 && !(await row(key).count()); i++)
+        await editor.getByRole('button', { name: /^항목 더 보기/ }).click();
       await row(key).locator('textarea, input').fill(text);
       await row(key).locator('.locale-state.done').waitFor();
     };

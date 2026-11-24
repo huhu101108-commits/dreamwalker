@@ -92,7 +92,9 @@ function screenNavigationEditor(main,l){
   const all=optionMap(project.layouts),dest={'':'기존 동작','$field':'현재 맵 플레이',...all};
   card.append(checkField('지정한 키보드 조작만 사용',!!project.authoredKeysOnly,v=>edit(()=>{project.authoredKeysOnly=v;})));
   card.append(selectField('첫 실행 화면',project.frontScreens?.entry||'',dest,v=>edit(()=>{(project.frontScreens||={}).entry=v;})));
+  // The home screen is linked in the start order (게임 화면 · 게임 시작 순서).
   for(const [key,label] of Object.entries(screenAliases)){
+    if(key==='home')continue;
     card.append(row(selectField(label+' 역할 화면',project.frontScreens?.[key]||'',{'':'연결 안 함',...all},v=>edit(()=>{(project.frontScreens||={})[key]=v;})),
       action(label+' 디자인 열기',()=>{
         const id=project.frontScreens?.[key];if(id){layoutId=id;elementId='';draw();return;}

@@ -54,6 +54,7 @@ public sealed partial class StudioWorld
     private readonly Dictionary<string,string> formValues = new Dictionary<string,string>();
     private readonly Dictionary<string,string> formDefaults = new Dictionary<string,string>();
     internal string FieldValue(StudioWidget w) {
+        if (!string.IsNullOrEmpty(w.control.setting)) return Settings.Text(w.control);
         string key = w.control.Name(CurrentLayout.id,w.id);
         return formValues.TryGetValue(key,out string value) ? w.control.Value(value) ?? w.control.initial : w.control.initial;
     }
@@ -70,6 +71,8 @@ public sealed partial class StudioWorld
     }
     internal void CommitField(StudioWidget w,string raw) {
         if (!Visible(w) || !Enabled(w) || Array.IndexOf(CurrentLayout.elements,w)<0) return;
+        idleTime = 0;
+        if (!string.IsNullOrEmpty(w.control.setting)) { string chosen = w.control.Value(raw); if (chosen != null) ChangeSetting(w, chosen); return; }
         string key=w.control.Name(CurrentLayout.id,w.id), value=w.control.Value(raw);
         if (value==null || (formValues.TryGetValue(key,out string old) && old==value)) return;
         formValues[key]=value;
@@ -103,7 +106,7 @@ public sealed partial class StudioWorld
         castVoicePlayer.Stop();
         castVoicePlayer.clip = clip;
         castVoicePlayer.loop = false;
-        castVoicePlayer.volume = Mathf.Clamp01((Project.mix?.voice ?? 100) / 100f);
+        castVoicePlayer.volume = Volume("voice", Project.mix?.voice ?? 100);
         castVoicePlayer.Play();
     }
     private string currentMusic;
@@ -122,7 +125,9 @@ public sealed partial class StudioWorld
     }
     private void PaintSoundscape()
     {
-        string music = string.IsNullOrEmpty(front) ? Map?.music : null;
+        // A screen with its own music (a title or home screen) plays it instead of the map's.
+        string screenMusic = CurrentLayout?.music;
+        string music = !string.IsNullOrEmpty(screenMusic) ? screenMusic : string.IsNullOrEmpty(front) ? Map?.music : null;
         var line = !HasOverlay ? Line : null;
         if (music != currentMusic)
         {
@@ -138,9 +143,10 @@ public sealed partial class StudioWorld
             voiceStarted = false;
         }
         PlayCastVoice();
-        StartTrack(ref musicPlayer, music, ref musicStarted, Project.mix?.musicMode!="once", Project.mix?.music ?? 65);
-        StartTrack(ref voicePlayer, line?.voice, ref voiceStarted, Project.mix?.voiceMode=="loop", Project.mix?.voice ?? 100);
+        StartTrack(ref musicPlayer, music, ref musicStarted, Project.mix?.musicMode!="once", Volume("music", Project.mix?.music ?? 65));
+        StartTrack(ref voicePlayer, line?.voice, ref voiceStarted, Project.mix?.voiceMode=="loop", Volume("voice", Project.mix?.voice ?? 100));
     }
+    // volume: 0 to 1, the mix scaled by the player's settings.
     private void StartTrack(ref AudioSource player, string reference, ref bool started, bool loop, float volume)
     {
         if (started || string.IsNullOrEmpty(reference)) return;
@@ -149,13 +155,13 @@ public sealed partial class StudioWorld
         SoundChannel(ref player);
         player.clip = clip;
         player.loop = loop;
-        player.volume = Mathf.Clamp01(volume / 100f);
+        player.volume = volume;
         player.Play();
         started = true;
     }
     private void PlayAuthoredFx(ref AudioSource channel,AudioClip clip){
         SoundChannel(ref channel);
-        float volume=Mathf.Clamp01((Project.mix?.fx??85)/100f);
+        float volume=Volume("fx",Project.mix?.fx??85);
         if(Project.mix?.fxMode=="loop"){channel.clip=clip;channel.loop=true;channel.volume=volume;channel.Play();}
         else{channel.loop=false;channel.volume=1;channel.PlayOneShot(clip,volume);}
     }
@@ -294,7 +300,7 @@ public sealed partial class StudioWorld
     private bool SaveProgress()
     {
         if (!Running || Map == null || Health <= 0 || body.position.y < 0 || Story != null || skill != null || castClock.Active || dodgeStart>=0 || pendingExit != null ||
-            (HasOverlay && string.IsNullOrEmpty(Result)))
+            (HasOverlay && string.IsNullOrEmpty(Result) && !AtHome))
             return false;
         RememberMap();
         var snapshot = new StudioPlayerSave {
@@ -630,7 +636,7 @@ public sealed partial class StudioWorld
             clip.SetData(samples, 0);
             tones[kind] = clip;
         }
-        cuePlayer.PlayOneShot(clip, Mathf.Clamp01((Project.mix?.fx ?? 85) / 100f));
+        cuePlayer.PlayOneShot(clip, Volume("fx", Project.mix?.fx ?? 85));
     }
 }
 }

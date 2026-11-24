@@ -25,6 +25,8 @@ const STUDIO_GUIDE = [
   { tab: 'interface', name: 'UI 디자인', for: 'HUD·메뉴·대화창·시작 화면을 그리고 버튼 동작과 화면 흐름을 연결', features: [
     ['버튼 추가', 'b:＋ 버튼 추가', '버튼 동작 연결'], ['입력칸 추가', 'b:＋ 입력 추가', '입력 이름 선택 목록'],
     ['시작 화면 순서', 's:게임 시작 순서 · 화면 연결', '타이틀 로딩 캐릭터 선택'], ['메뉴 만들기', 's:메뉴와 기능 만들기', '하위 메뉴 기능'],
+    ['홈 화면 (로비)', 'b:홈 화면 (로비)', '홈 로비 메인 화면 출격'], ['설정 화면', 'b:설정 화면', '옵션 음량 배경음 효과음 대사 속도 자동 진행'],
+    ['대기 화면', 'b:대기 화면', '방치 입력 없음 스탠바이 화면보호'],
     ['화면 흐름 시험', 's:화면 흐름과 경로 시험', '복귀 경로'], ['그룹·앵커·상태', 's:그룹 · 앵커 · 상태 디자인', '앵커 그룹 선택 상태'],
     ['멀티터치 시험', 's:입력 조합 · 멀티터치 시험', '동시 입력 패드']] },
   { tab: 'stories', name: '대사 편집', for: '대화와 선택지를 쓰고 줄마다 연출·시간표를 정함, 대본 붙여넣기', features: [
@@ -108,6 +110,7 @@ function productionSteps(doc) {
   const art = doc.characters.filter((c) => c.sprite || c.portrait || (c.expressions || []).some((x) => x.image)).length;
   const clips = doc.characters.some((c) => Object.values(c.clips || {}).some((v) => v.frames?.length));
   const opening = !!(doc.frontScreens?.title || doc.frontScreens?.entry);
+  const settingsPlaced = doc.layouts.some((l) => l.elements.some((w) => w.type === 'input' && w.control?.setting));
   const translated = (doc.locales?.languages.length || 0) > 0;
   return [
     { name: '게임 이름과 저장 식별자', done: !!doc.saveId, detail: doc.saveId ? '저장 식별자 ' + doc.saveId : '출시 전에 저장 식별자를 고정하세요.', tab: 'home', anchor: 'h:게임 설정' },
@@ -116,6 +119,9 @@ function productionSteps(doc) {
     { name: '맵', done: !has('맵'), detail: doc.scenes.length + '개' + (has('맵') ? ' · 갈 수 없는 맵이 있어요' : ''), tab: 'scene', anchor: 'h:맵 설정' },
     { name: '대사 · 스토리', done: doc.stories.length > 0 && !has('대사'), detail: doc.stories.length + '개 대화' + (has('대사') ? ' · 시작하지 않는 대화나 빈 줄이 있어요' : ''), tab: 'stories', anchor: 's:대본으로 쓰기 · 내보내기' },
     { name: '시작 화면 · HUD · 메뉴', done: opening && !has('UI 화면'), detail: opening ? '시작 순서 있음' : '타이틀·캐릭터 선택·로딩 순서를 정하세요.', tab: 'interface', anchor: 's:게임 시작 순서 · 화면 연결' },
+    { name: '홈 화면 · 설정 화면', done: !!doc.frontScreens?.home && settingsPlaced, optional: true,
+      detail: (doc.frontScreens?.home ? '홈 화면 있음' : '로비가 있는 게임이면 홈 화면을 만드세요') + ' · ' + (settingsPlaced ? '기기 설정 있음' : '소리·대사 설정 화면이 없어요'),
+      tab: 'interface', anchor: 'b:홈 화면 (로비)' },
     { name: '아이템 · 의뢰', done: (doc.items || []).length > 0 && !has('아이템'), optional: true, detail: (doc.items || []).length + '개 아이템 · ' + (doc.quests || []).length + '개 의뢰', tab: 'rpg', anchor: 'h:아이템 · 장비' },
     { name: '상점 · 뽑기', done: !!doc.shop?.banners.length && !has('상점 · 뽑기'), optional: true, detail: doc.shop ? doc.shop.banners.length + '개 뽑기 · ' + doc.shop.products.length + '개 상품' : '팔거나 뽑을 것이 있을 때', tab: 'shop', anchor: 'h:뽑기 · 확률 공개' },
     { name: '번역', done: translated && !has('번역'), optional: true, detail: translated ? doc.locales.languages.map((l) => l.name).join(', ') : '다른 언어로 낼 때', tab: 'locales', anchor: 'b:＋ 번역 언어 추가' },

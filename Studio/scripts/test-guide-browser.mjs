@@ -16,8 +16,8 @@ export async function testStudioGuide(page, origin) {
     assert.equal(await p.evaluate(() => tab), 'home', 'a new device starts at 시작하기');
     for (const name of ['제작 순서', '기능 지도', '게임 설정']) await editor.getByRole('heading', { name, exact: true }).waitFor();
     const steps = editor.locator('.guide-step');
-    assert.equal(await steps.count(), 12);
-    await editor.getByText(/^12단계 중 \d+단계 완료$/).waitFor();
+    assert.equal(await steps.count(), 13);
+    await editor.getByText(/^13단계 중 \d+단계 완료$/).waitFor();
 
     // Game settings edit the draft directly.
     await editor.getByLabel('플레이 저장 식별자', { exact: true }).fill('snow-story');
