@@ -1446,3 +1446,14 @@ body { font-size:16px; }
 .release-item strong{grid-column:1;font-size:.88em}.release-item span{grid-column:1;overflow-wrap:anywhere}
 .release-item button{grid-column:2;grid-row:1/span 2}
 .release-item.error{border-left-color:#ff8f80}.release-item.warn{border-left-color:#ffcf8a}.release-item.info{border-left-color:#7fb8d6}
+/* 시작하기 · 기능 지도 · 도움말 */
+.guide-steps{display:grid;gap:8px;margin:10px 0 18px}
+.guide-step{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 12px;align-items:center;background:#1d2c40;border:1px solid #35475c;border-left-width:4px;border-left-color:#ffcf8a;border-radius:8px;padding:8px 12px}
+.guide-step.done{border-left-color:#a0e7d4}.guide-step.optional{border-left-color:#7fb8d6}
+.guide-step strong{grid-column:1}.guide-step span{grid-column:1;color:var(--muted);overflow-wrap:anywhere}.guide-step button{grid-column:2;grid-row:1/span 2}
+.guide-map{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
+.guide-card{background:#1d2c40;border:1px solid #35475c;border-radius:10px;padding:10px 12px;display:grid;gap:6px;align-content:start}
+.guide-card p{margin:0;color:var(--muted);font-size:.92em}
+.guide-features{display:flex;flex-wrap:wrap;gap:6px}.guide-features button{font-size:.9em;padding:6px 10px}
+.guide-flash{outline:3px solid #ffcf8a;outline-offset:3px;border-radius:6px;transition:outline-color .4s}
+.guide-note{display:grid;gap:6px;margin:4px 0 10px}.guide-note p{margin:0;color:var(--muted);font-size:.9em}

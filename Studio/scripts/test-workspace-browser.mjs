@@ -8,7 +8,9 @@ export async function testWorkConvenience(host,origin){
   const button=(page,name)=>page.getByRole('button',{name,exact:true});
   try{
     await p.goto(origin+'/');await p.locator('#editor').waitFor();
-    assert.equal(await p.evaluate(()=>tab),'scene');
+    // A device that has not opened a tool yet starts at 시작하기; this flow then works in the map editor.
+    assert.equal(await p.evaluate(()=>tab),'home');
+    await p.locator('[data-quick="scene"]').click();assert.equal(await p.evaluate(()=>tab),'scene');
     await button(p,'Unity로 보내기').click();
     const transfer=p.getByRole('dialog',{name:'Unity로 보내기'});await transfer.getByText('Unity 처음 연결').click();
     await button(transfer,'연결 코드 만들기').click();await transfer.getByText(/10분 이내 한 번 사용/).waitFor();

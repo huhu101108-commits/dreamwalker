@@ -1,6 +1,7 @@
+// A device that has not opened a tool yet starts at 시작하기 (settings, production steps and the feature map).
 function lastWorkTool() {
-  try {return localStorage.getItem('dreamwalker-last-tool:'+(inspectionId||'team'))||'scene';}
-  catch {return 'scene';}
+  try {return localStorage.getItem('dreamwalker-last-tool:'+(inspectionId||'team'))||'home';}
+  catch {return 'home';}
 }
 
 const combatTools=['rules','characters','motion','balance'];
@@ -130,6 +131,8 @@ function openWorkFinder(){
   for(const c of project.shop?.currencies||[])add('재화',c.name,()=>goTool('shop'));
   for(const p of project.shop?.products||[])add('상품',p.name,()=>goTool('shop'));
   for(const b of project.shop?.banners||[])add('뽑기',b.name,()=>{shopView.banner=b.id;goTool('shop');});
+  // Every feature of the feature map, by what it does.
+  for(const g of STUDIO_GUIDE)for(const [label,anchor,words] of g.features)add('기능',g.name+' · '+label,()=>openFeature(g.tab,anchor),words);
   for(const r of project.combatRules)add('전투 규칙',r.name,()=>goTool('rules',r.id));
   for(const r of project.eventRules||[])add('이벤트 규칙',r.name,()=>{
     goTool('eventRules',r.id);const editor=document.querySelector('[data-persist="general-rule-editor"]');if(editor)editor.open=true;
@@ -150,14 +153,15 @@ function openWorkFinder(){
 }
 function initWorkNavigation(){
   const nav=$('#quick-tools');
-  for(const [key,label] of [['scene','맵'],['interface','화면'],['stories','대사'],['rules','전투']]){
+  for(const [key,label] of [['home','시작'],['scene','맵'],['interface','화면'],['stories','대사'],['rules','전투']]){
     const b=action(label,()=>goTool(key));b.dataset.quick=key;nav.append(b);
   }
-  nav.append(action('찾기',openWorkFinder));$('#find-work').onclick=openWorkFinder;
+  nav.append(action('찾기',openWorkFinder),action('도움말',openToolHelp));$('#find-work').onclick=openWorkFinder;$('#tool-help').onclick=openToolHelp;
   window.addEventListener('keydown',e=>{
     if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'&&project&&!document.querySelector('dialog[open]')){
       e.preventDefault();openWorkFinder();
     }
+    if(e.key==='F1'&&project&&!document.querySelector('dialog[open]')){e.preventDefault();openToolHelp();}
   });
 }
 

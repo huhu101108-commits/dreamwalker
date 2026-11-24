@@ -227,8 +227,8 @@ function drawSource() {
     bindText('프로젝트 확장 데이터', project, 'customJson', 160000, true),
   );
   b.append(ext);
-  if (sourceFilter === 'Web/')
-    b.append(
+  // Both outputs stay in reach whichever files are listed.
+  const webOutput = [
       heading('웹 게임 실행'),
       el(
         'p',
@@ -237,16 +237,16 @@ function drawSource() {
       action('▶ 소스 적용 플레이', () => playCustom(project, activeMap().id), 'accent'),
       action('초안 → 오프라인 게임 HTML', exportWebGame),
       action('저장본 → 오프라인 게임 HTML',exportSavedWebGame),
-    );
-  else
-    b.append(
+  ];
+  const unityOutput = [
       heading('Unity 프로젝트'),
       el(
         'p',
         'C#·셰이더·프리팹·설정을 편집한 뒤 공유 버전을 저장하세요. ZIP에 변경된 소스와 콘텐츠가 함께 들어가요. C# 변경은 Unity에서 빌드하면 적용돼요.',
       ),
       action('저장본 → 전체 Unity 프로젝트', () => exportUnityPack(true), 'accent'),
-    );
+  ];
+  b.append(...(sourceFilter === 'Web/' ? [...webOutput, ...unityOutput] : [...unityOutput, ...webOutput]));
 }
 // relay: the studio page that hosts the frame forwards the game's server requests (cloud saves, error reports, online
 // match); 'published' when that page is the public play link. Offline HTML has no relay and no network.

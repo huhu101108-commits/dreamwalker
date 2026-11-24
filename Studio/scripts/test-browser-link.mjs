@@ -31,6 +31,7 @@ import { testCloudTransfer } from './test-cloud-save-browser.mjs';
 import { testErrorReports } from './test-error-reports-browser.mjs';
 import { testShopBrowser } from './test-shop-browser.mjs';
 import { testReleaseTools } from './test-release-tools-browser.mjs';
+import { testStudioGuide } from './test-guide-browser.mjs';
 const { chromium } = createRequire(import.meta.url)('playwright-core');
 
 const duelStore=arenaFixture();
@@ -121,7 +122,7 @@ try {
     [testSceneMediaBrowser,host,origin],[testScreenWorkflow,host,origin],[testRuleAuthoring,host,origin],[testStoryProbeBrowser,host,origin],
     [testTouchAuthoring,host],[testDeskBrowser,host],[testDialogueBrowser,host],[testDeviceDesigner,host],
     [testPersonalGptBrowser,host,guest,origin,peerOrigin],[testGptWorkbenchBrowser,host,origin,guest.context().browser()],
-    [testPresetDesigner,host,origin],[testCharacterStage,host,origin],[testUnityReturn,host,origin],[testPortraitMotion,host,origin],[testLocalization,host,origin],[testCloudTransfer,host,origin],[testErrorReports,host,origin],[testShopBrowser,host,origin],[testReleaseTools,host,origin],[testArenaBrowser,host,guest,origin,peerOrigin]
+    [testPresetDesigner,host,origin],[testCharacterStage,host,origin],[testUnityReturn,host,origin],[testPortraitMotion,host,origin],[testLocalization,host,origin],[testCloudTransfer,host,origin],[testErrorReports,host,origin],[testShopBrowser,host,origin],[testReleaseTools,host,origin],[testStudioGuide,host,origin],[testArenaBrowser,host,guest,origin,peerOrigin]
   ];
   const failures=[];
   for(const [run,...args] of workflows){
