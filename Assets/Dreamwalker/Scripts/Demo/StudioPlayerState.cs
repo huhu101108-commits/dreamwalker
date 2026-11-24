@@ -62,7 +62,8 @@ public sealed partial class StudioWorld
                 eventMachine.Value(m.Groups[1].Success?m.Groups[1].Value:"save",m.Groups[2].Value).ToString(System.Globalization.CultureInfo.InvariantCulture));
         if (!string.IsNullOrEmpty(text) && text.Contains("{입력:"))
             text = System.Text.RegularExpressions.Regex.Replace(text,@"\{입력:([a-zA-Z0-9_가-힣-]{1,50})\}",
-                m => formValues.TryGetValue(m.Groups[1].Value,out string value) || formDefaults.TryGetValue(m.Groups[1].Value,out value) ? value : "");
+                m => formValues.TryGetValue(m.Groups[1].Value,out string value) || formDefaults.TryGetValue(m.Groups[1].Value,out value) ||
+                     hostValues.TryGetValue(m.Groups[1].Value,out value) ? value : "");
         return Actor != null ? Actor.ProfileText(text) : text;
     }
     internal void CommitField(StudioWidget w,string raw) {

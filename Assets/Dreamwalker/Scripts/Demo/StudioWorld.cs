@@ -705,6 +705,7 @@ public sealed partial class StudioWorld : MonoBehaviour
     }
     private void PressCore(string action,string target)
     {
+        if (CloudAction(action)) { CloudPress(action, target); return; }
         // A language button: the next language in the list, or the one it names. The choice is kept on this device.
         if (action == "language")
         {
@@ -1266,7 +1267,7 @@ public sealed partial class StudioWorld : MonoBehaviour
     {
         if (StudioOnlineArena.Visible) return;
         if (!Running) return;
-        screenView.Draw(); screenView.DrawCast(); DrawSceneTransition(); DrawDiagnostics();
+        screenView.Draw(); screenView.DrawCast(); DrawSceneTransition(); DrawDiagnostics(); DrawNotice();
         if (!Paused || CurrentLayout == null || (!HasOverlay && Line?.shot?.layers != null) ||
             (ShowingFront && front == Project.frontScreens?.loading)) return;
         bool recovery = Array.Exists(CurrentLayout.elements, w => Visible(w) && Enabled(w) &&

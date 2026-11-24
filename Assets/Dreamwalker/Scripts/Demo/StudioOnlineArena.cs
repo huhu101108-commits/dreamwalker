@@ -17,7 +17,7 @@ namespace Dreamwalker.Demo
     public sealed class StudioOnlineArena : MonoBehaviour
     {
         public static bool Visible { get; private set; }
-        private const string Key = "dreamwalker-arena-guest-v1";
+        private const string Key = StudioWorld.GuestTokenKey;
         private Snapshot room;
         private Wallet wallet;
         private Listing[] listings = Array.Empty<Listing>();

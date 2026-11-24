@@ -32,6 +32,10 @@ public static class StudioSystemText
         { "button.signal", "이벤트" },
         { "button.online", "온라인 친선전" },
         { "button.language", "언어" },
+        { "button.cloudSave", "클라우드 저장" },
+        { "button.cloudLoad", "클라우드 불러오기" },
+        { "button.transferIssue", "기기 이전 코드" },
+        { "button.transferClaim", "코드로 이전" },
         { "hud.loading", "로딩" },
         { "hud.enemies", "남은 적" },
         { "hud.energy", "스킬 게이지" },
@@ -85,6 +89,16 @@ public static class StudioSystemText
         { "bar.replay", "다시 플레이" },
         { "input.invalid", "입력 조건을 확인하세요." },
         { "online.unavailable", "온라인 친선전은 스튜디오 사이트나 Unity 앱에서 열 수 있어요." },
+        { "cloud.saved", "클라우드에 진행을 저장했어요." },
+        { "cloud.loaded", "클라우드에서 진행을 불러왔어요." },
+        { "cloud.none", "클라우드에 저장된 진행이 없어요." },
+        { "cloud.conflict", "다른 기기에서 더 최근에 저장했어요. 불러오거나 이 기기 진행으로 덮어쓰세요." },
+        { "cloud.incompatible", "이 버전에서 열 수 없는 진행 기록이에요." },
+        { "cloud.offline", "이 실행 환경에서는 클라우드 저장을 쓸 수 없어요." },
+        { "cloud.failed", "서버에 연결하지 못했어요. 잠시 뒤 다시 시도하세요." },
+        { "cloud.code", "기기 이전 코드 {코드} · 24시간 안에 새 기기에서 한 번 쓸 수 있어요." },
+        { "cloud.claimed", "이 기기로 진행을 옮겼어요." },
+        { "cloud.badCode", "이전 코드가 맞지 않거나 기간이 지났어요." },
     };
     public static string Default(string name) => name != null && defaults.TryGetValue(name, out string text) ? text : "";
     public static IEnumerable<string> Names => defaults.Keys;

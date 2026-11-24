@@ -22,10 +22,20 @@ export async function testLocalization(page, origin) {
     await button('검수 사본 만들고 열기').click();
     await p.waitForURL((u) => u.searchParams.has('qa'));
     await editor.waitFor();
+    // Earlier work may have changed the project: use the map that test play opens and the character it starts with.
+    const at = await p.evaluate(() => {
+      const map = activeMap(), actor = project.characters.find((c) => c.id === map.characterId);
+      // Buttons that lead from the title and character select into the field, as the game labels them.
+      const onward = project.layouts.filter((l) => Object.values(project.frontScreens || {}).includes(l.id))
+        .flatMap((l) => l.elements.filter((w) => w.type === 'button' && ['beginGame', 'confirmActor'].includes(w.action)).map((w) => w.text || getActionLabel(w.action)));
+      const shown = project.layouts.find((l) => l.id === map.hudId).elements.filter((w) => w.visible && !w.showFlag && !w.text);
+      return { map: map.id, mapName: map.name, actor: actor.id, actorName: actor.name, hud: map.hudId, onward,
+        jump: shown.some((w) => w.type === 'button' && w.action === 'jump'), foes: shown.some((w) => w.type === 'enemies') };
+    });
 
     // A language button on the HUD, made in UI design: «언어 바꾸기» moves to the next language.
     await editor.locator('#tabs [data-tab="interface"]').click();
-    await editor.getByLabel('작업 화면', { exact: true }).selectOption({ label: '기본 전투 HUD' });
+    await editor.getByLabel('작업 화면', { exact: true }).selectOption(at.hud);
     await button('＋ 버튼 추가', editor).click();
     await editor.getByLabel('버튼 동작', { exact: true }).selectOption('language');
     assert.equal(await editor.getByLabel('바꿀 언어', { exact: true }).inputValue(), '');
@@ -43,14 +53,14 @@ export async function testLocalization(page, origin) {
       await row(key).locator('.locale-state.done').waitFor();
     };
     await editor.getByLabel('항목', { exact: true }).selectOption('character');
-    await fill('character/baekseol/name', 'Baekseol');
+    await fill('character/' + at.actor + '/name', 'Baekseol');
     await editor.getByLabel('항목', { exact: true }).selectOption('system');
     await fill('system/button.jump', 'Jump');
     await fill('system/hud.enemies', 'Foes');
     await editor.getByLabel('항목', { exact: true }).selectOption('');
     await editor.getByLabel('찾기 (원문·번역·위치)', { exact: true }).fill('{언어}');
-    const hudButton = await p.evaluate(() => project.layouts.find((l) => l.kind === 'hud').elements.at(-1).id);
-    const langKey = 'screen/' + (await p.evaluate(() => project.layouts.find((l) => l.kind === 'hud').id)) + '/' + hudButton + '/text';
+    const hudButton = await p.evaluate((id) => project.layouts.find((l) => l.id === id).elements.at(-1).id, at.hud);
+    const langKey = 'screen/' + at.hud + '/' + hudButton + '/text';
     assert.equal(await editor.locator('.locale-row').count(), 1, 'search finds the language button');
     // A translation that drops {언어} is flagged.
     await row(langKey).locator('textarea, input').fill('Language');
@@ -60,11 +70,11 @@ export async function testLocalization(page, origin) {
     await editor.getByLabel('찾기 (원문·번역·위치)', { exact: true }).fill('');
 
     // Changing an original marks its translation for review; «원문 확인함» accepts it.
-    await p.evaluate(() => edit(() => { project.characters[0].name = '백설 '; }));
+    await p.evaluate((id) => edit(() => { project.characters.find((c) => c.id === id).name += ' '; }), at.actor);
     await editor.getByLabel('상태', { exact: true }).selectOption('stale');
-    await row('character/baekseol/name').locator('.locale-state.stale').waitFor();
-    await button('원문 확인함', row('character/baekseol/name')).click();
-    await row('character/baekseol/name').locator('.locale-state.done').waitFor();
+    await row('character/' + at.actor + '/name').locator('.locale-state.stale').waitFor();
+    await button('원문 확인함', row('character/' + at.actor + '/name')).click();
+    await row('character/' + at.actor + '/name').locator('.locale-state.done').waitFor();
     await editor.getByLabel('상태', { exact: true }).selectOption('');
     console.log('PASS tablet translation table: add English, translate by group and search, token warning, changed original reviewed');
 
@@ -76,8 +86,8 @@ export async function testLocalization(page, origin) {
     for await (const chunk of await file.createReadStream()) chunks.push(chunk);
     const csv = Buffer.concat(chunks).toString('utf8');
     assert(csv.startsWith('﻿key,where,max,ko,en\r\n'), csv.slice(0, 80));
-    assert(csv.includes('character/baekseol/name,') && csv.includes(',Baekseol\r\n'));
-    const mapLine = csv.split('\r\n').find((l) => l.startsWith('map/mine/name,'));
+    assert(csv.includes('character/' + at.actor + '/name,') && csv.includes(',Baekseol\r\n'));
+    const mapLine = csv.split('\r\n').find((l) => l.startsWith('map/' + at.map + '/name,'));
     assert(mapLine && mapLine.endsWith(','), 'the map name is not translated yet: ' + mapLine);
     const back = csv.replace(mapLine, mapLine + 'Mine Station');
     const picker = editor.locator('.file-picker').filter({ has: p.getByLabel('번역 CSV 가져오기', { exact: true }) });
@@ -86,7 +96,7 @@ export async function testLocalization(page, origin) {
     await editor.getByLabel('번역 CSV 가져오기', { exact: true }).click();
     await (await chooser).setFiles([{ name: 'translated.csv', mimeType: 'text/csv', buffer: Buffer.from(back) }]);
     await editor.getByText(/^번역 1개 반영/).first().waitFor();
-    assert.equal(await p.evaluate(() => project.locales.strings['map/mine/name'].en.text), 'Mine Station');
+    assert.equal(await p.evaluate((id) => project.locales.strings['map/' + id + '/name'].en.text, at.map), 'Mine Station');
     console.log('PASS translator CSV on a tablet: download has the base and English columns, an edited file imports one cell');
 
     // Play in English, then switch language with the HUD button.
@@ -97,15 +107,21 @@ export async function testLocalization(page, origin) {
     const hud = game.locator('#overlay');
     // From the title through character select to the field; the touch controls already use the English wording.
     await game.locator('#controls').getByRole('button', { name: 'Jump', exact: true, includeHidden: true }).waitFor({ state: 'attached' });
-    const confirm = await p.evaluate(() => project.layouts.find((l) => l.id === project.frontScreens.roster).elements.find((w) => w.action === 'confirmActor').text);
-    await hud.getByRole('button', { name: '게임 시작', exact: true }).click();
-    await hud.getByRole('button', { name: confirm, exact: true }).click();
-    await hud.getByRole('button', { name: 'Jump', exact: true }).waitFor();
-    await hud.getByText(/^Foes \d+$/).waitFor();
+    const swap = hud.getByRole('button', { name: 'Language · English', exact: true });
+    for (let i = 0; i < 6 && !(await swap.isVisible()); i++) {
+      for (const text of at.onward) {
+        const next = hud.getByRole('button', { name: text, exact: true });
+        if (await next.isVisible()) { await next.click(); break; }
+      }
+      await p.waitForTimeout(400);
+    }
+    await swap.waitFor();
+    if (at.jump) await hud.getByRole('button', { name: 'Jump', exact: true }).waitFor();
+    if (at.foes) await hud.getByText(/^Foes \d+$/).waitFor();
     assert.equal(await game.getAttribute('lang'), 'en');
-    await hud.getByRole('button', { name: 'Language · English', exact: true }).click();
-    await p.waitForFunction(() => document.querySelector('#level')?.textContent === '설산 광산역 · 백설 ');
-    await hud.getByRole('button', { name: '점프', exact: true }).waitFor();
+    await swap.click();
+    await p.waitForFunction((t) => document.querySelector('#level')?.textContent === t, at.mapName + ' · ' + at.actorName + ' ');
+    await game.locator('#controls').getByRole('button', { name: '점프', exact: true, includeHidden: true }).waitFor({ state: 'attached' });
     await hud.getByRole('button', { name: '언어 · 한국어', exact: true }).waitFor();
     assert.equal(await game.getAttribute('lang'), 'ko');
     assert.equal(await game.locator('#stop').textContent(), '편집기로', 'the bar follows the language too');
@@ -117,7 +133,7 @@ export async function testLocalization(page, origin) {
     await p.getByText(/검수 사본 · v\d+$/).waitFor();
     await p.reload();
     await editor.waitFor();
-    const saved = await p.evaluate(() => ({ en: project.locales.languages.map((l) => l.code), name: project.locales.strings['character/baekseol/name'].en.text, map: project.locales.strings['map/mine/name'].en.text }));
+    const saved = await p.evaluate((ids) => ({ en: project.locales.languages.map((l) => l.code), name: project.locales.strings['character/' + ids.actor + '/name'].en.text, map: project.locales.strings['map/' + ids.map + '/name'].en.text }), at);
     assert.deepEqual(saved, { en: ['en'], name: 'Baekseol', map: 'Mine Station' });
     assert.deepEqual(errors, []);
     console.log('PASS translations saved in the QA copy and reopened');

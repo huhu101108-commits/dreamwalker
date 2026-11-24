@@ -153,6 +153,10 @@ Object.assign(INPUTS, {
   signal: '이벤트 보내기',
   online: '온라인 친선전 열기',
   language: '언어 바꾸기',
+  cloudSave: '클라우드에 진행 저장',
+  cloudLoad: '클라우드에서 진행 불러오기',
+  transferIssue: '기기 이전 코드 받기',
+  transferClaim: '이전 코드로 진행 가져오기',
 });
 const screenActions = () => INPUTS;
 const UI_EVENTS = {
@@ -214,6 +218,9 @@ function actionRefOK(d, action, target) {
   if (['flagOn', 'flagOff', 'signal'].includes(action)) return signalKey(target);
   // '' moves to the next language; a code picks that language.
   if (action === 'language') return target === '' || localeCodes(d).includes(target);
+  // overwrite: keep this device's progress over a newer cloud copy. A claim names the input that holds the code.
+  if (action === 'cloudSave') return target === '' || target === 'overwrite';
+  if (action === 'transferClaim') return signalKey(target);
   return target === '';
 }
 function menuProgram(name,base={action:'back',target:'',steps:[]}) {
@@ -2171,6 +2178,7 @@ const SYSTEM_TEXT={
   'button.previousActor':'이전 캐릭터','button.newRun':'게임 처음부터','button.back':'뒤로','button.gotoMap':'맵 이동',
   'button.startStory':'대화','button.selectActor':'캐릭터 선택','button.flagOn':'상태 켜기','button.flagOff':'상태 끄기',
   'button.signal':'이벤트','button.online':'온라인 친선전','button.language':'언어',
+  'button.cloudSave':'클라우드 저장','button.cloudLoad':'클라우드 불러오기','button.transferIssue':'기기 이전 코드','button.transferClaim':'코드로 이전',
   'hud.loading':'로딩','hud.enemies':'남은 적','hud.energy':'스킬 게이지','hud.noEnergy':'없음','hud.boss':'보스',
   'dialogue.narrator':'내레이션','dialogue.next':'다음 대사 →','dialogue.end':'대화 마치기','dialogue.nextShort':'다음','dialogue.choice':'선택',
   'roadmap.read':'대화 읽기','roadmap.continue':'계속','roadmap.finish':'스토리 마치기',
@@ -2187,8 +2195,13 @@ const SYSTEM_TEXT={
   'bar.close':'화면 닫기','bar.save':'진행 저장','bar.continue':'이어하기','bar.stick':'조이스틱','bar.stats':'성능','bar.hitboxes':'판정 표시',
   'bar.assist':'보조 조작','bar.stop':'편집기로','bar.replay':'다시 플레이',
   'input.invalid':'입력 조건을 확인하세요.','online.unavailable':'온라인 친선전은 스튜디오 사이트나 Unity 앱에서 열 수 있어요.',
+  'cloud.saved':'클라우드에 진행을 저장했어요.','cloud.loaded':'클라우드에서 진행을 불러왔어요.','cloud.none':'클라우드에 저장된 진행이 없어요.',
+  'cloud.conflict':'다른 기기에서 더 최근에 저장했어요. 불러오거나 이 기기 진행으로 덮어쓰세요.','cloud.incompatible':'이 버전에서 열 수 없는 진행 기록이에요.',
+  'cloud.offline':'이 실행 환경에서는 클라우드 저장을 쓸 수 없어요.','cloud.failed':'서버에 연결하지 못했어요. 잠시 뒤 다시 시도하세요.',
+  'cloud.code':'기기 이전 코드 {코드} · 24시간 안에 새 기기에서 한 번 쓸 수 있어요.','cloud.claimed':'이 기기로 진행을 옮겼어요.',
+  'cloud.badCode':'이전 코드가 맞지 않거나 기간이 지났어요.',
 };
-const SYSTEM_GROUPS={button:'버튼 기본 문구',hud:'HUD',dialogue:'대화',roadmap:'스토리 로드맵',items:'장비',gear:'장비 부위',quests:'의뢰',
+const SYSTEM_GROUPS={cloud:'클라우드 저장·기기 이전',button:'버튼 기본 문구',hud:'HUD',dialogue:'대화',roadmap:'스토리 로드맵',items:'장비',gear:'장비 부위',quests:'의뢰',
   result:'결과 화면',status:'진행 안내',save:'진행 저장',bar:'웹 플레이 막대',input:'입력 컨트롤',online:'온라인'};
 const LOCALE_GROUPS={character:'캐릭터',map:'맵',story:'대사',screen:'UI 화면',item:'아이템 · 의뢰',quest:'아이템 · 의뢰',system:'게임 기본 문구',title:'게임 제목'};
 const plainObject=v=>!!v&&typeof v==='object'&&!Array.isArray(v);
@@ -2266,7 +2279,7 @@ function setTranslation(doc,key,code,text,from){
   (loc.strings[key]??={})[code]={text:text.slice(0,LOCALE_LIMIT.text),src:localeHash(from)};
 }
 // {…} tokens that the game fills in: a translation must keep the same ones as its original.
-const textTokens=text=>(String(text).match(/\{(?:입력|프로필|변수|언어)(?::[^{}]*)?\}/g)||[]).sort().join('\n');
+const textTokens=text=>(String(text).match(/\{(?:입력|프로필|변수|언어|코드)(?::[^{}]*)?\}/g)||[]).sort().join('\n');
 function emptyLocales(){return {base:'ko',baseName:'한국어',languages:[],system:{},strings:{}};}
 function localeProblem(d){
   const loc=d.locales;

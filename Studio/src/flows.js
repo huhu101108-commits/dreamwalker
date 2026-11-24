@@ -17,7 +17,7 @@ function actionFields(owner, chained = false, prefix = '') {
     selectField(prefix+(chained ? '실행 동작' : '버튼 동작'), owner.action, choices, (k) =>
       edit(() => {
         owner.action = k;
-        owner.target = targetsFor(k)?.[0]?.id || (['flagOn', 'flagOff', 'signal'].includes(k) ? '상태1' : '');
+        owner.target = targetsFor(k)?.[0]?.id || (['flagOn', 'flagOff', 'signal'].includes(k) ? '상태1' : k === 'transferClaim' ? '이전코드' : '');
       }),
     ),
   );
@@ -37,6 +37,11 @@ function actionFields(owner, chained = false, prefix = '') {
     root.append(
       bindText(prefix+(owner.action === 'signal' ? '보낼 이벤트 이름' : '변경할 상태 이름'), owner, 'target', 50),
     );
+  // Cloud saves: what to do when another device saved later; a claim reads the code from an input control's key.
+  if (owner.action === 'cloudSave')
+    root.append(bindSelect(prefix+'다른 기기에 더 최근 저장이 있을 때', owner, 'target', { '': '저장하지 않고 알리기', overwrite: '이 기기 진행으로 덮어쓰기' }));
+  if (owner.action === 'transferClaim')
+    root.append(bindText(prefix+'이전 코드를 적는 입력 컨트롤 키', owner, 'target', 50));
   // Language buttons: the next language in the list, or one chosen language (번역 · 언어 tab).
   if (owner.action === 'language')
     root.append(
