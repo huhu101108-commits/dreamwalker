@@ -384,6 +384,8 @@ internal sealed partial class StudioScreenView
             return "건너뛰기";
         case "nextLine":
             return "다음 대사";
+        case "online":
+            return "온라인 친선전";
         default:
             return "";
         }

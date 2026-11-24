@@ -701,6 +701,12 @@ public sealed partial class StudioWorld : MonoBehaviour
     }
     private void PressCore(string action,string target)
     {
+        // A creator-placed button opens the online friendly match, also in release builds where the studio panel is hidden.
+        if (action == "online")
+        {
+            (GetComponent<StudioOnlineArena>() ?? gameObject.AddComponent<StudioOnlineArena>()).Open();
+            return;
+        }
         var f = Project.frontScreens;
         if ((action=="beginGame"||action=="confirmActor")&&FollowScreenRoute("next"))return;
         if ((action=="back"||action=="resume")&&FollowScreenRoute(action))return;

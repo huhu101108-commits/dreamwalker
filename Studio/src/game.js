@@ -453,7 +453,17 @@ function launchGame(mapId, screenId = '', inspection = false) {
   }
   let backgroundStamp = '';
   let hudStamp = '';
+  // An offline HTML build has no server to play against; the studio site opens its match page.
+  let onlineSeen = 0;
+  function openOnlineMatch() {
+    if (typeof GAME_DATA !== 'undefined' || location.protocol === 'file:') {
+      $('#gameNote').textContent = lastNotice = '온라인 친선전은 스튜디오 사이트나 Unity 앱에서 열 수 있어요.';
+      return;
+    }
+    window.open('/arena', '_blank', 'noopener');
+  }
   function render() {
+    if ((run.onlineRequests || 0) !== onlineSeen) { onlineSeen = run.onlineRequests || 0; openOnlineMatch(); }
     const fade=run.map.camera?.frame;
     const alpha=fade?.fadeTicks && !run.presentation ? 1-run.sceneAge/fade.fadeTicks : 0;
     sceneFade.hidden=!(alpha>0);

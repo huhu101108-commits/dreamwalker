@@ -180,6 +180,7 @@ function getActionLabel(key, character) {
       resume: '계속하기',
       restart: '다시 시작',
       switch: '캐릭터 교대',
+      online: '온라인 친선전',
     }[key] ||
     INPUTS[key] ||
     '버튼'

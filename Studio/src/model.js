@@ -147,6 +147,7 @@ Object.assign(INPUTS, {
   flagOn: '상태 켜기',
   flagOff: '상태 끄기',
   signal: '이벤트 보내기',
+  online: '온라인 친선전 열기',
 });
 const screenActions = () => INPUTS;
 const UI_EVENTS = {

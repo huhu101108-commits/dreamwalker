@@ -582,6 +582,8 @@ class FieldRun {
     if(this.dispatchProgram('input',action)?.consumed)return false;
     const route=({beginGame:'next',confirmActor:'next',back:'back',resume:'resume'})[action];
     if(route && this.followScreenRoute(route))return;
+    // The host opens the online friendly match: the studio's match page in a browser, the match screen in Unity.
+    if (action === 'online') { this.onlineRequests = (this.onlineRequests || 0) + 1; this.serial++; return; }
     const front = this.presentation;
     if (action === 'beginGame' || action === 'confirmActor') {
       this.present(action === 'beginGame' && this.world.frontScreens?.roster ? 'roster' : 'loading');
