@@ -338,6 +338,7 @@ function launchGame(mapId, screenId = '', inspection = false) {
         const n = run.dialogue.node;
         urls.add(imageUrl(n.backdrop));
         urls.add(lineFaceUrl(run.world,n));
+        for (const url of faceMotionUrls(run.world,n)) urls.add(url);
         for(const p of n.shot?.layers||[]) if(p.visible && (p.image || p.actor)) urls.add(p.image ? imageUrl(p.image) : castLayerUrl(run.world,p));
       }
       for (const s of run.character.skills) if (s.cast?.cutin) urls.add(imageUrl(s.cast.image) || imageUrl(actorFaceRef(run.character)) || characterUrl(run.character, true));

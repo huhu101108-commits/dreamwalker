@@ -145,6 +145,8 @@ function expressionSection(c) {
     el('strong', '선택한 표정 · ' + current.name),
     trimmedField('표정 이름', current, 'name', 30),
     assetField('표정 이미지', current.image, (v) => edit(() => (current.image = v))),
+    variantField(c, '눈 감은 그림 · 깜박임', current, 'blink', () => current, true),
+    variantField(c, '말하는 그림 · 입 움직임', current, 'talk', () => current, true),
     el('small', '대사 ' + uses.lines + '줄 · 등장 인물 레이어 ' + uses.layers + '개에서 사용 중'),
     row(
       action('앞으로', () => edit(() => moveIn(c.expressions, current, -1))),
@@ -160,6 +162,62 @@ function expressionSection(c) {
       }, 'danger'),
     ));
   d.append(editor);
+  return d;
+}
+// An eyes-closed or speaking version of a face. Unlinking it keeps the plain face for that moment.
+function variantField(actor, label, owner, key, target, remove) {
+  const field = assetField(label, owner[key] || '', (v) => edit(() => {
+    if (!v && remove) delete owner[key];
+    else target()[key] = v;
+    tidyFaceMotion(actor);
+  }));
+  if (owner[key]) {
+    const img = el('img');
+    img.src = imageUrl(owner[key]);
+    img.alt = label;
+    img.className = 'face-variant';
+    field.prepend(img);
+  }
+  return field;
+}
+// A face motion with nothing left to do is removed, so the character reads as before.
+function tidyFaceMotion(actor) {
+  const m = actor?.faceMotion;
+  if (m && !m.breathe && !m.blink && !m.talk) delete actor.faceMotion;
+}
+function faceMotionSection(actor) {
+  const m = actor.faceMotion;
+  const ensure = () => (actor.faceMotion ||= { breathe: 0, blink: '', talk: '' });
+  const d = stageSection('actor-face-motion', '초상 움직임' + (m?.breathe ? ' · 숨쉬기 ' + MOTION_LEVELS[m.breathe] : ''), !!m);
+  d.append(el('p', '대사창과 대사 화면에서 화자의 초상이 숨을 쉬어요. 눈 감은 그림이 있으면 4초마다 깜박이고, 말하는 그림이 있으면 대사 글자가 나오는 동안 입이 움직여요. 표정마다 그림은 표정 세트에서 정하고, 아래 그림은 표정을 고르지 않은 줄의 기본 초상에 써요.'));
+  d.append(selectField('숨쉬기', String(m?.breathe || 0), MOTION_LEVELS, (v) => edit(() => {
+    ensure().breathe = Number(v);
+    tidyFaceMotion(actor);
+  })));
+  d.append(box('face-variants',
+    variantField(actor, '기본 초상 · 눈 감은 그림', m || {}, 'blink', ensure, false),
+    variantField(actor, '기본 초상 · 말하는 그림', m || {}, 'talk', ensure, false)));
+  // A live preview: the line types for 2.4 s of every 4 s, so blinking, talking and breathing all show.
+  const faces = { '': '기본 초상', ...Object.fromEntries((actor.expressions || []).filter((x) => x.image).map((x) => [x.id, x.name])) };
+  let shown = named(actor.expressions || [], expressionId)?.image ? expressionId : '';
+  const stage = box('face-preview'), img = el('img');
+  img.alt = actor.name + ' 초상 움직임 미리보기';
+  const show = () => {
+    const base = imageUrl(faceSet(actor, shown).image) || characterUrl(actor, true);
+    img.src = base;
+    delete img.dataset.faceUrl;
+    bindFaceMotion(img, actor, shown, true, { base });
+  };
+  show();
+  stage.append(img);
+  d.append(selectField('미리 볼 얼굴', shown, faces, (v) => { shown = v; show(); }), stage);
+  const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const tick = (now) => {
+    if (!img.isConnected) return;
+    if (d.open) paintFaceMotion(stage, now % 4000 < 2400, now, still);
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
   return d;
 }
 function energySection(c) {

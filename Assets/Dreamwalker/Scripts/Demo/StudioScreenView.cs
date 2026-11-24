@@ -403,14 +403,15 @@ internal sealed partial class StudioScreenView
         var speaker = world.Project.Character(node.speaker);
         if (node.side != "hidden")
         {
-            var path = !string.IsNullOrEmpty(node.portrait) ? node.portrait : speaker?.Face(node.expression);
+            float breath = 1;
+            var path = !string.IsNullOrEmpty(node.portrait) ? node.portrait : MovingFace(speaker, node.expression, true, out breath);
             if (string.IsNullOrEmpty(path) && speaker?.id == "baekseol")
                 path = "builtin-player";
             var texture = world.Connection.Texture(path);
             if (texture != null)
             {
                 float width = rect.width * .16f;
-                ui.Picture(new Rect(node.side == "right" ? rect.xMax - width : rect.x, rect.y, width, rect.height), texture, StudioFit.Fit, Color.white);
+                ui.Picture(Breathe(new Rect(node.side == "right" ? rect.xMax - width : rect.x, rect.y, width, rect.height), breath), texture, StudioFit.Fit, Color.white);
                 if (node.side != "right") rect.x += width;
                 rect.width -= width;
             }
@@ -441,18 +442,36 @@ internal sealed partial class StudioScreenView
             world.Answer(clicked);
     }
 
-    private Texture2D ShotImage(StudioShotLayer layer, StudioLine line, StudioCharacter speaker)
+    // A character's face with its portrait motion: the eyes-closed or speaking picture when one applies, and the
+    // breathing scale. Only the line's speaker talks, and only while the line's text is still appearing.
+    private string MovingFace(StudioCharacter actor, string expression, bool speaking, out float scale)
     {
+        scale = 1;
+        if (actor == null) return "";
+        string image = actor.FaceSet(expression, out string blink, out string talk);
+        var line = world.Line;
+        bool revealing = speaking && line != null && (world.StageText?.Length ?? 0) < (line.text?.Length ?? 0);
+        string pose = StudioPortraitMotion.Pose(actor.faceMotion?.breathe ?? 0, !string.IsNullOrEmpty(blink), !string.IsNullOrEmpty(talk),
+            Time.unscaledTimeAsDouble * 1000, revealing, StudioPortraitMotion.Seed(actor.id), out double breath);
+        scale = (float)breath;
+        return pose == "blink" ? blink : pose == "talk" ? talk : image;
+    }
+    // Breathing grows and shrinks the picture around its bottom centre.
+    private static Rect Breathe(Rect r, float scale) =>
+        scale == 1 ? r : new Rect(r.x + r.width * (1 - scale) / 2, r.yMax - r.height * scale, r.width * scale, r.height * scale);
+    private Texture2D ShotImage(StudioShotLayer layer, StudioLine line, StudioCharacter speaker, out float scale)
+    {
+        scale = 1;
         string path = layer.image;
         if (string.IsNullOrEmpty(path) && layer.kind == "portrait")
         {
-            path = !string.IsNullOrEmpty(line.portrait) ? line.portrait : speaker?.Face(line.expression);
+            path = !string.IsNullOrEmpty(line.portrait) ? line.portrait : MovingFace(speaker, line.expression, true, out scale);
             if (string.IsNullOrEmpty(path) && speaker?.id == "baekseol") path = "builtin-player";
         }
         if (string.IsNullOrEmpty(path) && layer.kind == "art" && !string.IsNullOrEmpty(layer.actor))
         {
             var member = world.Project.Character(layer.actor);
-            path = member?.Face(layer.expression);
+            path = MovingFace(member, layer.expression, layer.actor == line.speaker, out scale);
             if (string.IsNullOrEmpty(path) && member?.id == "baekseol") path = "builtin-player";
         }
         if (string.IsNullOrEmpty(path) && layer.kind == "backdrop")
@@ -518,11 +537,11 @@ internal sealed partial class StudioScreenView
                 ui.Box(r, fill, radius);
             if (p.kind == "backdrop" || p.kind == "portrait" || p.kind == "art" || p.kind == "panel")
             {
-                var tex = ShotImage(p,line,speaker);
+                var tex = ShotImage(p,line,speaker,out float breath);
                 if (tex == null) continue;
                 // Speaker focus darkens cast members who are not speaking on this line.
                 float light = shot.focus && !string.IsNullOrEmpty(p.actor) && !string.IsNullOrEmpty(line.speaker) && p.actor != line.speaker ? .42f : 1;
-                ui.Picture(r, tex, Fit(p.fit), new Color(light,light,light,opacity), radius, p.flip);
+                ui.Picture(Breathe(r, breath), tex, Fit(p.fit), new Color(light,light,light,opacity), radius, p.flip);
                 continue;
             }
             // Shot text keeps scaling with the screen width, as in the studio's line composer.

@@ -985,7 +985,9 @@ function imageRefs(d) {
   d.characters.forEach((c) => {
     add(c.sprite);
     add(c.portrait);
-    for (const face of c.expressions || []) add(face.image);
+    for (const face of c.expressions || []) { add(face.image); add(face.blink); add(face.talk); }
+    add(c.faceMotion?.blink);
+    add(c.faceMotion?.talk);
     for (const skill of c.skills || []) add(skill.cast?.image);
     for (const clip of Object.values(c.clips || {})) {
       add(clip.fx);
@@ -1636,7 +1638,7 @@ function validStudioPreset(doc,p){
   if(p.kind==='object')return ['prop','enemy','platform'].includes(data.type)&&sceneObjectOK(doc,{width:100,height:100},{...data,x:50,y:0});
   if(p.kind==='asset')return ['image','audio'].includes(data.kind)&&textValue(data.name,120,true)&&textValue(data.folder,60)&&/^asset:[0-9a-f]{64}$/.test(data.ref);
   if(p.kind==='character'){
-    if(!data || ['id','name','region','summary','roadmap','profile','expressions','__proto__','prototype','constructor'].some(k=>Object.hasOwn(data,k)))return false;
+    if(!data || ['id','name','region','summary','roadmap','profile','expressions','faceMotion','__proto__','prototype','constructor'].some(k=>Object.hasOwn(data,k)))return false;
     const check=seed(), actor=check.characters[0];
     check.characters=[{...actor,...data}];
     return !problem(check);
@@ -1777,7 +1779,7 @@ function screenEdges(doc,l){
 
 // Identity, profile and expression art stay with the original character when its settings are copied.
 function portableActorSettings(actor){
-  const {id,name,region,summary,roadmap,profile,expressions,...settings}=actor;
+  const {id,name,region,summary,roadmap,profile,expressions,faceMotion,...settings}=actor;
   return structuredClone(settings);
 }
 // Only media fields take part: a player's text may legitimately look like an asset URL.
@@ -1958,6 +1960,38 @@ function expressionImage(actor,id){
 function actorFaceRef(actor,expression=''){
   return expressionImage(actor,expression)||actor?.portrait||actor?.sprite||(Array.isArray(actor?.expressions)?actor.expressions.find(x=>x.image)?.image:'')||'';
 }
+// Portrait motion: breathing, blinking and mouth movement drawn from the creator's own images. Each expression may have
+// an eyes-closed (blink) and a speaking (talk) picture; faceMotion.blink/talk serve the default portrait. Unity's
+// StudioPortraitMotion follows the same numbers (scripts/native-check/portrait-motion.json).
+const MOTION={breathe:[0,.006,.012,.02],breath:3200,blinkEvery:4000,blinkHold:130,talkStep:120};
+const MOTION_LEVELS={0:'없음',1:'약하게',2:'보통',3:'강하게'};
+// The face a line or cast layer shows, with its variants: chosen expression, default portrait, then the first expression with art.
+function faceSet(actor,expression=''){
+  const pick=x=>({image:x.image,blink:x.blink||'',talk:x.talk||''});
+  const chosen=expression&&Array.isArray(actor?.expressions)?actor.expressions.find(x=>x.id===expression&&x.image):null;
+  if(chosen)return pick(chosen);
+  const base=actor?.portrait||actor?.sprite;
+  if(base)return {image:base,blink:actor.faceMotion?.blink||'',talk:actor.faceMotion?.talk||''};
+  const first=Array.isArray(actor?.expressions)?actor.expressions.find(x=>x.image):null;
+  // With no art of its own the character shows the built-in picture, which the default variants still serve.
+  return first?pick(first):{image:'',blink:actor?.faceMotion?.blink||'',talk:actor?.faceMotion?.talk||''};
+}
+// FNV-1a over UTF-16 code units, so characters on screen together blink at different moments.
+function motionSeed(id){
+  let h=2166136261;
+  for(let i=0;i<String(id).length;i++){h^=String(id).charCodeAt(i);h=Math.imul(h,16777619)>>>0;}
+  return h;
+}
+// clock: milliseconds; revealing: the line's text is still appearing. Blink wins over talk; breathing scales height.
+function portraitPose(level,hasBlink,hasTalk,clock,revealing,seed){
+  const t=Math.max(0,Math.floor(clock)),phase=seed%MOTION.blinkEvery;
+  const pose=hasBlink&&(t+phase)%MOTION.blinkEvery<MOTION.blinkHold?'blink':hasTalk&&revealing&&Math.floor(t/MOTION.talkStep)%2===0?'talk':'base';
+  const amp=MOTION.breathe[level]||0;
+  return {pose,scale:amp?1+amp*Math.sin(2*Math.PI*((t+phase)%MOTION.breath)/MOTION.breath):1};
+}
+function validMotion(m){
+  return !!m&&typeof m==='object'&&!Array.isArray(m)&&integer(m.breathe,0,3)&&mediaRef(m.blink)&&mediaRef(m.talk);
+}
 // {프로필:항목} shows the current character's value; an unknown item shows nothing.
 function profileText(text,actor){
   if(typeof text!=='string'||!text.includes('{프로필:'))return text;
@@ -1973,11 +2007,13 @@ function validSkillCast(c){
 function characterStageProblem(c){
   const where='캐릭터 / '+c.name+' / ';
   if(c.expressions!==undefined&&(!rows(c.expressions,0,STAGE_LIMIT.expressions)||
-    c.expressions.some(x=>!textValue(x.name,30,true)||x.name.trim()!==x.name||!mediaRef(x.image))||
+    c.expressions.some(x=>!textValue(x.name,30,true)||x.name.trim()!==x.name||!mediaRef(x.image)||
+      (x.blink!==undefined&&!mediaRef(x.blink))||(x.talk!==undefined&&!mediaRef(x.talk)))||
     new Set(c.expressions.map(x=>x.name)).size!==c.expressions.length))return where+'표정 이름(1~30자, 서로 다르게)과 이미지를 확인하세요.';
   if(c.profile!==undefined&&(!rows(c.profile,0,STAGE_LIMIT.profile)||c.profile.some(p=>!profileLabelOK(p.label)||!textValue(p.value,300))||
     new Set(c.profile.map(p=>p.label)).size!==c.profile.length))return where+'프로필 항목 이름(1~20자, 중괄호·콜론 제외, 서로 다르게)과 내용(300자)을 확인하세요.';
   if(c.energy!==undefined&&!validEnergy(c.energy))return where+'스킬 게이지 최대치·시작값·충전량을 확인하세요.';
+  if(c.faceMotion!==undefined&&!validMotion(c.faceMotion))return where+'초상 움직임(숨쉬기 0~3단계, 눈 감은·말하는 그림)을 확인하세요.';
   for(const s of c.skills){
     if(s.cost!==undefined&&(!integer(s.cost,0,9999)||(s.cost>0&&(!c.energy||s.cost>c.energy.max))))
       return where+s.name+' / 게이지 소모량은 스킬 게이지를 켠 뒤 최대치 이하로 정하세요.';

@@ -8,6 +8,7 @@ function dialogueContent(world, cursor, advance) {
     const img = el('img');
     img.src = face;
     img.alt = n.speakerName || c?.name || '장면 초상';
+    bindFaceMotion(img, c, n.expression, true, { explicit: n.portrait || '', base: face });
     wrap.append(img);
   }
   const body = box('dialogue-copy'),

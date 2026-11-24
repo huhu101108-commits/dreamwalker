@@ -10,6 +10,36 @@ function castLayerUrl(world,p) {
   const actor=p.actor&&named(world.characters,p.actor);
   return actor?imageUrl(actorFaceRef(actor,p.expression))||characterUrl(actor,true):'';
 }
+// Portrait motion: a face bound to a character keeps its face set on the image; paintFaceMotion shows the
+// eyes-closed or speaking picture and breathes it each frame with the same numbers as Unity (model.js portraitPose).
+// base: the picture shown between blinks and words (it may be the built-in character art).
+function bindFaceMotion(img,actor,expression,speaking,{flip=false,explicit='',base=''}={}){
+  if(!img)return;
+  if(!actor){delete img.dataset.faceMotion;img._face=null;return;}
+  const face=explicit?{image:explicit,blink:'',talk:''}:faceSet(actor,expression);
+  img.dataset.faceMotion='';
+  img.style.transformOrigin='50% 100%';
+  img._face={face,base:base||imageUrl(face.image),level:actor.faceMotion?.breathe||0,seed:motionSeed(actor.id),speaking,flip};
+}
+function paintFaceMotion(root,revealing,clock=performance.now(),still=false){
+  for(const img of root.querySelectorAll('img[data-face-motion]')){
+    const m=img._face;if(!m)continue;
+    const r=portraitPose(still?0:m.level,!!m.face.blink,!!m.face.talk,clock,revealing&&m.speaking,m.seed);
+    const ref=r.pose==='blink'?m.face.blink:r.pose==='talk'?m.face.talk:'';
+    const url=ref?imageUrl(ref):m.base;
+    if(url&&img.dataset.faceUrl!==url){img.src=url;img.dataset.faceUrl=url;}
+    const transform=(m.flip?'scaleX(-1) ':'')+(r.scale!==1?'scale('+r.scale.toFixed(4)+')':'');
+    if(img.style.transform!==transform)img.style.transform=transform;
+  }
+}
+// Eyes-closed and speaking pictures a line can show, loaded with the line so the first swap does not flicker.
+function faceMotionUrls(world,line){
+  const urls=[],add=face=>{for(const ref of [face.blink,face.talk])if(ref)urls.push(imageUrl(ref));};
+  const speaker=named(world.characters,line.speaker);
+  if(speaker&&!line.portrait)add(faceSet(speaker,line.expression));
+  for(const p of line.shot?.layers||[]){const actor=p.kind==='art'&&p.actor&&named(world.characters,p.actor);if(actor&&!p.image)add(faceSet(actor,p.expression));}
+  return urls;
+}
 function shotDimmed(line,p) {
   return !!(line.shot?.focus && p.actor && line.speaker && p.actor!==line.speaker);
 }
@@ -55,6 +85,10 @@ function makeShotView(world,line,map,advance,design=false) {
       }
       img.style.objectFit=p.fit==='stretch'?'fill':p.fit;
       img.style.transform=p.flip?'scaleX(-1)':'';
+      // The speaker's portrait and bound cast members move; other pictures stay still.
+      const actor=!p.image&&(p.kind==='portrait'?named(world.characters,line.speaker):p.kind==='art'&&p.actor?named(world.characters,p.actor):null);
+      if(!design)bindFaceMotion(img,actor||null,p.kind==='portrait'?line.expression:p.expression,p.kind==='portrait'||p.actor===line.speaker,
+        {flip:p.flip,explicit:p.kind==='portrait'&&line.portrait?line.portrait:'',base:url});
     }
     if(p.kind==='choices') {
       const labels=line.choices.length ? line.choices.map(c=>c.label||'선택') : [line.nextLabel||'다음'];
@@ -115,4 +149,7 @@ function paintDialogueTime(root,cursor,audioBus){
     }
   }
   if(line.choices.some(c=>c.flag))for(const el of root.querySelectorAll('[data-stage-choice]'))el.disabled=!cursor.allowed(Number(el.dataset.stageChoice));
+  const full=line.text||'';
+  paintFaceMotion(root,!!t?.rate&&cursor.visibleText().length<full.length,performance.now(),
+    typeof matchMedia==='function'&&matchMedia('(prefers-reduced-motion: reduce)').matches);
 }
