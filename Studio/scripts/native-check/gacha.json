@@ -2281,5 +2281,211 @@
    1,
    "99.999"
   ]
+ ],
+ "characterBanner": {
+  "id": "snow",
+  "name": "설원 뽑기",
+  "image": "",
+  "cost": {
+   "currency": "gem",
+   "amount": 160
+  },
+  "multi": 10,
+  "pity": 90,
+  "tiers": [
+   {
+    "id": "top",
+    "name": "전설",
+    "rate": 600,
+    "top": true,
+    "entries": [
+     {
+      "kind": "character",
+      "id": "yuri",
+      "count": 1,
+      "weight": 1
+     }
+    ]
+   },
+   {
+    "id": "rare",
+    "name": "희귀",
+    "rate": 5100,
+    "top": false,
+    "entries": [
+     {
+      "kind": "item",
+      "id": "charm",
+      "count": 1,
+      "weight": 3
+     },
+     {
+      "kind": "currency",
+      "id": "coin",
+      "count": 20,
+      "weight": 1
+     }
+    ]
+   },
+   {
+    "id": "common",
+    "name": "일반",
+    "rate": 94300,
+    "top": false,
+    "entries": [
+     {
+      "kind": "item",
+      "id": "shard",
+      "count": 1,
+      "weight": 7
+     },
+     {
+      "kind": "currency",
+      "id": "coin",
+      "count": 5,
+      "weight": 2
+     },
+     {
+      "kind": "currency",
+      "id": "gem",
+      "count": 1,
+      "weight": 1
+     }
+    ]
+   }
+  ],
+  "duplicate": {
+   "kind": "currency",
+   "id": "gem",
+   "count": 50
+  }
+ },
+ "grants": [
+  {
+   "owned": false,
+   "tier": 0,
+   "entry": 0,
+   "record": {
+    "banner": "snow",
+    "tier": "전설",
+    "top": true,
+    "kind": "character",
+    "id": "yuri",
+    "count": 1
+   },
+   "given": [
+    {
+     "kind": "character",
+     "id": "yuri",
+     "count": 1
+    }
+   ]
+  },
+  {
+   "owned": false,
+   "tier": 1,
+   "entry": 0,
+   "record": {
+    "banner": "snow",
+    "tier": "희귀",
+    "top": false,
+    "kind": "item",
+    "id": "charm",
+    "count": 1
+   },
+   "given": [
+    {
+     "kind": "item",
+     "id": "charm",
+     "count": 1
+    }
+   ]
+  },
+  {
+   "owned": false,
+   "tier": 2,
+   "entry": 1,
+   "record": {
+    "banner": "snow",
+    "tier": "일반",
+    "top": false,
+    "kind": "currency",
+    "id": "coin",
+    "count": 5
+   },
+   "given": [
+    {
+     "kind": "currency",
+     "id": "coin",
+     "count": 5
+    }
+   ]
+  },
+  {
+   "owned": true,
+   "tier": 0,
+   "entry": 0,
+   "record": {
+    "banner": "snow",
+    "tier": "전설",
+    "top": true,
+    "kind": "character",
+    "id": "yuri",
+    "count": 1,
+    "dup": true,
+    "instead": {
+     "kind": "currency",
+     "id": "gem",
+     "count": 50
+    }
+   },
+   "given": [
+    {
+     "kind": "currency",
+     "id": "gem",
+     "count": 50
+    }
+   ]
+  },
+  {
+   "owned": true,
+   "tier": 1,
+   "entry": 0,
+   "record": {
+    "banner": "snow",
+    "tier": "희귀",
+    "top": false,
+    "kind": "item",
+    "id": "charm",
+    "count": 1
+   },
+   "given": [
+    {
+     "kind": "item",
+     "id": "charm",
+     "count": 1
+    }
+   ]
+  },
+  {
+   "owned": true,
+   "tier": 2,
+   "entry": 1,
+   "record": {
+    "banner": "snow",
+    "tier": "일반",
+    "top": false,
+    "kind": "currency",
+    "id": "coin",
+    "count": 5
+   },
+   "given": [
+    {
+     "kind": "currency",
+     "id": "coin",
+     "count": 5
+    }
+   ]
+  }
  ]
 }

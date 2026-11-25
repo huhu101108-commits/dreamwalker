@@ -32,7 +32,7 @@ const expect = [
   ['warn', '잊힌 대화 · 맵 입장', 'stories', 'lost'], ['warn', '잊힌 대화 · 내용이 빈 대사 1줄', 'stories', 'lost'],
   ['warn', '유물 · 의뢰 보상', 'rpg', ''], ['warn', '설원 뽑기 · 게임에서 이 뽑기를 하는 버튼이 없어요', 'shop', ''],
   ['warn', '설원 뽑기 · «확률 정보 보기» 버튼이 없어요', 'shop', ''], ['info', '결정 꾸러미 · 이 상품을 파는 버튼', 'shop', ''],
-  ['info', '원화 상품은 Unity 빌드에', 'shop', ''], ['warn', 'English · 번역 필요', 'locales', ''], ['info', '«언어 바꾸기» 버튼이 없어', 'interface', ''],
+  ['info', '원화 상품은 Unity 빌드에서 Unity IAP로', 'shop', ''], ['warn', '서버 지갑이 꺼져 있어', 'shop', ''], ['warn', 'English · 번역 필요', 'locales', ''], ['info', '«언어 바꾸기» 버튼이 없어', 'interface', ''],
   ['info', '플레이 저장 식별자가 없어', '', ''], ['info', '«오류 보고 동의 바꾸기» 버튼이 없어', 'interface', ''],
 ];
 for (const [level, text, tool, id] of expect) {
@@ -55,10 +55,11 @@ hud.elements.push(...[['draw', 'snow'], ['odds', 'snow'], ['draw', 'plain'], ['o
   .map(([action, target], i) => m.widget('b' + i, 'button', 2, 2 + i * 9, 10, 8, { action, target })));
 for (const s of m.textSlots(p, { system: true })) m.setTranslation(p, s.key, 'en', 'EN ' + s.key, s.owner[s.field]);
 p.saveId = p.startMap;
+p.shop.server = true;
 assert.equal(m.problem(p), '');
 issues = m.releaseCheck(p);
-// What stays is information only: the paid product needs a store adapter, and characters without art.
-const remaining = new Set(['원화 상품은 Unity 빌드에 스토어 어댑터(StudioPurchases.Handler)를 연결해야 팔려요. 웹에서는 팔 수 없어요.',
+// What stays is information only: paid products are sold through the stores, and characters without art.
+const remaining = new Set(['원화 상품은 Unity 빌드에서 Unity IAP로 Google Play·App Store에 팔려요. 스토어에 같은 상품 ID를 등록하세요. 웹에서는 팔 수 없어요.',
   ...p.characters.filter((c) => !c.sprite && !c.portrait && !(c.expressions || []).some((x) => x.image)).map((c) => c.name + ' · 그림이 없어 기본 그림으로 보여요.')]);
 assert.deepEqual(new Set(issues.map((i) => i.text)), remaining);
 assert(issues.every((i) => i.level === 'info'), JSON.stringify(issues));
@@ -69,6 +70,17 @@ assert.equal(m.releaseCheck(broken)[0].level, 'error');
 const stats = m.contentStats(p);
 assert.deepEqual([stats.maps, stats.stories, stats.lines, stats.chars, stats.minutes], [2, 1, 1, Array.from('바다 냄새가 난다.').length, 1]);
 console.log('PASS release check: unreachable map, unstarted and empty dialogue, unobtainable item, shop buttons and disclosure, translations, save identifier, operations; cleared once fixed');
+
+// A currency nobody starts with and nothing gives is flagged until something gives it.
+{
+  const q = sampleShop();
+  q.shop.currencies.push({ id: 'ticket', name: '티켓', start: 0, max: 99, icon: '' });
+  assert.equal(m.problem(q), '');
+  assert.ok(find(m.releaseCheck(q), '티켓 · 시작 수량이 0이고 얻을 방법'), 'an unearnable currency is flagged');
+  q.shop.products[1].gives.push({ kind: 'currency', id: 'ticket', count: 1 });
+  assert.ok(!find(m.releaseCheck(q), '티켓 ·'), 'a product that gives it clears the warning');
+  console.log('PASS release check: a currency that cannot be earned is flagged until a product, pull or quest gives it');
+}
 
 // Scripts: speakers by name, expressions, narration, display names, choices, comments, limits.
 const q = m.seed(), lead = q.characters[0];

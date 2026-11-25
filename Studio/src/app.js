@@ -68,8 +68,15 @@ document.addEventListener('visibilitychange', () => {
 const activeMap = () => named(project.scenes, sceneId) || named(project.scenes, project.startMap);
 const activeActor = () => named(project.characters, actorId) || project.characters[0];
 const activeLayout = () => named(project.layouts, layoutId) || project.layouts[0];
+// A notice stays long enough to read and then gives its space back; tapping it closes it at once. A notice of work
+// still in progress (ending in …) stays until the next one.
+let noteTimer = 0;
 function note(text) {
-  $('#note').textContent = text;
+  const bar = $('#note');
+  bar.textContent = text;
+  clearTimeout(noteTimer);
+  if (text && !/…$/.test(text)) noteTimer = setTimeout(() => { if (bar.textContent === text) bar.textContent = ''; }, 9000);
+  bar.onclick = () => { bar.textContent = ''; };
 }
 async function api(path, body) {
   if(inspectionId){
@@ -137,9 +144,27 @@ function travel(from, to) {
 function bindSelect(label, obj, key, options, redraw = true) {
   return selectField(label, obj[key], options, (v) => edit(() => (obj[key] = v), redraw));
 }
+// Typing saves each letter without redrawing, so the field keeps its focus and a press in progress is never cut off.
+// What the tool shows of a value elsewhere follows as it is typed: a name in a picker (the option with the object's
+// id) and the places the tool marks with shows() (a card's heading, a slot's tab).
+let shown = [];
+function shows(node, obj, key, format = (v) => v) {
+  shown.push({ node, obj, key, format });
+  return node;
+}
+function follow(obj, key, before) {
+  for (const s of shown) if (s.obj === obj && s.key === key && s.node.isConnected) s.node.textContent = s.format(obj[key]);
+  if (key !== 'name' || typeof obj.id !== 'string') return;
+  for (const o of $('#content').querySelectorAll('option'))
+    if (o.value === obj.id && o.textContent === before) o.textContent = obj[key];
+}
 function bindText(label, obj, key, max = 50, multi = false) {
   const token = {};
-  return textField(label, obj[key], (v) => edit(() => (obj[key] = v), false, token), max, multi);
+  return textField(label, obj[key], (v) => {
+    const before = obj[key];
+    edit(() => (obj[key] = v), false, token);
+    follow(obj, key, before);
+  }, max, multi);
 }
 function bindNumber(label, obj, key, min, max, step, update) {
   const token = {};
@@ -165,6 +190,7 @@ function draw() {
     if (section.dataset.key) expandedSections.set(section.dataset.key, section.open);
   $('#title').textContent = project.title;
   $('#content').replaceChildren();
+  shown = [];
   lastGroup = null;
   for (const b of $('#tabs').querySelectorAll('[data-tab]')) {
     if(b.dataset.tab===tab) $('#current-area').textContent=b.textContent;

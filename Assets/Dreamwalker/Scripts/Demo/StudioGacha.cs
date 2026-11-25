@@ -5,15 +5,19 @@ using System.Globalization;
 namespace Dreamwalker.Demo
 {
 // project.shop as the studio saves it: currencies, products and gacha banners. Rates are in 0.001% units (100000 = 100%).
-[Serializable] public class StudioShop { public StudioCurrency[] currencies; public StudioProduct[] products; public StudioBanner[] banners; }
+// server: the server wallet holds currencies, pity and purchases, pulls and pays store purchases (wallet-service.js).
+[Serializable] public class StudioShop { public StudioCurrency[] currencies; public StudioProduct[] products; public StudioBanner[] banners; public bool server; }
 [Serializable] public class StudioCurrency { public string id, name, icon; public int start, max; }
 [Serializable] public class StudioProductCost { public string kind, id, sku; public int amount; }
 [Serializable] public class StudioReward { public string kind, id; public int count, weight; }
 [Serializable] public class StudioProduct { public string id, name; public StudioProductCost cost; public StudioReward[] gives; public int limit; }
 [Serializable] public class StudioBannerCost { public string currency; public int amount; }
 [Serializable] public class StudioTier { public string id, name; public int rate; public bool top; public StudioReward[] entries; }
-[Serializable] public class StudioBanner { public string id, name, image; public StudioBannerCost cost; public int multi, pity; public StudioTier[] tiers; }
+// duplicate: what a character reward the player already has becomes (an item or currency), when set.
+[Serializable] public class StudioBanner { public string id, name, image; public StudioBannerCost cost; public int multi, pity; public StudioTier[] tiers; public StudioReward duplicate; }
 
+// dup: a character the player already had; instead: what it became (the banner's duplicate reward), when anything.
+[Serializable] public class StudioDrawRecord { public string banner, tier, kind, id; public bool top, dup; public int count; public StudioReward instead; }
 public sealed class StudioOddsEntry { public string kind, id, name, percent; public int count; }
 public sealed class StudioOddsTier { public string name, percent; public bool top; public List<StudioOddsEntry> entries = new List<StudioOddsEntry>(); }
 
@@ -51,6 +55,18 @@ public static class StudioGacha
         }
         return t.entries.Length - 1;
     }
+    // One pull's reward (gachaGrant in model.js): a character the player already has becomes the banner's duplicate reward.
+    public static StudioDrawRecord Grant(StudioBanner b, StudioTier t, StudioReward e, Func<string, bool> owns, Action<StudioReward> grant)
+    {
+        var record = new StudioDrawRecord { banner = b.id, tier = t.name, top = t.top, kind = e.kind, id = e.id, count = e.count };
+        if (e.kind == "character" && owns(e.id))
+        {
+            record.dup = true;
+            if (!string.IsNullOrEmpty(b.duplicate?.kind)) { grant(b.duplicate); record.instead = new StudioReward { kind = b.duplicate.kind, id = b.duplicate.id, count = b.duplicate.count }; }
+        }
+        else grant(e);
+        return record;
+    }
     // Percent with three decimals from numerator/denominator in 0.001% units, rounded half up.
     public static string Percent(long numerator, long denominator)
     {
@@ -60,6 +76,7 @@ public static class StudioGacha
     public static string RewardName(StudioProject p, StudioReward g)
     {
         if (g.kind == "item") return Array.Find(p.items ?? Array.Empty<StudioItem>(), v => v.id == g.id)?.name ?? g.id;
+        if (g.kind == "character") return Array.Find(p.characters ?? Array.Empty<StudioCharacter>(), v => v.id == g.id)?.name ?? g.id;
         return Array.Find(p.shop?.currencies ?? Array.Empty<StudioCurrency>(), v => v.id == g.id)?.name ?? g.id;
     }
     public static List<StudioOddsTier> Odds(StudioProject p, StudioBanner b)

@@ -38,9 +38,9 @@ function drawCharacters() {
   } else image.append(el('span', '전신 이미지 등록 전'));
   const info = box(
     'character-info',
-    el('small', c.region || '지역 미지정'),
-    el('h2', c.name),
-    el('p', c.summary || ''),
+    shows(el('small', c.region || '지역 미지정'), c, 'region', (v) => v || '지역 미지정'),
+    shows(el('h2', c.name), c, 'name'),
+    shows(el('p', c.summary || ''), c, 'summary'),
     profileChips(c),
   );
   a.append(box('character-card', image, info), expressionSection(c), faceMotionSection(c), profileSection(c), heading('스킬 구성'));
@@ -48,14 +48,14 @@ function drawCharacters() {
   selectedSlot = clamp(selectedSlot, 0, c.skills.length - 1);
   c.skills.forEach((s, i) =>
     bar.append(
-      action(
+      shows(action(
         '슬롯 ' + (i + 1) + ' · ' + s.name,
         () => {
           selectedSlot = i;
           draw();
         },
         i === selectedSlot ? 'on' : '',
-      ),
+      ), s, 'name', (v) => '슬롯 ' + (i + 1) + ' · ' + v),
     ),
   );
   a.append(bar);
@@ -180,6 +180,8 @@ function drawCharacters() {
     }),
     heading('캐릭터 속성'),
     bindText('이름', c, 'name'),
+    // A locked character joins the roster from a pull or a reward (상점 · 뽑기).
+    checkField('처음엔 잠김 (뽑기·보상으로 얻음)', !!c.locked, (v) => edit(() => { if (v) c.locked = true; else delete c.locked; })),
     bindText('소속 지역', c, 'region'),
     bindText('전투 소개', c, 'summary', 500, true),
     bindColor('대표 색상', c, 'color'),
@@ -218,6 +220,8 @@ function drawCharacters() {
       '캐릭터 삭제',
       () => {
         if (project.characters.length === 1) return note('플레이할 캐릭터 하나가 필요해요.');
+        const uses = shopUses('character', c.id);
+        if (uses.length) return note('상점 · 뽑기에서 먼저 바꾸세요 · ' + uses.slice(0, 4).join(', '));
         const other = project.characters.find((v) => v !== c);
         if (
           !confirm(

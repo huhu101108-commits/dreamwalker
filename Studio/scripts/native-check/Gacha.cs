@@ -42,6 +42,26 @@ public static class Gacha
         }
         foreach (var r in root.GetProperty("percents").EnumerateArray())
             if (StudioGacha.Percent(r[0].GetInt64(), r[1].GetInt64()) != r[2].GetString()) throw new Exception("percent " + r.GetRawText());
-        Console.WriteLine("PASS native gacha: " + pulls + " pulls with set rolls (tier edges and pity), " + rows + " disclosed rewards and averages with pity match the studio");
+        var fields = new JsonSerializerOptions { IncludeFields = true };
+        var characters = JsonSerializer.Deserialize<StudioBanner>(root.GetProperty("characterBanner").GetRawText(), fields);
+        int grants = 0;
+        foreach (var g in root.GetProperty("grants").EnumerateArray())
+        {
+            bool owned = g.GetProperty("owned").GetBoolean();
+            var t = characters.tiers[g.GetProperty("tier").GetInt32()];
+            var given = new System.Collections.Generic.List<string>();
+            var record = StudioGacha.Grant(characters, t, t.entries[g.GetProperty("entry").GetInt32()], id => owned, r => given.Add(r.kind + ":" + r.id + ":" + r.count));
+            var want = g.GetProperty("record");
+            string instead = want.TryGetProperty("instead", out var x) ? x.GetProperty("kind").GetString() + ":" + x.GetProperty("id").GetString() + ":" + x.GetProperty("count").GetInt32() : "";
+            string got = record.kind + ":" + record.id + ":" + record.count + ":" + record.dup + ":" + (record.instead == null ? "" : record.instead.kind + ":" + record.instead.id + ":" + record.instead.count);
+            string expected = want.GetProperty("kind").GetString() + ":" + want.GetProperty("id").GetString() + ":" + want.GetProperty("count").GetInt32() + ":" +
+                (want.TryGetProperty("dup", out var d) && d.GetBoolean()) + ":" + instead;
+            if (got != expected) throw new Exception("character grant: " + got + ", expected " + expected);
+            var wantGiven = new System.Collections.Generic.List<string>();
+            foreach (var r in g.GetProperty("given").EnumerateArray()) wantGiven.Add(r.GetProperty("kind").GetString() + ":" + r.GetProperty("id").GetString() + ":" + r.GetProperty("count").GetInt32());
+            if (string.Join(",", given) != string.Join(",", wantGiven)) throw new Exception("character grant gave " + string.Join(",", given));
+            grants++;
+        }
+        Console.WriteLine("PASS native gacha: " + pulls + " pulls with set rolls (tier edges and pity), " + rows + " disclosed rewards, averages with pity and " + grants + " character rewards with duplicates match the studio");
     }
 }

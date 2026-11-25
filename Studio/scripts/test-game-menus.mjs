@@ -7,7 +7,7 @@ import vm from 'node:vm';
 
 const ctx = vm.createContext({ crypto, structuredClone, TextEncoder });
 for (const file of ['model', 'rule-machine', 'simulation']) vm.runInContext(await readFile('src/' + file + '.js', 'utf8'), ctx);
-const m = vm.runInContext(`({seed,problem,FieldRun,frontScreen,settingsScreen,standbyScreen,inspectScreens,resetUIReferences,linkTarget,
+const m = vm.runInContext(`({seed,problem,FieldRun,frontScreen,settingsScreen,standbyScreen,inspectScreens,resetUIReferences,linkTarget,cornerButton,placeButtons,exportName,
   deviceSettings,actionRefOK,INPUTS,UI_EVENTS,SYSTEM_TEXT,FRONT_ORDER,newInputSpec,widget,newRule,DialogueCursor})`, ctx);
 const plain = (v) => JSON.parse(JSON.stringify(v));
 
@@ -226,4 +226,25 @@ const where = (run) => (run.presentation?.role || 'map') + ':' + (run.screen?.id
   run.press('flagToggle', '자동전투');
   assert.equal(run.flags.has('자동전투'), false);
   console.log('PASS saves, loading, quitting and links go to the host; toggles switch a state');
+}
+
+// Buttons the studio adds to a designed screen go to clear places and stay together; exports carry the game's name.
+{
+  const home = m.frontScreen('h', 'home', '설원');
+  const corner = m.cornerButton(home, '설정');
+  home.elements.push(corner);
+  assert.deepEqual([corner.x, corner.y, corner.w, corner.h], [83, 3, 14, 9], 'a lobby\'s settings button sits in the top-right corner');
+  const added = m.placeButtons(home, ['1회 뽑기', '10회 뽑기', '확률 정보'].map((text) => ({ text, props: { action: 'back' } })));
+  home.elements.push(...added);
+  const boxes = home.elements.filter((w) => w.visible && w.type !== 'panel' && w.type !== 'image');
+  for (const a of boxes) for (const b of boxes)
+    if (a !== b) assert.ok(!(a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h), a.text + ' overlaps ' + b.text);
+  assert.ok(added.every((b) => b.y >= 74 && b.x >= 45), 'kept together under the lobby buttons');
+  const full = m.frontScreen('f', 'home', '설원');
+  for (let i = 0; i < 40; i++) full.elements.push(...m.placeButtons(full, [{ text: 'b' + i, props: {} }]));
+  assert.equal(full.elements.length, 47, 'a full screen still takes buttons');
+  assert.equal(m.exportName({ saveId: 'snow-crossing', title: '설원' }), 'snow-crossing');
+  assert.equal(m.exportName({ title: '설원 횡단기: 2/3' }), '설원-횡단기-2-3');
+  assert.equal(m.exportName({}), 'Dreamwalker');
+  console.log('PASS added buttons take clear places together, a lobby settings button takes the corner; exports carry the game name');
 }

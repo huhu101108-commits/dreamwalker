@@ -13,5 +13,11 @@ export function arenaFixture() {
     all:async()=>({results:db.prepare(sql).all(...args)}),
     run:async()=>({meta:db.prepare(sql).run(...args)}),
   });
-  return {DB:{prepare:statement},close:()=>db.close()};
+  // D1 batches run in one transaction: an error rolls every statement back.
+  const batch=async(list)=>{
+    db.exec('BEGIN');
+    try { const out=[]; for(const s of list) out.push(await s.run()); db.exec('COMMIT'); return out; }
+    catch(e){ db.exec('ROLLBACK'); throw e; }
+  };
+  return {DB:{prepare:statement,batch},close:()=>db.close()};
 }

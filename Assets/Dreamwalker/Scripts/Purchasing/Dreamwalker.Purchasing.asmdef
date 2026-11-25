@@ -1,0 +1,26 @@
+{
+    "name": "Dreamwalker.Purchasing",
+    "rootNamespace": "Dreamwalker",
+    "references": [
+        "Dreamwalker.Runtime",
+        "UnityEngine.Purchasing",
+        "UnityEngine.Purchasing.Stores"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [
+        "DREAMWALKER_IAP"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.unity.purchasing",
+            "expression": "4.0.0",
+            "define": "DREAMWALKER_IAP"
+        }
+    ],
+    "noEngineReferences": false
+}

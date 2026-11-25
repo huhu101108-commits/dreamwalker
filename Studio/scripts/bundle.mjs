@@ -69,7 +69,7 @@ fs.writeFileSync(
     'const SOURCE_BASE=' +
     JSON.stringify(sourceBase) +
     ';\n' +
-    ['model','rule-machine','design-plan','gpt-service','personal-gpt-service','unity-transfer-service','gpt-workbench-service','gpt-mcp','claude-service', 'github-runner', 'android-service', 'competitive-lab','link-test-service', 'file-relay-service', 'arena-simulation', 'arena-service', 'report-service', 'shop-service', 'server']
+    ['model','rule-machine','design-plan','gpt-service','personal-gpt-service','unity-transfer-service','gpt-workbench-service','gpt-mcp','claude-service', 'github-runner', 'android-service', 'competitive-lab','link-test-service', 'file-relay-service', 'arena-simulation', 'arena-service', 'report-service', 'shop-service', 'wallet-service', 'server']
       .map((n) => read('src/' + n + '.js'))
       .join('\n'),
 );

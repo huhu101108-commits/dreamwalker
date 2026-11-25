@@ -428,8 +428,11 @@ function playCue(kind, volume = 1) {
 function shopPanelView(world, state, close) {
   const say = (name) => systemText(world, name), p = state.shopPanel, panel = box('shop-panel'), card = box('shop-card');
   const named2 = (list, id) => (list || []).find((v) => v.id === id);
-  const rewardName = (g) => (g.kind === 'item' ? named2(world.items, g.id)?.name : named2(world.shop?.currencies, g.id)?.name) || g.id;
-  const counted = (g) => rewardName(g) + (g.count > 1 ? ' ×' + g.count : '');
+  const rewardName = (g) => (g.kind === 'item' ? named2(world.items, g.id)?.name : g.kind === 'character' ? named2(world.characters, g.id)?.name :
+    named2(world.shop?.currencies, g.id)?.name) || g.id;
+  // A character already in the roster shows what it became instead.
+  const counted = (g) => rewardName(g) + (g.count > 1 ? ' ×' + g.count : '') +
+    (g.dup ? ' · ' + say('gacha.owned') + (g.instead ? ' → ' + rewardName(g.instead) + (g.instead.count > 1 ? ' ×' + g.instead.count : '') : '') : '');
   panel.setAttribute('role', 'dialog');
   panel.append(card);
   if (p.kind === 'odds') {
@@ -465,7 +468,7 @@ function shopPanelView(world, state, close) {
     const list = el('ul');
     list.className = 'shop-results';
     for (const g of p.rewards) {
-      const item = el('li', (g.tier ? g.tier + ' · ' : '') + counted(g));
+      const item = el('li', (g.tier ? g.tier + ' · ' : '') + (g.kind === 'character' && !g.dup ? say('gacha.new') + ' ' : '') + counted(g));
       if (g.top) item.className = 'top';
       list.append(item);
     }

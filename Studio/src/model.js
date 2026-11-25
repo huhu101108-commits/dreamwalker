@@ -447,6 +447,46 @@ function polygonOK(points) {
 function joystickWidget(id) {
   return widget(id, 'joystick', 2, 65, 17, 32, { background: '#132b42', color: '#c5eef1', opacity: 65 });
 }
+// The name of exported files: the game's save identifier, else its name, so downloads of two games do not mix.
+function exportName(doc) {
+  const name = (doc?.saveId || doc?.title || '').replace(/[\\/:*?"<>|\s.]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 50);
+  return name || 'Dreamwalker';
+}
+// Whether a rectangle (in screen percent) is clear of the screen's visible elements, with a small margin.
+function rectFree(layout, r) {
+  return !layout.elements.some((w) => w.visible && w.type !== 'panel' && w.type !== 'image' &&
+    w.x < r.x + r.w + 1 && r.x < w.x + w.w + 1 && w.y < r.y + r.h + 1 && r.y < w.y + w.h + 1);
+}
+// A button in the first clear place, reading from the top left, so buttons added to a designed screen do not cover
+// what is there. A full screen falls back to the menu slots.
+function freeButton(layout, text, props = {}) {
+  return placeButtons(layout, [{ text, props }])[0];
+}
+// Several buttons kept together in the first clear block: left to right, then the next row under the first one.
+function placeButtons(layout, specs) {
+  for (const [w, h] of [[24, 10], [20, 9], [17, 8]])
+    for (let y = 3; y <= 97 - h; y++)
+      for (let x = 2; x <= 98 - w; x++) {
+        const spots = [];
+        let cx = x, cy = y;
+        for (let i = 0; i < specs.length; i++) {
+          if (cx + w > 98) { cx = x; cy += h + 1; }
+          if (cy + h > 97 || !rectFree(layout, { x: cx, y: cy, w, h })) break;
+          spots.push({ x: cx, y: cy });
+          cx += w + 1;
+        }
+        if (spots.length === specs.length)
+          return specs.map((s, i) => widget(uid(), 'button', spots[i].x, spots[i].y, w, h, { text: s.text, action: 'back', shape: 'pill', ...s.props }));
+      }
+  // A full screen: the menu slots, one after another.
+  const copy = { elements: [...layout.elements] };
+  return specs.map((s) => { const b = newMenuButton(copy, s.text, s.props); copy.elements.push(b); return b; });
+}
+// A small button in a screen's top-right corner (a lobby's settings), or the first clear place when it is taken.
+function cornerButton(layout, text, props = {}) {
+  const r = { x: 83, y: 3, w: 14, h: 9 };
+  return rectFree(layout, r) ? widget(uid(), 'button', r.x, r.y, r.w, r.h, { text, action: 'back', shape: 'pill', ...props }) : freeButton(layout, text, props);
+}
 function frontScreen(id, role, title) {
   const s = newScreen(id, FRONT_NAMES[role], 'custom');
   s.shade = 94;
@@ -459,15 +499,16 @@ function frontScreen(id, role, title) {
     button('prev','이전','previousActor',8,43,18), button('next-actor','다음','switch',74,43,18),
     button('confirm','이 캐릭터로 시작','confirmActor',29,77,42)];
   if (role === 'loading') s.elements = [titleAt('불러오는 중'), widget('progress', 'loading', 20, 60, 60, 10)];
-  // A lobby: the chosen character on the left, the ways on from here on the right.
+  // A lobby: the chosen character on the left, the ways on from here on the right, and room below them for the
+  // store and gacha buttons a game adds.
   if (role === 'home') s.elements = [
     widget('heading', 'text', 4, 4, 52, 12, { text: title, fontSize: 28, opacity: 0, align: 'left' }),
     widget('face', 'portrait', 4, 18, 40, 66, { opacity: 0 }),
     widget('name', 'character', 4, 86, 40, 9, { opacity: 0 }),
-    widget('play', 'button', 58, 18, 36, 16, { text: '출격', action: 'play', shape: 'pill', fontSize: 22 }),
-    button('next-actor', '캐릭터 교대', 'switch', 58, 38, 36),
-    button('save', '진행 저장', 'saveGame', 58, 56, 36),
-    button('to-title', '시작 화면으로', 'back', 58, 74, 36)];
+    widget('play', 'button', 58, 17, 36, 15, { text: '출격', action: 'play', shape: 'pill', fontSize: 22 }),
+    widget('next-actor', 'button', 58, 35, 36, 11, { text: '캐릭터 교대', action: 'switch', shape: 'pill' }),
+    widget('save', 'button', 58, 49, 36, 11, { text: '진행 저장', action: 'saveGame', shape: 'pill' }),
+    widget('to-title', 'button', 58, 63, 36, 11, { text: '시작 화면으로', action: 'back', shape: 'pill' })];
   return s;
 }
 // A settings screen of device settings: sound, line speed and auto lines, language and error report consent.
@@ -928,7 +969,11 @@ function problem(d) {
       return '캐릭터의 이름, 능력치와 스킬 동작을 확인하세요.';
     const staged = characterStageProblem(c);
     if (staged) return staged;
+    if (c.locked !== undefined && typeof c.locked !== 'boolean') return c.name + '의 잠금 설정을 확인하세요.';
   }
+  // Locked characters join the roster from a pull or a reward; the game itself starts with one the player has.
+  if (d.characters.every((c) => c.locked)) return '처음부터 쓸 수 있는 캐릭터가 하나 이상 필요해요.';
+  if (named(d.characters, named(d.scenes, d.startMap).characterId)?.locked) return '시작 맵의 캐릭터는 처음부터 쓸 수 있어야 해요. 잠금을 풀거나 시작 캐릭터를 바꾸세요.';
   if(d.menuFunctions!==undefined && (!rows(d.menuFunctions,0,64) || d.menuFunctions.some(f=>
     !title(f.name)||!actionRefOK(d,f.action,f.target)||!Array.isArray(f.steps)||f.steps.length>12||f.steps.some(s=>!validMenuStep(d,s)))))
     return '메뉴 기능의 이름과 실행 동작을 확인하세요.';
@@ -1334,10 +1379,11 @@ function productionProblem(d) {
       !['clear', 'story', 'kill'].includes(q.kind) ||
       !(q.kind === 'kill' ? (q.target === '*' || signalKey(q.target)) && integer(q.goal,1,999) :
         q.kind === 'clear' ? named(d.scenes, q.target) : named(d.stories, q.target)) ||
-      !named(items, q.reward) ||
-      !integer(q.count, 1, 999)
+      !(q.rewardKind === undefined || q.rewardKind === 'item' || q.rewardKind === 'currency') ||
+      !(q.rewardKind === 'currency' ? named(d.shop?.currencies || [], q.reward) : named(items, q.reward)) ||
+      !integer(q.count, 1, q.rewardKind === 'currency' ? 99999 : 999)
     )
-      return q.name + '의 완료 조건과 보상 장비를 지정하세요.';
+      return q.name + '의 완료 조건과 보상(장비 또는 재화)을 지정하세요.';
   for (const c of d.characters) {
     if (c.clips === undefined) continue;
     if (!c.clips || typeof c.clips !== 'object' || Array.isArray(c.clips) || Object.keys(c.clips).length > 17)
@@ -2322,7 +2368,8 @@ const SYSTEM_TEXT={
   'shop.store':'이 실행 환경에서는 결제할 수 없어요.','shop.testPaid':'테스트 결제로 구매했어요. 실제 결제는 일어나지 않았어요.',
   'shop.got':'획득','gacha.odds':'확률 정보','gacha.price':'1회 {가격}','gacha.pity':'{횟수}회째 뽑기에서 {등급} 확정',
   'gacha.noPity':'천장 없음','gacha.since':'마지막 {등급} 이후 {횟수}회','gacha.effective':'천장 포함 {등급} 평균 확률 {확률}% (평균 {횟수}회)',
-  'gacha.history':'최근 뽑기',
+  'gacha.history':'최근 뽑기','gacha.new':'NEW','gacha.owned':'보유 중',
+  'shop.server':'서버에 연결하지 못했어요. 잠시 뒤 다시 시도하세요.','shop.verify':'결제를 확인하지 못했어요. 결제가 되었다면 다시 실행하면 지급돼요.',
 };
 const SYSTEM_GROUPS={shop:'상점',gacha:'뽑기 확률 정보',cloud:'클라우드 저장·기기 이전',reports:'오류 보고',button:'버튼 기본 문구',hud:'HUD',dialogue:'대화',roadmap:'스토리 로드맵',items:'장비',gear:'장비 부위',quests:'의뢰',
   result:'결과 화면',status:'진행 안내',save:'진행 저장',app:'외부 링크',bar:'웹 플레이 막대',input:'입력 컨트롤',online:'온라인'};
@@ -2559,7 +2606,7 @@ function pruneTranslations(doc){
 // top-tier result is a top-tier result. gachaOdds is the disclosure table both runtimes show; gachaPull is the draw rule,
 // mirrored by StudioGacha in Unity (scripts/native-check/gacha.json).
 const SHOP_LIMIT={currencies:8,products:100,gives:10,banners:30,tiers:6,entries:100,rate:100000,amount:99999999,history:30};
-const GACHA_KINDS={item:'아이템',currency:'재화'};
+const GACHA_KINDS={item:'아이템',currency:'재화',character:'캐릭터'};
 const emptyShop=()=>({currencies:[],products:[],banners:[]});
 const newCurrency=(id,name)=>({id,name,start:0,max:9999999,icon:''});
 const newProduct=(id,name,currency)=>({id,name,cost:{kind:'currency',id:currency,amount:100},gives:[],limit:0});
@@ -2567,8 +2614,11 @@ function newBanner(id,name,currency){
   return {id,name,image:'',cost:{currency,amount:160},multi:10,pity:0,
     tiers:[{id:uid(),name:'최고 등급',rate:2000,top:true,entries:[]},{id:uid(),name:'일반',rate:98000,top:false,entries:[]}]};
 }
+// A reward: items and currencies by count; a character joins the roster once (count 1).
 function shopReward(d,g){
-  return !!g&&['item','currency'].includes(g.kind)&&integer(g.count,1,g.kind==='item'?999:SHOP_LIMIT.amount)&&
+  if(!g||!has(GACHA_KINDS,g.kind))return false;
+  if(g.kind==='character')return g.count===1&&!!named(d.characters,g.id);
+  return integer(g.count,1,g.kind==='item'?999:SHOP_LIMIT.amount)&&
     (g.kind==='item'?!!named(d.items||[],g.id):!!named(d.shop?.currencies||[],g.id));
 }
 function shopProblem(d){
@@ -2577,6 +2627,7 @@ function shopProblem(d){
   const where='상점 · 뽑기 / ';
   if(!plainObject(s)||!rows(s.currencies,0,SHOP_LIMIT.currencies)||!rows(s.products,0,SHOP_LIMIT.products)||!rows(s.banners,0,SHOP_LIMIT.banners))
     return where+'재화·상품·뽑기 목록과 ID를 확인하세요.';
+  if(s.server!==undefined&&typeof s.server!=='boolean')return where+'서버 지갑 설정을 확인하세요.';
   for(const c of s.currencies)
     if(!textValue(c.name,20,true)||!integer(c.max,1,SHOP_LIMIT.amount)||!integer(c.start,0,c.max)||!mediaRef(c.icon))
       return where+(c.name||c.id)+' / 재화 이름, 시작 수량과 최대치를 확인하세요.';
@@ -2595,6 +2646,7 @@ function shopProblem(d){
     const at=where+(b.name||b.id)+' / ';
     if(!textValue(b.name,40,true)||!mediaRef(b.image)||!plainObject(b.cost)||!currency(b.cost.currency)||!integer(b.cost.amount,1,SHOP_LIMIT.amount)||
       !(b.multi===0||integer(b.multi,2,10))||!integer(b.pity,0,1000))return at+'뽑기 이름, 비용, 연속 뽑기 수와 천장을 확인하세요.';
+    if(b.duplicate!==undefined&&(!shopReward(d,b.duplicate)||b.duplicate.kind==='character'))return at+'이미 가진 캐릭터가 나왔을 때 줄 보상(아이템 또는 재화)을 확인하세요.';
     if(!rows(b.tiers,1,SHOP_LIMIT.tiers)||b.tiers.some(t=>!textValue(t.name,20,true)||!integer(t.rate,0,SHOP_LIMIT.rate)||typeof t.top!=='boolean'||
       !Array.isArray(t.entries)||t.entries.length>SHOP_LIMIT.entries||(t.rate>0&&!t.entries.length)||
       !t.entries.every(e=>shopReward(d,e)&&integer(e.weight,1,1000000))))return at+'등급 이름, 확률, 보상과 가중치를 확인하세요.';
@@ -2611,7 +2663,7 @@ function oddsPercent(numerator,denominator){
 }
 // The disclosure: every reward with its chance, each tier's chance, and the pity rule.
 function gachaOdds(d,b){
-  const name=g=>g.kind==='item'?named(d.items||[],g.id)?.name||g.id:named(d.shop?.currencies||[],g.id)?.name||g.id;
+  const name=g=>(g.kind==='item'?named(d.items||[],g.id)?.name:g.kind==='character'?named(d.characters,g.id)?.name:named(d.shop?.currencies||[],g.id)?.name)||g.id;
   return {banner:b.id,name:b.name,pity:b.pity,top:b.tiers.find(t=>t.top)?.name||'',
     tiers:b.tiers.map(t=>{
       const total=t.entries.reduce((n,e)=>n+e.weight,0);
@@ -2645,6 +2697,40 @@ function gachaEffective(b){
   const p=top.rate/SHOP_LIMIT.rate,pulls=b.pity>0?(1-Math.pow(1-p,b.pity))/p:1/p;
   return {pulls:Math.round(pulls*10)/10,percent:(Math.round(100000/pulls)/1000).toFixed(3)};
 }
+// One pull's reward for a holder (a run, or a server wallet) that knows the characters it has (owns) and takes rewards
+// (grant). A character it already has becomes the banner's duplicate reward, when it has one.
+function gachaGrant(holder, b, t, e) {
+  const out = { banner: b.id, tier: t.name, top: t.top, kind: e.kind, id: e.id, count: e.count };
+  if (e.kind === 'character' && holder.owns(e.id)) {
+    out.dup = true;
+    if (b.duplicate) { holder.grant(b.duplicate); out.instead = { kind: b.duplicate.kind, id: b.duplicate.id, count: b.duplicate.count }; }
+  } else holder.grant(e);
+  return out;
+}
+// count pulls from the pulls since the last top result; roll(n) is a uniform integer below n. The tier roll is drawn
+// even when pity decides, then the reward roll.
+function gachaRun(b, since, count, roll, holder) {
+  const results = [];
+  for (let i = 0; i < count; i++) {
+    const t = b.tiers[gachaTier(b, since, roll(SHOP_LIMIT.rate))], e = t.entries[gachaEntry(t, roll(gachaWeight(t)))];
+    since = t.top ? 0 : since + 1;
+    results.push(gachaGrant(holder, b, t, e));
+  }
+  return { results, since };
+}
+// Rewards from a save or the server, checked against the game: pull history (banner required) or a result list.
+function shopRewards(world, list, banner = true, limit = SHOP_LIMIT.history) {
+  const s = world.shop || emptyShop();
+  const known = (kind, id) => kind === 'item' ? named(world.items || [], id) : kind === 'currency' ? named(s.currencies, id) : kind === 'character' ? named(world.characters, id) : null;
+  return (Array.isArray(list) ? list : []).filter((d) => d && has(GACHA_KINDS, d.kind) && typeof d.id === 'string' && known(d.kind, d.id) &&
+    integer(d.count, 1, SHOP_LIMIT.amount) && (banner ? named(s.banners, d.banner) && typeof d.tier === 'string' : (d.tier ?? '') === '' || typeof d.tier === 'string'))
+    .slice(0, limit)
+    .map(({ banner: from, tier, top, kind, id, count, dup, instead }) => ({ ...(typeof from === 'string' && named(s.banners, from) ? { banner: from } : {}),
+      tier: (tier || '').slice(0, 20), top: top === true, kind, id, count, ...(dup === true ? { dup: true } : {}),
+      ...(instead && ['item', 'currency'].includes(instead.kind) && known(instead.kind, instead.id) && integer(instead.count, 1, SHOP_LIMIT.amount)
+        ? { instead: { kind: instead.kind, id: instead.id, count: instead.count } } : {}) }));
+}
+const shopDraws = (world, list) => shopRewards(world, list, true);
 // {재화:id} shows the player's amount of a currency.
 function walletText(text,wallet){
   if(typeof text!=='string'||!text.includes('{재화:')||!wallet)return text;

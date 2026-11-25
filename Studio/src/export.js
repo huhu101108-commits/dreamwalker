@@ -138,7 +138,7 @@ async function exportUnityPack(fullProject = false) {
   const url = URL.createObjectURL(await makeUnityPack(fullProject,release)),
     a = el('a');
   a.href = url;
-  a.download = (fullProject ? 'Dreamwalker-Unity-Project-v' : 'Dreamwalker-Unity-v') + release.rev + '.zip';
+  a.download = exportName(release.project) + (fullProject ? '-Unity-Project-v' : '-Unity-v') + release.rev + '.zip';
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 5000);
   if (fullProject) note('현재 저장본의 Unity 프로젝트와 소스, 이미지를 내보냈어요.');
