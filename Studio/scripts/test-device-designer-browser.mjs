@@ -1,0 +1,113 @@
+import assert from 'node:assert/strict';
+import {readFile,mkdtemp,rm} from 'node:fs/promises';
+import {join} from 'node:path';
+import {tmpdir} from 'node:os';
+import {pathToFileURL} from 'node:url';
+
+export async function testDeviceDesigner(page){
+  const origin=new URL(page.url()).origin;assert.equal(new URL(origin).hostname,'127.0.0.1');
+  await page.setViewportSize({width:1280,height:800});
+  const button=n=>page.getByRole('button',{name:n,exact:true}),field=n=>page.getByLabel(n,{exact:true});
+  const tab=id=>page.locator('[data-tab="'+id+'"]').click();
+  // Test the native input fallback with a real browser chooser. No device file is preloaded into the project.
+  await page.addInitScript(()=>Object.defineProperty(window,'showOpenFilePicker',{configurable:true,value:undefined}));
+  const ext=await page.context().browser().newContext();
+  try{
+    await ext.addInitScript(()=>Object.defineProperty(window,'showOpenFilePicker',{configurable:true,value:undefined}));
+    const disk=await ext.newPage(),hits=[];
+    disk.on('request',r=>{if(new URL(r.url()).pathname.startsWith('/api/'))hits.push(r.method()+' '+r.url());});
+    await disk.goto(origin+'/device');
+    const chosen=disk.waitForEvent('filechooser');await disk.getByRole('button',{name:'기기 파일 선택'}).click();
+    await (await chosen).setFiles({name:'설원-대사.txt',mimeType:'text/plain',buffer:Buffer.from('\uFEFF발자국이 보여.\r\n')});
+    const editor=disk.getByLabel('기기 파일 내용');await editor.waitFor();
+    assert.equal(await editor.inputValue(),'발자국이 보여.\n');
+    await editor.fill('얼음 호수에 도착했어.');
+    const download=disk.waitForEvent('download');await disk.getByRole('button',{name:'기기에 사본 저장'}).click();
+    const copy=await download;assert.equal(copy.suggestedFilename(),'설원-대사.txt');
+    assert.deepEqual(await readFile(await copy.path()),Buffer.from('\uFEFF얼음 호수에 도착했어.'));
+    assert.deepEqual(hits,[]);
+  }finally{await ext.close();}
+  await page.goto(origin+'/?tool=device');await page.locator('#editor').waitFor();
+  const uploads=[];const writes=r=>{if(r.method()==='POST'&&/\/api\/(?:assets|save|file-relay)/.test(r.url()))uploads.push(r.url());};
+  page.on('request',writes);
+  const open=page.waitForEvent('filechooser');await button('기기에서 파일 열기').click();
+  await (await open).setFiles({name:'DesignNote.txt',mimeType:'text/plain',buffer:Buffer.from('원본 파일')});
+  await field('기기 파일 내용').fill('내가 바꾼 대사');assert.deepEqual(uploads,[]);
+  await button('프로젝트에 사용').click();
+  await page.waitForFunction(()=>document.querySelector('.code-editor')?.value==='내가 바꾼 대사');
+  assert.equal(await field('소스 파일').inputValue(),'Assets/DesignNote.txt');page.off('request',writes);
+  await tab('interface');await button('클리어 화면').click();await field('표시 문구').fill('설원 탐험 성공');
+  await button('패배 화면').click();assert.notEqual(await field('표시 문구').inputValue(),'설원 탐험 성공');
+  await button('게임 메뉴').click();
+  const parent=await field('작업 화면').inputValue();
+  await button('전체 화면 디자인').click();const bench=page.locator('.screen-designer-full');
+  await bench.waitFor();await field('화면 격자 맞춤').selectOption('0.1');
+  const xpos=field('왼쪽 (%)');const x=Number(await xpos.inputValue());
+  await page.getByText('위치 미세 조절',{exact:true}).click();await button('오른쪽 한 칸').click();
+  assert.equal(Number(await xpos.inputValue()),Math.round((x+.1)*10)/10);
+  await field('배치 잠금').check();assert(await xpos.isDisabled());await field('배치 잠금').uncheck();
+  await button('전체 화면 닫기').click();
+  const builder=page.locator('.menu-builder');
+  await builder.locator('summary').click();await field('새 메뉴 이름').fill('탐험 수첩');
+  await field('메뉴 내용').selectOption('quests');await button('하위 메뉴와 열기 버튼 만들기').click();
+  const child=await field('작업 화면').inputValue();assert.notEqual(child,parent);
+  await page.locator('.ui-canvas .widget-quests').waitFor();await field('작업 화면').selectOption(parent);
+  await field('새 기능 이름').fill('수첩 다시 열기');await button('메뉴 기능 추가').click();
+  await field('기능 버튼 동작').selectOption('flagOn');await field('기능 변경할 상태 이름').fill('읽음');
+  await button('기능 ＋ 후속 동작').click();await field('기능 실행 동작').selectOption('open');await field('기능 열 화면').selectOption(child);
+  await button('이 기능 버튼을 화면에 추가').click();
+  await page.locator('.ui-canvas').getByText('수첩 다시 열기',{exact:true}).waitFor();
+  await button('▶ 이 화면 테스트').click();
+  const overlay=page.locator('#overlay');
+  await overlay.getByRole('button',{name:'수첩 다시 열기'}).click();
+  await overlay.getByText('탐험 수첩',{exact:true}).waitFor();
+  await overlay.getByRole('button',{name:'돌아가기'}).click();
+  await overlay.getByRole('button',{name:'수첩 다시 열기'}).waitFor();await page.locator('#stop').click();
+  await button('스튜디오 배치').click();await field('속성 패널 위치').selectOption('left');await field('속성 패널 너비').selectOption('wide');
+  await field('처음 열 제작 도구').selectOption('device');await button('이 기기에 적용').click();
+  assert(await page.locator('#editor.properties-left.properties-wide').isVisible());
+  await tab('assistant');await field('GPT와 편집할 화면').selectOption(parent);
+  await page.getByText('내 GPT 설정',{exact:true}).waitFor();
+  assert(await button('GPT에 보내기').isDisabled());
+  let latest;
+  const route=async r=>{
+    const req=r.request();
+    if(req.method()==='GET')return r.fulfill({json:{configured:true,model:'gpt-6.2-astra',effort:'max'}});
+    latest=req.postDataJSON();
+    const values=Object.entries({kind:'text',text:'눈 내리는 야영지',x:'15.5',y:'22',w:'50',h:'9'}).map(([key,value])=>({key,value}));
+    return r.fulfill({json:{message:'메뉴에 야영지 문구를 배치했어요. 미리보기를 확인하세요.',changes:[{op:'addWidget',screen:'',ref:'campLabel',values}]}});
+  };
+  await page.route('**/api/studio-gpt',route);
+  try{
+    await button('GPT 연결 확인').click();await page.getByText('gpt-6.2-astra · 최대',{exact:true}).waitFor();
+    await field('GPT에 요청할 내용').fill('야영지 문구를 넣어 줘.');await button('GPT에 보내기').click();
+    await page.locator('.gpt-proposal .gpt-screen-sample').getByText('눈 내리는 야영지',{exact:true}).waitFor();
+    assert.equal(await page.locator('.inspector .gpt-screen-sample').getByText('눈 내리는 야영지',{exact:true}).count(),0);
+    assert.equal(latest.context.screen.id,parent);assert.equal(latest.history.length,0);
+    await button('변경안을 초안에 적용').click();await page.locator('.inspector .gpt-screen-sample').getByText('눈 내리는 야영지',{exact:true}).waitFor();
+    await page.locator('#undo').click();assert.equal(await page.locator('.inspector .gpt-screen-sample').getByText('눈 내리는 야영지',{exact:true}).count(),0);
+    await page.locator('#redo').click();
+    await field('GPT에 요청할 내용').fill('현재 화면을 기준으로 다시 제안해 줘.');await button('GPT에 보내기').click();
+    await button('변경안을 초안에 적용').waitFor();assert.equal(latest.history.length,2);
+    await button('직접 화면 디자인').click();await field('화면 이름').fill('야영지 메뉴');await tab('assistant');
+    await page.locator('.gpt-proposal').getByText('요청 후 선택한 항목이나 연결이 바뀌었어요. 현재 작업으로 다시 요청하세요.',{exact:true}).waitFor();assert.equal(await button('변경안을 초안에 적용').count(),0);
+    await button('제안 닫기').click();
+  }finally{await page.unroute('**/api/studio-gpt',route);}
+  const saved=page.waitForResponse(r=>r.url().endsWith('/api/save'));await page.locator('#save').click();const reply=await saved;
+  assert.equal(reply.status(),200);const data=(await reply.json()).project;
+  assert(data.menuFunctions.some(f=>f.name==='수첩 다시 열기'));assert(data.sourceFiles.some(f=>f.path==='Assets/DesignNote.txt'&&f.text==='내가 바꾼 대사'));
+  assert(data.layouts.find(l=>l.id===parent).elements.filter(w=>w.text==='눈 내리는 야영지').length===1);
+  await page.goto(origin+'/');await page.getByRole('heading',{name:'기기 파일',exact:true}).waitFor();assert(await page.locator('#editor.properties-left.properties-wide').isVisible());
+
+  await tab('source');await field('실행 환경').selectOption('Web/');
+  const download=page.waitForEvent('download');await button('초안 → 오프라인 게임 HTML').click();
+  const dir=await mkdtemp(join(tmpdir(),'dw-menu-')),path=join(dir,'game.html'),offline=await page.context().browser().newContext({offline:true});
+  try{
+    await (await download).saveAs(path);const game=await offline.newPage();await game.goto(pathToFileURL(path).href);
+    const layer=game.locator('#overlay');await layer.getByRole('button',{name:'게임 시작'}).click();await layer.getByRole('button',{name:'이 캐릭터로 시작'}).click();
+    await layer.getByRole('button',{name:'눈길로'}).click();await layer.getByRole('button',{name:'발자국 따라가기'}).click();
+    await layer.getByRole('button',{name:'메뉴',exact:true}).click();await layer.getByRole('button',{name:'수첩 다시 열기'}).click();
+    await layer.getByRole('button',{name:'돌아가기'}).click();await layer.getByText('눈 내리는 야영지',{exact:true}).waitFor();
+  }finally{await offline.close();await rm(dir,{recursive:true,force:true});}
+  console.log('PASS real native chooser to local document, no server file reads/writes, explicit project use, screen precision and lock, editor preferences, menu function in live/offline play, simulated GPT preview/apply/undo/stale guard and saved reload');
+}

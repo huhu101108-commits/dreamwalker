@@ -1,0 +1,5106 @@
+{
+ "links": [
+  [
+   "https://example.com",
+   true
+  ],
+  [
+   "https://example.com/",
+   true
+  ],
+  [
+   "https://game.example.co.kr:8443/terms?lang=ko#top",
+   true
+  ],
+  [
+   "https://example.com/공지/2026",
+   true
+  ],
+  [
+   "https://example.com/a b",
+   false
+  ],
+  [
+   "https://example.com/\"x\"",
+   false
+  ],
+  [
+   "https://example.com/<x>",
+   false
+  ],
+  [
+   "https://example.com/a\\b",
+   false
+  ],
+  [
+   "https://example.com/`x`",
+   false
+  ],
+  [
+   "https://example.com/　",
+   false
+  ],
+  [
+   "https://example.com/ ",
+   false
+  ],
+  [
+   "https://example.com/﻿",
+   false
+  ],
+  [
+   "https://example.com/",
+   false
+  ],
+  [
+   "https://example.com/\u0000",
+   false
+  ],
+  [
+   "https://exa_mple.com",
+   false
+  ],
+  [
+   "https://example.com:123456",
+   false
+  ],
+  [
+   "https://example.com:٨٠",
+   false
+  ],
+  [
+   "http://example.com",
+   false
+  ],
+  [
+   "javascript:alert(1)",
+   false
+  ],
+  [
+   "HTTPS://example.com",
+   false
+  ],
+  [
+   "https://",
+   false
+  ],
+  [
+   "https://example.com\n",
+   false
+  ],
+  [
+   "mailto:help@example.com",
+   true
+  ],
+  [
+   "mailto:help.desk+kr@mail.example.com",
+   true
+  ],
+  [
+   "mailto:help@@example.com",
+   false
+  ],
+  [
+   "mailto:도움@example.com",
+   false
+  ],
+  [
+   "mailto:help@example.com?subject=hi",
+   false
+  ],
+  [
+   "",
+   false
+  ],
+  [
+   "https://e.com/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   true
+  ],
+  [
+   "https://e.com/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   false
+  ]
+ ],
+ "stored": [
+  [
+   {},
+   {
+    "music": 100,
+    "fx": 100,
+    "voice": 100,
+    "mute": false,
+    "textSpeed": 100,
+    "autoAdvance": false
+   }
+  ],
+  [
+   {
+    "music": 40
+   },
+   {
+    "music": 40,
+    "fx": 100,
+    "voice": 100,
+    "mute": false,
+    "textSpeed": 100,
+    "autoAdvance": false
+   }
+  ],
+  [
+   {
+    "music": 150,
+    "fx": -3,
+    "voice": 100,
+    "textSpeed": 5
+   },
+   {
+    "music": 100,
+    "fx": 0,
+    "voice": 100,
+    "mute": false,
+    "textSpeed": 10,
+    "autoAdvance": false
+   }
+  ],
+  [
+   {
+    "textSpeed": 2000,
+    "mute": true,
+    "autoAdvance": true
+   },
+   {
+    "music": 100,
+    "fx": 100,
+    "voice": 100,
+    "mute": true,
+    "textSpeed": 1000,
+    "autoAdvance": true
+   }
+  ],
+  [
+   {
+    "music": 0,
+    "fx": 100,
+    "voice": 55,
+    "mute": false,
+    "textSpeed": 250,
+    "autoAdvance": false
+   },
+   {
+    "music": 0,
+    "fx": 100,
+    "voice": 55,
+    "mute": false,
+    "textSpeed": 250,
+    "autoAdvance": false
+   }
+  ]
+ ],
+ "texts": [
+  [
+   {
+    "setting": "music",
+    "min": 0,
+    "max": 100
+   },
+   {
+    "music": 100,
+    "fx": 100,
+    "voice": 100,
+    "mute": false,
+    "textSpeed": 100,
+    "autoAdvance": false
+   },
+   "100"
+  ],
+  [
+   {
+    "setting": "voice",
+    "min": 20,
+    "max": 80
+   },
+   {
+    "music": 100,
+    "fx": 100,
+    "voice": 100,
+    "mute": false,
+    "textSpeed": 100,
+    "autoAdvance": false
+   },
+   "80"
+  ],
+  [
+   {
+    "setting": "textSpeed",
+    "min": 50,
+    "max": 300
+   },
+   {
+    "music": 100,
+    "fx": 100,
+    "voice": 100,
+    "mute": false,
+    "textSpeed": 100,
+    "autoAdvance": false
+   },
+   "100"
+  ],
+  [
+   {
+    "setting": "mute",
+    "min": 0,
+    "max": 100
+   },
+   {
+    "music": 100,
+    "fx": 100,
+    "voice": 100,
+    "mute": false,
+    "textSpeed": 100,
+    "autoAdvance": false
+   },
+   "false"
+  ],
+  [
+   {
+    "setting": "autoAdvance",
+    "min": 0,
+    "max": 100
+   },
+   {
+    "music": 100,
+    "fx": 100,
+    "voice": 100,
+    "mute": false,
+    "textSpeed": 100,
+    "autoAdvance": false
+   },
+   "false"
+  ],
+  [
+   {
+    "setting": "music",
+    "min": 0,
+    "max": 100
+   },
+   {
+    "music": 40,
+    "fx": 100,
+    "voice": 100,
+    "mute": false,
+    "textSpeed": 100,
+    "autoAdvance": false
+   },
+   "40"
+  ],
+  [
+   {
+    "setting": "voice",
+    "min": 20,
+    "max": 80
+   },
+   {
+    "music": 40,
+    "fx": 100,
+    "voice": 100,
+    "mute": false,
+    "textSpeed": 100,
+    "autoAdvance": false
+   },
+   "80"
+  ],
+  [
+   {
+    "setting": "textSpeed",
+    "min": 50,
+    "max": 300
+   },
+   {
+    "music": 40,
+    "fx": 100,
+    "voice": 100,
+    "mute": false,
+    "textSpeed": 100,
+    "autoAdvance": false
+   },
+   "100"
+  ],
+  [
+   {
+    "setting": "mute",
+    "min": 0,
+    "max": 100
+   },
+   {
+    "music": 40,
+    "fx": 100,
+    "voice": 100,
+    "mute": false,
+    "textSpeed": 100,
+    "autoAdvance": false
+   },
+   "false"
+  ],
+  [
+   {
+    "setting": "autoAdvance",
+    "min": 0,
+    "max": 100
+   },
+   {
+    "music": 40,
+    "fx": 100,
+    "voice": 100,
+    "mute": false,
+    "textSpeed": 100,
+    "autoAdvance": false
+   },
+   "false"
+  ],
+  [
+   {
+    "setting": "music",
+    "min": 0,
+    "max": 100
+   },
+   {
+    "music": 100,
+    "fx": 0,
+    "voice": 100,
+    "mute": false,
+    "textSpeed": 10,
+    "autoAdvance": false
+   },
+   "100"
+  ],
+  [
+   {
+    "setting": "voice",
+    "min": 20,
+    "max": 80
+   },
+   {
+    "music": 100,
+    "fx": 0,
+    "voice": 100,
+    "mute": false,
+    "textSpeed": 10,
+    "autoAdvance": false
+   },
+   "80"
+  ],
+  [
+   {
+    "setting": "textSpeed",
+    "min": 50,
+    "max": 300
+   },
+   {
+    "music": 100,
+    "fx": 0,
+    "voice": 100,
+    "mute": false,
+    "textSpeed": 10,
+    "autoAdvance": false
+   },
+   "50"
+  ],
+  [
+   {
+    "setting": "mute",
+    "min": 0,
+    "max": 100
+   },
+   {
+    "music": 100,
+    "fx": 0,
+    "voice": 100,
+    "mute": false,
+    "textSpeed": 10,
+    "autoAdvance": false
+   },
+   "false"
+  ],
+  [
+   {
+    "setting": "autoAdvance",
+    "min": 0,
+    "max": 100
+   },
+   {
+    "music": 100,
+    "fx": 0,
+    "voice": 100,
+    "mute": false,
+    "textSpeed": 10,
+    "autoAdvance": false
+   },
+   "false"
+  ],
+  [
+   {
+    "setting": "music",
+    "min": 0,
+    "max": 100
+   },
+   {
+    "music": 100,
+    "fx": 100,
+    "voice": 100,
+    "mute": true,
+    "textSpeed": 1000,
+    "autoAdvance": true
+   },
+   "100"
+  ],
+  [
+   {
+    "setting": "voice",
+    "min": 20,
+    "max": 80
+   },
+   {
+    "music": 100,
+    "fx": 100,
+    "voice": 100,
+    "mute": true,
+    "textSpeed": 1000,
+    "autoAdvance": true
+   },
+   "80"
+  ],
+  [
+   {
+    "setting": "textSpeed",
+    "min": 50,
+    "max": 300
+   },
+   {
+    "music": 100,
+    "fx": 100,
+    "voice": 100,
+    "mute": true,
+    "textSpeed": 1000,
+    "autoAdvance": true
+   },
+   "300"
+  ],
+  [
+   {
+    "setting": "mute",
+    "min": 0,
+    "max": 100
+   },
+   {
+    "music": 100,
+    "fx": 100,
+    "voice": 100,
+    "mute": true,
+    "textSpeed": 1000,
+    "autoAdvance": true
+   },
+   "true"
+  ],
+  [
+   {
+    "setting": "autoAdvance",
+    "min": 0,
+    "max": 100
+   },
+   {
+    "music": 100,
+    "fx": 100,
+    "voice": 100,
+    "mute": true,
+    "textSpeed": 1000,
+    "autoAdvance": true
+   },
+   "true"
+  ],
+  [
+   {
+    "setting": "music",
+    "min": 0,
+    "max": 100
+   },
+   {
+    "music": 0,
+    "fx": 100,
+    "voice": 55,
+    "mute": false,
+    "textSpeed": 250,
+    "autoAdvance": false
+   },
+   "0"
+  ],
+  [
+   {
+    "setting": "voice",
+    "min": 20,
+    "max": 80
+   },
+   {
+    "music": 0,
+    "fx": 100,
+    "voice": 55,
+    "mute": false,
+    "textSpeed": 250,
+    "autoAdvance": false
+   },
+   "55"
+  ],
+  [
+   {
+    "setting": "textSpeed",
+    "min": 50,
+    "max": 300
+   },
+   {
+    "music": 0,
+    "fx": 100,
+    "voice": 55,
+    "mute": false,
+    "textSpeed": 250,
+    "autoAdvance": false
+   },
+   "250"
+  ],
+  [
+   {
+    "setting": "mute",
+    "min": 0,
+    "max": 100
+   },
+   {
+    "music": 0,
+    "fx": 100,
+    "voice": 55,
+    "mute": false,
+    "textSpeed": 250,
+    "autoAdvance": false
+   },
+   "false"
+  ],
+  [
+   {
+    "setting": "autoAdvance",
+    "min": 0,
+    "max": 100
+   },
+   {
+    "music": 0,
+    "fx": 100,
+    "voice": 55,
+    "mute": false,
+    "textSpeed": 250,
+    "autoAdvance": false
+   },
+   "false"
+  ]
+ ],
+ "waits": [
+  [
+   "",
+   0,
+   10,
+   72
+  ],
+  [
+   "",
+   0,
+   50,
+   72
+  ],
+  [
+   "",
+   0,
+   100,
+   72
+  ],
+  [
+   "",
+   0,
+   175,
+   72
+  ],
+  [
+   "",
+   0,
+   1000,
+   72
+  ],
+  [
+   "",
+   12,
+   10,
+   72
+  ],
+  [
+   "",
+   12,
+   50,
+   72
+  ],
+  [
+   "",
+   12,
+   100,
+   72
+  ],
+  [
+   "",
+   12,
+   175,
+   72
+  ],
+  [
+   "",
+   12,
+   1000,
+   72
+  ],
+  [
+   "",
+   40,
+   10,
+   72
+  ],
+  [
+   "",
+   40,
+   50,
+   72
+  ],
+  [
+   "",
+   40,
+   100,
+   72
+  ],
+  [
+   "",
+   40,
+   175,
+   72
+  ],
+  [
+   "",
+   40,
+   1000,
+   72
+  ],
+  [
+   "눈이 와요.",
+   0,
+   10,
+   90
+  ],
+  [
+   "눈이 와요.",
+   0,
+   50,
+   90
+  ],
+  [
+   "눈이 와요.",
+   0,
+   100,
+   90
+  ],
+  [
+   "눈이 와요.",
+   0,
+   175,
+   90
+  ],
+  [
+   "눈이 와요.",
+   0,
+   1000,
+   90
+  ],
+  [
+   "눈이 와요.",
+   12,
+   10,
+   389.99999999999994
+  ],
+  [
+   "눈이 와요.",
+   12,
+   50,
+   150
+  ],
+  [
+   "눈이 와요.",
+   12,
+   100,
+   120
+  ],
+  [
+   "눈이 와요.",
+   12,
+   175,
+   107.14285714285714
+  ],
+  [
+   "눈이 와요.",
+   12,
+   1000,
+   93
+  ],
+  [
+   "눈이 와요.",
+   40,
+   10,
+   180
+  ],
+  [
+   "눈이 와요.",
+   40,
+   50,
+   108
+  ],
+  [
+   "눈이 와요.",
+   40,
+   100,
+   99
+  ],
+  [
+   "눈이 와요.",
+   40,
+   175,
+   95.14285714285714
+  ],
+  [
+   "눈이 와요.",
+   40,
+   1000,
+   90.9
+  ],
+  [
+   "😀 설원을 건너자!",
+   0,
+   10,
+   102
+  ],
+  [
+   "😀 설원을 건너자!",
+   0,
+   50,
+   102
+  ],
+  [
+   "😀 설원을 건너자!",
+   0,
+   100,
+   102
+  ],
+  [
+   "😀 설원을 건너자!",
+   0,
+   175,
+   102
+  ],
+  [
+   "😀 설원을 건너자!",
+   0,
+   1000,
+   102
+  ],
+  [
+   "😀 설원을 건너자!",
+   12,
+   10,
+   602
+  ],
+  [
+   "😀 설원을 건너자!",
+   12,
+   50,
+   202
+  ],
+  [
+   "😀 설원을 건너자!",
+   12,
+   100,
+   152
+  ],
+  [
+   "😀 설원을 건너자!",
+   12,
+   175,
+   130.57142857142856
+  ],
+  [
+   "😀 설원을 건너자!",
+   12,
+   1000,
+   107
+  ],
+  [
+   "😀 설원을 건너자!",
+   40,
+   10,
+   252
+  ],
+  [
+   "😀 설원을 건너자!",
+   40,
+   50,
+   132
+  ],
+  [
+   "😀 설원을 건너자!",
+   40,
+   100,
+   117
+  ],
+  [
+   "😀 설원을 건너자!",
+   40,
+   175,
+   110.57142857142857
+  ],
+  [
+   "😀 설원을 건너자!",
+   40,
+   1000,
+   103.5
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   0,
+   10,
+   432
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   0,
+   50,
+   432
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   0,
+   100,
+   432
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   0,
+   175,
+   432
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   0,
+   1000,
+   432
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   12,
+   10,
+   6431.999999999999
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   12,
+   50,
+   1632
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   12,
+   100,
+   1032
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   12,
+   175,
+   774.8571428571429
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   12,
+   1000,
+   492
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   40,
+   10,
+   2232
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   40,
+   50,
+   792
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   40,
+   100,
+   612
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   40,
+   175,
+   534.8571428571429
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   40,
+   1000,
+   450
+  ]
+ ],
+ "visible": [
+  [
+   "눈이 와요. 설원을 건너자!",
+   0,
+   7,
+   10,
+   ""
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   1,
+   7,
+   10,
+   ""
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   5,
+   7,
+   10,
+   ""
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   30,
+   7,
+   10,
+   ""
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   59,
+   7,
+   10,
+   ""
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   60,
+   7,
+   10,
+   ""
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   61,
+   7,
+   10,
+   ""
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   300,
+   7,
+   10,
+   "눈이 "
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   0,
+   7,
+   70,
+   ""
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   1,
+   7,
+   70,
+   ""
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   5,
+   7,
+   70,
+   ""
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   30,
+   7,
+   70,
+   "눈이"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   59,
+   7,
+   70,
+   "눈이 와"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   60,
+   7,
+   70,
+   "눈이 와"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   61,
+   7,
+   70,
+   "눈이 와"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   300,
+   7,
+   70,
+   "눈이 와요. 설원을 건너자!"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   0,
+   7,
+   100,
+   ""
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   1,
+   7,
+   100,
+   ""
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   5,
+   7,
+   100,
+   ""
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   30,
+   7,
+   100,
+   "눈이 "
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   59,
+   7,
+   100,
+   "눈이 와요."
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   60,
+   7,
+   100,
+   "눈이 와요. "
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   61,
+   7,
+   100,
+   "눈이 와요. "
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   300,
+   7,
+   100,
+   "눈이 와요. 설원을 건너자!"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   0,
+   7,
+   175,
+   ""
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   1,
+   7,
+   175,
+   ""
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   5,
+   7,
+   175,
+   "눈"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   30,
+   7,
+   175,
+   "눈이 와요."
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   59,
+   7,
+   175,
+   "눈이 와요. 설원을 건"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   60,
+   7,
+   175,
+   "눈이 와요. 설원을 건"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   61,
+   7,
+   175,
+   "눈이 와요. 설원을 건"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   300,
+   7,
+   175,
+   "눈이 와요. 설원을 건너자!"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   0,
+   7,
+   1000,
+   ""
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   1,
+   7,
+   1000,
+   "눈"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   5,
+   7,
+   1000,
+   "눈이 와요"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   30,
+   7,
+   1000,
+   "눈이 와요. 설원을 건너자!"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   59,
+   7,
+   1000,
+   "눈이 와요. 설원을 건너자!"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   60,
+   7,
+   1000,
+   "눈이 와요. 설원을 건너자!"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   61,
+   7,
+   1000,
+   "눈이 와요. 설원을 건너자!"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   300,
+   7,
+   1000,
+   "눈이 와요. 설원을 건너자!"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   0,
+   12,
+   10,
+   ""
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   1,
+   12,
+   10,
+   ""
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   5,
+   12,
+   10,
+   ""
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   30,
+   12,
+   10,
+   ""
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   59,
+   12,
+   10,
+   "눈"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   60,
+   12,
+   10,
+   "눈"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   61,
+   12,
+   10,
+   "눈"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   300,
+   12,
+   10,
+   "눈이 와요."
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   0,
+   12,
+   70,
+   ""
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   1,
+   12,
+   70,
+   ""
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   5,
+   12,
+   70,
+   ""
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   30,
+   12,
+   70,
+   "눈이 와"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   59,
+   12,
+   70,
+   "눈이 와요. 설"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   60,
+   12,
+   70,
+   "눈이 와요. 설"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   61,
+   12,
+   70,
+   "눈이 와요. 설"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   300,
+   12,
+   70,
+   "눈이 와요. 설원을 건너자!"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   0,
+   12,
+   100,
+   ""
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   1,
+   12,
+   100,
+   ""
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   5,
+   12,
+   100,
+   "눈"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   30,
+   12,
+   100,
+   "눈이 와요."
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   59,
+   12,
+   100,
+   "눈이 와요. 설원을 "
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   60,
+   12,
+   100,
+   "눈이 와요. 설원을 건"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   61,
+   12,
+   100,
+   "눈이 와요. 설원을 건"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   300,
+   12,
+   100,
+   "눈이 와요. 설원을 건너자!"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   0,
+   12,
+   175,
+   ""
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   1,
+   12,
+   175,
+   ""
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   5,
+   12,
+   175,
+   "눈"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   30,
+   12,
+   175,
+   "눈이 와요. 설원을"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   59,
+   12,
+   175,
+   "눈이 와요. 설원을 건너자!"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   60,
+   12,
+   175,
+   "눈이 와요. 설원을 건너자!"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   61,
+   12,
+   175,
+   "눈이 와요. 설원을 건너자!"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   300,
+   12,
+   175,
+   "눈이 와요. 설원을 건너자!"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   0,
+   12,
+   1000,
+   ""
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   1,
+   12,
+   1000,
+   "눈이"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   5,
+   12,
+   1000,
+   "눈이 와요. 설원을"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   30,
+   12,
+   1000,
+   "눈이 와요. 설원을 건너자!"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   59,
+   12,
+   1000,
+   "눈이 와요. 설원을 건너자!"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   60,
+   12,
+   1000,
+   "눈이 와요. 설원을 건너자!"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   61,
+   12,
+   1000,
+   "눈이 와요. 설원을 건너자!"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   300,
+   12,
+   1000,
+   "눈이 와요. 설원을 건너자!"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   0,
+   40,
+   10,
+   ""
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   1,
+   40,
+   10,
+   ""
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   5,
+   40,
+   10,
+   ""
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   30,
+   40,
+   10,
+   "눈이"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   59,
+   40,
+   10,
+   "눈이 "
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   60,
+   40,
+   10,
+   "눈이 와"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   61,
+   40,
+   10,
+   "눈이 와"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   300,
+   40,
+   10,
+   "눈이 와요. 설원을 건너자!"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   0,
+   40,
+   70,
+   ""
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   1,
+   40,
+   70,
+   ""
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   5,
+   40,
+   70,
+   "눈이"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   30,
+   40,
+   70,
+   "눈이 와요. 설원을 건너자"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   59,
+   40,
+   70,
+   "눈이 와요. 설원을 건너자!"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   60,
+   40,
+   70,
+   "눈이 와요. 설원을 건너자!"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   61,
+   40,
+   70,
+   "눈이 와요. 설원을 건너자!"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   300,
+   40,
+   70,
+   "눈이 와요. 설원을 건너자!"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   0,
+   40,
+   100,
+   ""
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   1,
+   40,
+   100,
+   ""
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   5,
+   40,
+   100,
+   "눈이 "
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   30,
+   40,
+   100,
+   "눈이 와요. 설원을 건너자!"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   59,
+   40,
+   100,
+   "눈이 와요. 설원을 건너자!"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   60,
+   40,
+   100,
+   "눈이 와요. 설원을 건너자!"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   61,
+   40,
+   100,
+   "눈이 와요. 설원을 건너자!"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   300,
+   40,
+   100,
+   "눈이 와요. 설원을 건너자!"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   0,
+   40,
+   175,
+   ""
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   1,
+   40,
+   175,
+   "눈"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   5,
+   40,
+   175,
+   "눈이 와요"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   30,
+   40,
+   175,
+   "눈이 와요. 설원을 건너자!"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   59,
+   40,
+   175,
+   "눈이 와요. 설원을 건너자!"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   60,
+   40,
+   175,
+   "눈이 와요. 설원을 건너자!"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   61,
+   40,
+   175,
+   "눈이 와요. 설원을 건너자!"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   300,
+   40,
+   175,
+   "눈이 와요. 설원을 건너자!"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   0,
+   40,
+   1000,
+   ""
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   1,
+   40,
+   1000,
+   "눈이 와요."
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   5,
+   40,
+   1000,
+   "눈이 와요. 설원을 건너자!"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   30,
+   40,
+   1000,
+   "눈이 와요. 설원을 건너자!"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   59,
+   40,
+   1000,
+   "눈이 와요. 설원을 건너자!"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   60,
+   40,
+   1000,
+   "눈이 와요. 설원을 건너자!"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   61,
+   40,
+   1000,
+   "눈이 와요. 설원을 건너자!"
+  ],
+  [
+   "눈이 와요. 설원을 건너자!",
+   300,
+   40,
+   1000,
+   "눈이 와요. 설원을 건너자!"
+  ],
+  [
+   "😀😀 서리",
+   0,
+   7,
+   10,
+   ""
+  ],
+  [
+   "😀😀 서리",
+   1,
+   7,
+   10,
+   ""
+  ],
+  [
+   "😀😀 서리",
+   5,
+   7,
+   10,
+   ""
+  ],
+  [
+   "😀😀 서리",
+   30,
+   7,
+   10,
+   ""
+  ],
+  [
+   "😀😀 서리",
+   59,
+   7,
+   10,
+   ""
+  ],
+  [
+   "😀😀 서리",
+   60,
+   7,
+   10,
+   ""
+  ],
+  [
+   "😀😀 서리",
+   61,
+   7,
+   10,
+   ""
+  ],
+  [
+   "😀😀 서리",
+   300,
+   7,
+   10,
+   "😀😀 "
+  ],
+  [
+   "😀😀 서리",
+   0,
+   7,
+   70,
+   ""
+  ],
+  [
+   "😀😀 서리",
+   1,
+   7,
+   70,
+   ""
+  ],
+  [
+   "😀😀 서리",
+   5,
+   7,
+   70,
+   ""
+  ],
+  [
+   "😀😀 서리",
+   30,
+   7,
+   70,
+   "😀😀"
+  ],
+  [
+   "😀😀 서리",
+   59,
+   7,
+   70,
+   "😀😀 서"
+  ],
+  [
+   "😀😀 서리",
+   60,
+   7,
+   70,
+   "😀😀 서"
+  ],
+  [
+   "😀😀 서리",
+   61,
+   7,
+   70,
+   "😀😀 서"
+  ],
+  [
+   "😀😀 서리",
+   300,
+   7,
+   70,
+   "😀😀 서리"
+  ],
+  [
+   "😀😀 서리",
+   0,
+   7,
+   100,
+   ""
+  ],
+  [
+   "😀😀 서리",
+   1,
+   7,
+   100,
+   ""
+  ],
+  [
+   "😀😀 서리",
+   5,
+   7,
+   100,
+   ""
+  ],
+  [
+   "😀😀 서리",
+   30,
+   7,
+   100,
+   "😀😀 "
+  ],
+  [
+   "😀😀 서리",
+   59,
+   7,
+   100,
+   "😀😀 서리"
+  ],
+  [
+   "😀😀 서리",
+   60,
+   7,
+   100,
+   "😀😀 서리"
+  ],
+  [
+   "😀😀 서리",
+   61,
+   7,
+   100,
+   "😀😀 서리"
+  ],
+  [
+   "😀😀 서리",
+   300,
+   7,
+   100,
+   "😀😀 서리"
+  ],
+  [
+   "😀😀 서리",
+   0,
+   7,
+   175,
+   ""
+  ],
+  [
+   "😀😀 서리",
+   1,
+   7,
+   175,
+   ""
+  ],
+  [
+   "😀😀 서리",
+   5,
+   7,
+   175,
+   "😀"
+  ],
+  [
+   "😀😀 서리",
+   30,
+   7,
+   175,
+   "😀😀 서리"
+  ],
+  [
+   "😀😀 서리",
+   59,
+   7,
+   175,
+   "😀😀 서리"
+  ],
+  [
+   "😀😀 서리",
+   60,
+   7,
+   175,
+   "😀😀 서리"
+  ],
+  [
+   "😀😀 서리",
+   61,
+   7,
+   175,
+   "😀😀 서리"
+  ],
+  [
+   "😀😀 서리",
+   300,
+   7,
+   175,
+   "😀😀 서리"
+  ],
+  [
+   "😀😀 서리",
+   0,
+   7,
+   1000,
+   ""
+  ],
+  [
+   "😀😀 서리",
+   1,
+   7,
+   1000,
+   "😀"
+  ],
+  [
+   "😀😀 서리",
+   5,
+   7,
+   1000,
+   "😀😀 서리"
+  ],
+  [
+   "😀😀 서리",
+   30,
+   7,
+   1000,
+   "😀😀 서리"
+  ],
+  [
+   "😀😀 서리",
+   59,
+   7,
+   1000,
+   "😀😀 서리"
+  ],
+  [
+   "😀😀 서리",
+   60,
+   7,
+   1000,
+   "😀😀 서리"
+  ],
+  [
+   "😀😀 서리",
+   61,
+   7,
+   1000,
+   "😀😀 서리"
+  ],
+  [
+   "😀😀 서리",
+   300,
+   7,
+   1000,
+   "😀😀 서리"
+  ],
+  [
+   "😀😀 서리",
+   0,
+   12,
+   10,
+   ""
+  ],
+  [
+   "😀😀 서리",
+   1,
+   12,
+   10,
+   ""
+  ],
+  [
+   "😀😀 서리",
+   5,
+   12,
+   10,
+   ""
+  ],
+  [
+   "😀😀 서리",
+   30,
+   12,
+   10,
+   ""
+  ],
+  [
+   "😀😀 서리",
+   59,
+   12,
+   10,
+   "😀"
+  ],
+  [
+   "😀😀 서리",
+   60,
+   12,
+   10,
+   "😀"
+  ],
+  [
+   "😀😀 서리",
+   61,
+   12,
+   10,
+   "😀"
+  ],
+  [
+   "😀😀 서리",
+   300,
+   12,
+   10,
+   "😀😀 서리"
+  ],
+  [
+   "😀😀 서리",
+   0,
+   12,
+   70,
+   ""
+  ],
+  [
+   "😀😀 서리",
+   1,
+   12,
+   70,
+   ""
+  ],
+  [
+   "😀😀 서리",
+   5,
+   12,
+   70,
+   ""
+  ],
+  [
+   "😀😀 서리",
+   30,
+   12,
+   70,
+   "😀😀 서"
+  ],
+  [
+   "😀😀 서리",
+   59,
+   12,
+   70,
+   "😀😀 서리"
+  ],
+  [
+   "😀😀 서리",
+   60,
+   12,
+   70,
+   "😀😀 서리"
+  ],
+  [
+   "😀😀 서리",
+   61,
+   12,
+   70,
+   "😀😀 서리"
+  ],
+  [
+   "😀😀 서리",
+   300,
+   12,
+   70,
+   "😀😀 서리"
+  ],
+  [
+   "😀😀 서리",
+   0,
+   12,
+   100,
+   ""
+  ],
+  [
+   "😀😀 서리",
+   1,
+   12,
+   100,
+   ""
+  ],
+  [
+   "😀😀 서리",
+   5,
+   12,
+   100,
+   "😀"
+  ],
+  [
+   "😀😀 서리",
+   30,
+   12,
+   100,
+   "😀😀 서리"
+  ],
+  [
+   "😀😀 서리",
+   59,
+   12,
+   100,
+   "😀😀 서리"
+  ],
+  [
+   "😀😀 서리",
+   60,
+   12,
+   100,
+   "😀😀 서리"
+  ],
+  [
+   "😀😀 서리",
+   61,
+   12,
+   100,
+   "😀😀 서리"
+  ],
+  [
+   "😀😀 서리",
+   300,
+   12,
+   100,
+   "😀😀 서리"
+  ],
+  [
+   "😀😀 서리",
+   0,
+   12,
+   175,
+   ""
+  ],
+  [
+   "😀😀 서리",
+   1,
+   12,
+   175,
+   ""
+  ],
+  [
+   "😀😀 서리",
+   5,
+   12,
+   175,
+   "😀"
+  ],
+  [
+   "😀😀 서리",
+   30,
+   12,
+   175,
+   "😀😀 서리"
+  ],
+  [
+   "😀😀 서리",
+   59,
+   12,
+   175,
+   "😀😀 서리"
+  ],
+  [
+   "😀😀 서리",
+   60,
+   12,
+   175,
+   "😀😀 서리"
+  ],
+  [
+   "😀😀 서리",
+   61,
+   12,
+   175,
+   "😀😀 서리"
+  ],
+  [
+   "😀😀 서리",
+   300,
+   12,
+   175,
+   "😀😀 서리"
+  ],
+  [
+   "😀😀 서리",
+   0,
+   12,
+   1000,
+   ""
+  ],
+  [
+   "😀😀 서리",
+   1,
+   12,
+   1000,
+   "😀😀"
+  ],
+  [
+   "😀😀 서리",
+   5,
+   12,
+   1000,
+   "😀😀 서리"
+  ],
+  [
+   "😀😀 서리",
+   30,
+   12,
+   1000,
+   "😀😀 서리"
+  ],
+  [
+   "😀😀 서리",
+   59,
+   12,
+   1000,
+   "😀😀 서리"
+  ],
+  [
+   "😀😀 서리",
+   60,
+   12,
+   1000,
+   "😀😀 서리"
+  ],
+  [
+   "😀😀 서리",
+   61,
+   12,
+   1000,
+   "😀😀 서리"
+  ],
+  [
+   "😀😀 서리",
+   300,
+   12,
+   1000,
+   "😀😀 서리"
+  ],
+  [
+   "😀😀 서리",
+   0,
+   40,
+   10,
+   ""
+  ],
+  [
+   "😀😀 서리",
+   1,
+   40,
+   10,
+   ""
+  ],
+  [
+   "😀😀 서리",
+   5,
+   40,
+   10,
+   ""
+  ],
+  [
+   "😀😀 서리",
+   30,
+   40,
+   10,
+   "😀😀"
+  ],
+  [
+   "😀😀 서리",
+   59,
+   40,
+   10,
+   "😀😀 "
+  ],
+  [
+   "😀😀 서리",
+   60,
+   40,
+   10,
+   "😀😀 서"
+  ],
+  [
+   "😀😀 서리",
+   61,
+   40,
+   10,
+   "😀😀 서"
+  ],
+  [
+   "😀😀 서리",
+   300,
+   40,
+   10,
+   "😀😀 서리"
+  ],
+  [
+   "😀😀 서리",
+   0,
+   40,
+   70,
+   ""
+  ],
+  [
+   "😀😀 서리",
+   1,
+   40,
+   70,
+   ""
+  ],
+  [
+   "😀😀 서리",
+   5,
+   40,
+   70,
+   "😀😀"
+  ],
+  [
+   "😀😀 서리",
+   30,
+   40,
+   70,
+   "😀😀 서리"
+  ],
+  [
+   "😀😀 서리",
+   59,
+   40,
+   70,
+   "😀😀 서리"
+  ],
+  [
+   "😀😀 서리",
+   60,
+   40,
+   70,
+   "😀😀 서리"
+  ],
+  [
+   "😀😀 서리",
+   61,
+   40,
+   70,
+   "😀😀 서리"
+  ],
+  [
+   "😀😀 서리",
+   300,
+   40,
+   70,
+   "😀😀 서리"
+  ],
+  [
+   "😀😀 서리",
+   0,
+   40,
+   100,
+   ""
+  ],
+  [
+   "😀😀 서리",
+   1,
+   40,
+   100,
+   ""
+  ],
+  [
+   "😀😀 서리",
+   5,
+   40,
+   100,
+   "😀😀 "
+  ],
+  [
+   "😀😀 서리",
+   30,
+   40,
+   100,
+   "😀😀 서리"
+  ],
+  [
+   "😀😀 서리",
+   59,
+   40,
+   100,
+   "😀😀 서리"
+  ],
+  [
+   "😀😀 서리",
+   60,
+   40,
+   100,
+   "😀😀 서리"
+  ],
+  [
+   "😀😀 서리",
+   61,
+   40,
+   100,
+   "😀😀 서리"
+  ],
+  [
+   "😀😀 서리",
+   300,
+   40,
+   100,
+   "😀😀 서리"
+  ],
+  [
+   "😀😀 서리",
+   0,
+   40,
+   175,
+   ""
+  ],
+  [
+   "😀😀 서리",
+   1,
+   40,
+   175,
+   "😀"
+  ],
+  [
+   "😀😀 서리",
+   5,
+   40,
+   175,
+   "😀😀 서리"
+  ],
+  [
+   "😀😀 서리",
+   30,
+   40,
+   175,
+   "😀😀 서리"
+  ],
+  [
+   "😀😀 서리",
+   59,
+   40,
+   175,
+   "😀😀 서리"
+  ],
+  [
+   "😀😀 서리",
+   60,
+   40,
+   175,
+   "😀😀 서리"
+  ],
+  [
+   "😀😀 서리",
+   61,
+   40,
+   175,
+   "😀😀 서리"
+  ],
+  [
+   "😀😀 서리",
+   300,
+   40,
+   175,
+   "😀😀 서리"
+  ],
+  [
+   "😀😀 서리",
+   0,
+   40,
+   1000,
+   ""
+  ],
+  [
+   "😀😀 서리",
+   1,
+   40,
+   1000,
+   "😀😀 서리"
+  ],
+  [
+   "😀😀 서리",
+   5,
+   40,
+   1000,
+   "😀😀 서리"
+  ],
+  [
+   "😀😀 서리",
+   30,
+   40,
+   1000,
+   "😀😀 서리"
+  ],
+  [
+   "😀😀 서리",
+   59,
+   40,
+   1000,
+   "😀😀 서리"
+  ],
+  [
+   "😀😀 서리",
+   60,
+   40,
+   1000,
+   "😀😀 서리"
+  ],
+  [
+   "😀😀 서리",
+   61,
+   40,
+   1000,
+   "😀😀 서리"
+  ],
+  [
+   "😀😀 서리",
+   300,
+   40,
+   1000,
+   "😀😀 서리"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   0,
+   7,
+   10,
+   ""
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   1,
+   7,
+   10,
+   ""
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   5,
+   7,
+   10,
+   ""
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   30,
+   7,
+   10,
+   ""
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   59,
+   7,
+   10,
+   ""
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   60,
+   7,
+   10,
+   ""
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   61,
+   7,
+   10,
+   ""
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   300,
+   7,
+   10,
+   "aaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   0,
+   7,
+   70,
+   ""
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   1,
+   7,
+   70,
+   ""
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   5,
+   7,
+   70,
+   ""
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   30,
+   7,
+   70,
+   "aa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   59,
+   7,
+   70,
+   "aaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   60,
+   7,
+   70,
+   "aaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   61,
+   7,
+   70,
+   "aaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   300,
+   7,
+   70,
+   "aaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   0,
+   7,
+   100,
+   ""
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   1,
+   7,
+   100,
+   ""
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   5,
+   7,
+   100,
+   ""
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   30,
+   7,
+   100,
+   "aaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   59,
+   7,
+   100,
+   "aaaaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   60,
+   7,
+   100,
+   "aaaaaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   61,
+   7,
+   100,
+   "aaaaaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   300,
+   7,
+   100,
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   0,
+   7,
+   175,
+   ""
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   1,
+   7,
+   175,
+   ""
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   5,
+   7,
+   175,
+   "a"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   30,
+   7,
+   175,
+   "aaaaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   59,
+   7,
+   175,
+   "aaaaaaaaaaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   60,
+   7,
+   175,
+   "aaaaaaaaaaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   61,
+   7,
+   175,
+   "aaaaaaaaaaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   300,
+   7,
+   175,
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   0,
+   7,
+   1000,
+   ""
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   1,
+   7,
+   1000,
+   "a"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   5,
+   7,
+   1000,
+   "aaaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   30,
+   7,
+   1000,
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   59,
+   7,
+   1000,
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   60,
+   7,
+   1000,
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   61,
+   7,
+   1000,
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   300,
+   7,
+   1000,
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   0,
+   12,
+   10,
+   ""
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   1,
+   12,
+   10,
+   ""
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   5,
+   12,
+   10,
+   ""
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   30,
+   12,
+   10,
+   ""
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   59,
+   12,
+   10,
+   "a"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   60,
+   12,
+   10,
+   "a"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   61,
+   12,
+   10,
+   "a"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   300,
+   12,
+   10,
+   "aaaaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   0,
+   12,
+   70,
+   ""
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   1,
+   12,
+   70,
+   ""
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   5,
+   12,
+   70,
+   ""
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   30,
+   12,
+   70,
+   "aaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   59,
+   12,
+   70,
+   "aaaaaaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   60,
+   12,
+   70,
+   "aaaaaaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   61,
+   12,
+   70,
+   "aaaaaaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   300,
+   12,
+   70,
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   0,
+   12,
+   100,
+   ""
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   1,
+   12,
+   100,
+   ""
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   5,
+   12,
+   100,
+   "a"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   30,
+   12,
+   100,
+   "aaaaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   59,
+   12,
+   100,
+   "aaaaaaaaaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   60,
+   12,
+   100,
+   "aaaaaaaaaaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   61,
+   12,
+   100,
+   "aaaaaaaaaaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   300,
+   12,
+   100,
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   0,
+   12,
+   175,
+   ""
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   1,
+   12,
+   175,
+   ""
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   5,
+   12,
+   175,
+   "a"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   30,
+   12,
+   175,
+   "aaaaaaaaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   59,
+   12,
+   175,
+   "aaaaaaaaaaaaaaaaaaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   60,
+   12,
+   175,
+   "aaaaaaaaaaaaaaaaaaaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   61,
+   12,
+   175,
+   "aaaaaaaaaaaaaaaaaaaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   300,
+   12,
+   175,
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   0,
+   12,
+   1000,
+   ""
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   1,
+   12,
+   1000,
+   "aa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   5,
+   12,
+   1000,
+   "aaaaaaaaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   30,
+   12,
+   1000,
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   59,
+   12,
+   1000,
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   60,
+   12,
+   1000,
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   61,
+   12,
+   1000,
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   300,
+   12,
+   1000,
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   0,
+   40,
+   10,
+   ""
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   1,
+   40,
+   10,
+   ""
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   5,
+   40,
+   10,
+   ""
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   30,
+   40,
+   10,
+   "aa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   59,
+   40,
+   10,
+   "aaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   60,
+   40,
+   10,
+   "aaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   61,
+   40,
+   10,
+   "aaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   300,
+   40,
+   10,
+   "aaaaaaaaaaaaaaaaaaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   0,
+   40,
+   70,
+   ""
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   1,
+   40,
+   70,
+   ""
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   5,
+   40,
+   70,
+   "aa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   30,
+   40,
+   70,
+   "aaaaaaaaaaaaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   59,
+   40,
+   70,
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   60,
+   40,
+   70,
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   61,
+   40,
+   70,
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   300,
+   40,
+   70,
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   0,
+   40,
+   100,
+   ""
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   1,
+   40,
+   100,
+   ""
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   5,
+   40,
+   100,
+   "aaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   30,
+   40,
+   100,
+   "aaaaaaaaaaaaaaaaaaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   59,
+   40,
+   100,
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   60,
+   40,
+   100,
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   61,
+   40,
+   100,
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   300,
+   40,
+   100,
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   0,
+   40,
+   175,
+   ""
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   1,
+   40,
+   175,
+   "a"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   5,
+   40,
+   175,
+   "aaaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   30,
+   40,
+   175,
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   59,
+   40,
+   175,
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   60,
+   40,
+   175,
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   61,
+   40,
+   175,
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   300,
+   40,
+   175,
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   0,
+   40,
+   1000,
+   ""
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   1,
+   40,
+   1000,
+   "aaaaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   5,
+   40,
+   1000,
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   30,
+   40,
+   1000,
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   59,
+   40,
+   1000,
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   60,
+   40,
+   1000,
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   61,
+   40,
+   1000,
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   300,
+   40,
+   1000,
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ]
+ ],
+ "idle": {
+  "project": {
+   "schema": 4,
+   "title": "Dreamwalker",
+   "sourceFiles": [],
+   "items": [],
+   "quests": [],
+   "combatRules": [],
+   "customJson": "{}",
+   "tuning": {
+    "startupTicks": 6,
+    "activeTicks": 7,
+    "recoveryTicks": 13,
+    "runSpeed": 6.8,
+    "jumpSpeed": 11.5,
+    "dashSpeed": 14.5,
+    "dashDuration": 0.13,
+    "damage": 18,
+    "reach": 1.66,
+    "hp": 100,
+    "slow": 8,
+    "freeze": 1.5,
+    "afterSlow": 2,
+    "flurry": 4,
+    "shadow": 6,
+    "radius": 6,
+    "bonus": 12,
+    "dashPower": 1,
+    "flurryPower": 0.45,
+    "flurryFinal": 1.5,
+    "shadowPower": 0.62,
+    "shadowRange": 24,
+    "ultPower": 0.35,
+    "ultFinal": 1.6,
+    "ultHits": 4,
+    "frostMax": 5,
+    "interval": 0.14,
+    "dashCd": 0.65,
+    "flurryCd": 1.8,
+    "shadowCd": 2.2,
+    "ultCd": 4
+   },
+   "characters": [
+    {
+     "id": "baekseol",
+     "name": "백설",
+     "region": "북서부 설산",
+     "summary": "단검과 서리로 적을 추격한다.",
+     "color": "#90d8f5",
+     "sprite": "",
+     "portrait": "",
+     "health": 100,
+     "speedScale": 1,
+     "jumpScale": 1,
+     "attackScale": 1,
+     "reachScale": 1,
+     "roadmap": {
+      "entry": "",
+      "episodes": []
+     },
+     "passive": "frost",
+     "skills": [
+      {
+       "name": "설풍보",
+       "mechanic": "dash",
+       "power": 1,
+       "cooldown": -1
+      },
+      {
+       "name": "빙화연격",
+       "mechanic": "flurry",
+       "power": 1,
+       "cooldown": -1
+      },
+      {
+       "name": "설영난무",
+       "mechanic": "shadow",
+       "power": 1,
+       "cooldown": -1
+      },
+      {
+       "name": "절대영도",
+       "mechanic": "nova",
+       "power": 1,
+       "cooldown": -1
+      }
+     ]
+    }
+   ],
+   "startMap": "mine",
+   "saveId": "mine",
+   "scenes": [
+    {
+     "id": "mine",
+     "name": "설산 광산역",
+     "theme": "snow",
+     "width": 100,
+     "height": 100,
+     "camera": {
+      "follow": 5,
+      "deadX": 6,
+      "deadY": 8,
+      "parallax": 0.18,
+      "drift": 0
+     },
+     "backdrop": "",
+     "characterId": "baekseol",
+     "hudId": "default-hud",
+     "menuId": "default-menu",
+     "dialogueId": "default-dialogue",
+     "entryStory": "",
+     "exitStory": "",
+     "requireClear": true,
+     "objects": [
+      {
+       "id": "start",
+       "type": "spawn",
+       "x": 16,
+       "y": 0
+      },
+      {
+       "id": "e1",
+       "type": "enemy",
+       "x": 49,
+       "y": 0,
+       "enemy": {
+        "health": 0,
+        "damage": 8,
+        "speed": 3.3,
+        "sight": 28,
+        "reach": 3,
+        "interval": 0.8
+       },
+       "label": "",
+       "image": ""
+      },
+      {
+       "id": "e2",
+       "type": "enemy",
+       "x": 64,
+       "y": 0,
+       "enemy": {
+        "health": 0,
+        "damage": 8,
+        "speed": 3.3,
+        "sight": 28,
+        "reach": 3,
+        "interval": 0.8
+       },
+       "label": "",
+       "image": ""
+      },
+      {
+       "id": "e3",
+       "type": "enemy",
+       "x": 73,
+       "y": 0,
+       "enemy": {
+        "health": 0,
+        "damage": 8,
+        "speed": 3.3,
+        "sight": 28,
+        "reach": 3,
+        "interval": 0.8
+       },
+       "label": "",
+       "image": ""
+      },
+      {
+       "id": "p1",
+       "type": "platform",
+       "x": 40,
+       "y": 21,
+       "width": 14
+      },
+      {
+       "id": "end",
+       "type": "exit",
+       "x": 92,
+       "y": 0,
+       "to": "next"
+      }
+     ]
+    }
+   ],
+   "stories": [],
+   "layouts": [
+    {
+     "id": "default-hud",
+     "name": "기본 전투 HUD",
+     "kind": "hud",
+     "elements": [
+      {
+       "id": "hp",
+       "type": "hp",
+       "x": 2,
+       "y": 3,
+       "w": 26,
+       "h": 8,
+       "text": "",
+       "action": "attack",
+       "target": "",
+       "image": "",
+       "color": "#f0f7ff",
+       "background": "#172b42",
+       "opacity": 85,
+       "fontSize": 16,
+       "align": "left",
+       "visible": true,
+       "radius": 8,
+       "borderWidth": 1,
+       "borderColor": "#52728a",
+       "pressedColor": "#35666e",
+       "imageFit": "contain",
+       "showFlag": "",
+       "showValue": true,
+       "enableFlag": "",
+       "enableValue": true,
+       "steps": []
+      },
+      {
+       "id": "enemies",
+       "type": "enemies",
+       "x": 30,
+       "y": 3,
+       "w": 14,
+       "h": 8,
+       "text": "",
+       "action": "attack",
+       "target": "",
+       "image": "",
+       "color": "#f0f7ff",
+       "background": "#172b42",
+       "opacity": 85,
+       "fontSize": 16,
+       "align": "center",
+       "visible": true,
+       "radius": 8,
+       "borderWidth": 1,
+       "borderColor": "#52728a",
+       "pressedColor": "#35666e",
+       "imageFit": "contain",
+       "showFlag": "",
+       "showValue": true,
+       "enableFlag": "",
+       "enableValue": true,
+       "steps": []
+      },
+      {
+       "id": "menu",
+       "type": "button",
+       "x": 86,
+       "y": 3,
+       "w": 12,
+       "h": 8,
+       "text": "메뉴",
+       "action": "menu",
+       "target": "",
+       "image": "",
+       "color": "#f0f7ff",
+       "background": "#172b42",
+       "opacity": 85,
+       "fontSize": 16,
+       "align": "center",
+       "visible": true,
+       "radius": 8,
+       "borderWidth": 1,
+       "borderColor": "#52728a",
+       "pressedColor": "#35666e",
+       "imageFit": "contain",
+       "showFlag": "",
+       "showValue": true,
+       "enableFlag": "",
+       "enableValue": true,
+       "steps": []
+      },
+      {
+       "id": "jump",
+       "type": "button",
+       "x": 20,
+       "y": 84,
+       "w": 10,
+       "h": 12,
+       "text": "",
+       "action": "jump",
+       "target": "",
+       "image": "",
+       "color": "#f0f7ff",
+       "background": "#172b42",
+       "opacity": 85,
+       "fontSize": 14,
+       "align": "center",
+       "visible": true,
+       "radius": 8,
+       "borderWidth": 1,
+       "borderColor": "#52728a",
+       "pressedColor": "#35666e",
+       "imageFit": "contain",
+       "showFlag": "",
+       "showValue": true,
+       "enableFlag": "",
+       "enableValue": true,
+       "steps": []
+      },
+      {
+       "id": "attack",
+       "type": "button",
+       "x": 54,
+       "y": 84,
+       "w": 12,
+       "h": 12,
+       "text": "",
+       "action": "attack",
+       "target": "",
+       "image": "",
+       "color": "#f0f7ff",
+       "background": "#172b42",
+       "opacity": 85,
+       "fontSize": 14,
+       "align": "center",
+       "visible": true,
+       "radius": 8,
+       "borderWidth": 1,
+       "borderColor": "#52728a",
+       "pressedColor": "#35666e",
+       "imageFit": "contain",
+       "showFlag": "",
+       "showValue": true,
+       "enableFlag": "",
+       "enableValue": true,
+       "steps": []
+      },
+      {
+       "id": "skill1",
+       "type": "button",
+       "x": 67,
+       "y": 84,
+       "w": 14,
+       "h": 12,
+       "text": "",
+       "action": "skill1",
+       "target": "",
+       "image": "",
+       "color": "#f0f7ff",
+       "background": "#172b42",
+       "opacity": 85,
+       "fontSize": 14,
+       "align": "center",
+       "visible": true,
+       "radius": 8,
+       "borderWidth": 1,
+       "borderColor": "#52728a",
+       "pressedColor": "#35666e",
+       "imageFit": "contain",
+       "showFlag": "",
+       "showValue": true,
+       "enableFlag": "",
+       "enableValue": true,
+       "steps": []
+      },
+      {
+       "id": "skill2",
+       "type": "button",
+       "x": 82,
+       "y": 84,
+       "w": 16,
+       "h": 12,
+       "text": "",
+       "action": "skill2",
+       "target": "",
+       "image": "",
+       "color": "#f0f7ff",
+       "background": "#172b42",
+       "opacity": 85,
+       "fontSize": 14,
+       "align": "center",
+       "visible": true,
+       "radius": 8,
+       "borderWidth": 1,
+       "borderColor": "#52728a",
+       "pressedColor": "#35666e",
+       "imageFit": "contain",
+       "showFlag": "",
+       "showValue": true,
+       "enableFlag": "",
+       "enableValue": true,
+       "steps": []
+      },
+      {
+       "id": "skill3",
+       "type": "button",
+       "x": 67,
+       "y": 69,
+       "w": 14,
+       "h": 12,
+       "text": "",
+       "action": "skill3",
+       "target": "",
+       "image": "",
+       "color": "#f0f7ff",
+       "background": "#172b42",
+       "opacity": 85,
+       "fontSize": 14,
+       "align": "center",
+       "visible": true,
+       "radius": 8,
+       "borderWidth": 1,
+       "borderColor": "#52728a",
+       "pressedColor": "#35666e",
+       "imageFit": "contain",
+       "showFlag": "",
+       "showValue": true,
+       "enableFlag": "",
+       "enableValue": true,
+       "steps": []
+      },
+      {
+       "id": "skill4",
+       "type": "button",
+       "x": 82,
+       "y": 69,
+       "w": 16,
+       "h": 12,
+       "text": "",
+       "action": "skill4",
+       "target": "",
+       "image": "",
+       "color": "#f0f7ff",
+       "background": "#172b42",
+       "opacity": 85,
+       "fontSize": 14,
+       "align": "center",
+       "visible": true,
+       "radius": 8,
+       "borderWidth": 1,
+       "borderColor": "#52728a",
+       "pressedColor": "#35666e",
+       "imageFit": "contain",
+       "showFlag": "",
+       "showValue": true,
+       "enableFlag": "",
+       "enableValue": true,
+       "steps": []
+      },
+      {
+       "id": "move-stick",
+       "type": "joystick",
+       "x": 2,
+       "y": 65,
+       "w": 17,
+       "h": 32,
+       "text": "",
+       "action": "attack",
+       "target": "",
+       "image": "",
+       "color": "#c5eef1",
+       "background": "#132b42",
+       "opacity": 65,
+       "fontSize": 16,
+       "align": "center",
+       "visible": true,
+       "radius": 8,
+       "borderWidth": 1,
+       "borderColor": "#52728a",
+       "pressedColor": "#35666e",
+       "imageFit": "contain",
+       "showFlag": "",
+       "showValue": true,
+       "enableFlag": "",
+       "enableValue": true,
+       "steps": []
+      }
+     ],
+     "purpose": "",
+     "pauseGame": false,
+     "shade": 0,
+     "tint": "#0b1725",
+     "skin": "",
+     "rules": []
+    },
+    {
+     "id": "default-menu",
+     "name": "일시정지 메뉴",
+     "kind": "menu",
+     "elements": [
+      {
+       "id": "name",
+       "type": "character",
+       "x": 32,
+       "y": 16,
+       "w": 36,
+       "h": 10,
+       "text": "",
+       "action": "attack",
+       "target": "",
+       "image": "",
+       "color": "#f0f7ff",
+       "background": "#172b42",
+       "opacity": 85,
+       "fontSize": 16,
+       "align": "center",
+       "visible": true,
+       "radius": 8,
+       "borderWidth": 1,
+       "borderColor": "#52728a",
+       "pressedColor": "#35666e",
+       "imageFit": "contain",
+       "showFlag": "",
+       "showValue": true,
+       "enableFlag": "",
+       "enableValue": true,
+       "steps": []
+      },
+      {
+       "id": "switch",
+       "type": "button",
+       "x": 32,
+       "y": 32,
+       "w": 36,
+       "h": 12,
+       "text": "캐릭터 교대",
+       "action": "switch",
+       "target": "",
+       "image": "",
+       "color": "#f0f7ff",
+       "background": "#172b42",
+       "opacity": 85,
+       "fontSize": 16,
+       "align": "center",
+       "visible": true,
+       "radius": 8,
+       "borderWidth": 1,
+       "borderColor": "#52728a",
+       "pressedColor": "#35666e",
+       "imageFit": "contain",
+       "showFlag": "",
+       "showValue": true,
+       "enableFlag": "",
+       "enableValue": true,
+       "steps": []
+      },
+      {
+       "id": "restart",
+       "type": "button",
+       "x": 32,
+       "y": 48,
+       "w": 36,
+       "h": 12,
+       "text": "맵 재시작",
+       "action": "restart",
+       "target": "",
+       "image": "",
+       "color": "#f0f7ff",
+       "background": "#172b42",
+       "opacity": 85,
+       "fontSize": 16,
+       "align": "center",
+       "visible": true,
+       "radius": 8,
+       "borderWidth": 1,
+       "borderColor": "#52728a",
+       "pressedColor": "#35666e",
+       "imageFit": "contain",
+       "showFlag": "",
+       "showValue": true,
+       "enableFlag": "",
+       "enableValue": true,
+       "steps": []
+      },
+      {
+       "id": "resume",
+       "type": "button",
+       "x": 32,
+       "y": 64,
+       "w": 36,
+       "h": 12,
+       "text": "계속하기",
+       "action": "resume",
+       "target": "",
+       "image": "",
+       "color": "#f0f7ff",
+       "background": "#172b42",
+       "opacity": 85,
+       "fontSize": 16,
+       "align": "center",
+       "visible": true,
+       "radius": 8,
+       "borderWidth": 1,
+       "borderColor": "#52728a",
+       "pressedColor": "#35666e",
+       "imageFit": "contain",
+       "showFlag": "",
+       "showValue": true,
+       "enableFlag": "",
+       "enableValue": true,
+       "steps": []
+      }
+     ],
+     "purpose": "",
+     "pauseGame": true,
+     "shade": 62,
+     "tint": "#0b1725",
+     "skin": "",
+     "rules": []
+    },
+    {
+     "id": "default-dialogue",
+     "name": "기본 대화창",
+     "kind": "dialogue",
+     "elements": [
+      {
+       "id": "dialogue",
+       "type": "dialogue",
+       "x": 4,
+       "y": 52,
+       "w": 92,
+       "h": 45,
+       "text": "",
+       "action": "attack",
+       "target": "",
+       "image": "",
+       "color": "#f0f7ff",
+       "background": "#172b42",
+       "opacity": 96,
+       "fontSize": 16,
+       "align": "left",
+       "visible": true,
+       "radius": 8,
+       "borderWidth": 1,
+       "borderColor": "#52728a",
+       "pressedColor": "#35666e",
+       "imageFit": "contain",
+       "showFlag": "",
+       "showValue": true,
+       "enableFlag": "",
+       "enableValue": true,
+       "steps": []
+      }
+     ],
+     "purpose": "",
+     "pauseGame": true,
+     "shade": 0,
+     "tint": "#0b1725",
+     "skin": "",
+     "rules": []
+    },
+    {
+     "id": "result-clear",
+     "name": "탐험 완료",
+     "kind": "custom",
+     "elements": [
+      {
+       "id": "heading",
+       "type": "text",
+       "x": 24,
+       "y": 28,
+       "w": 52,
+       "h": 15,
+       "text": "탐험 완료",
+       "action": "attack",
+       "target": "",
+       "image": "",
+       "color": "#f0f7ff",
+       "background": "#172b42",
+       "opacity": 0,
+       "fontSize": 32,
+       "align": "center",
+       "visible": true,
+       "radius": 8,
+       "borderWidth": 1,
+       "borderColor": "#52728a",
+       "pressedColor": "#35666e",
+       "imageFit": "contain",
+       "showFlag": "",
+       "showValue": true,
+       "enableFlag": "",
+       "enableValue": true,
+       "steps": []
+      },
+      {
+       "id": "again",
+       "type": "button",
+       "x": 34,
+       "y": 52,
+       "w": 32,
+       "h": 13,
+       "text": "이 맵 다시 시작",
+       "action": "restart",
+       "target": "",
+       "image": "",
+       "color": "#f0f7ff",
+       "background": "#172b42",
+       "opacity": 85,
+       "fontSize": 16,
+       "align": "center",
+       "visible": true,
+       "radius": 8,
+       "borderWidth": 1,
+       "borderColor": "#52728a",
+       "pressedColor": "#35666e",
+       "imageFit": "contain",
+       "showFlag": "",
+       "showValue": true,
+       "enableFlag": "",
+       "enableValue": true,
+       "steps": []
+      }
+     ],
+     "purpose": "탐험 완료 후 다시 시작할 수 있는 화면",
+     "pauseGame": true,
+     "shade": 70,
+     "tint": "#0b1725",
+     "skin": "",
+     "rules": [
+      {
+       "id": "result",
+       "event": "clear",
+       "mapId": "",
+       "actorId": "",
+       "key": "",
+       "flag": "",
+       "flagState": true,
+       "threshold": 30,
+       "seconds": 3,
+       "once": "always",
+       "priority": -100
+      }
+     ]
+    },
+    {
+     "id": "result-defeat",
+     "name": "전투 종료",
+     "kind": "custom",
+     "elements": [
+      {
+       "id": "heading",
+       "type": "text",
+       "x": 24,
+       "y": 28,
+       "w": 52,
+       "h": 15,
+       "text": "전투 종료",
+       "action": "attack",
+       "target": "",
+       "image": "",
+       "color": "#f0f7ff",
+       "background": "#172b42",
+       "opacity": 0,
+       "fontSize": 32,
+       "align": "center",
+       "visible": true,
+       "radius": 8,
+       "borderWidth": 1,
+       "borderColor": "#52728a",
+       "pressedColor": "#35666e",
+       "imageFit": "contain",
+       "showFlag": "",
+       "showValue": true,
+       "enableFlag": "",
+       "enableValue": true,
+       "steps": []
+      },
+      {
+       "id": "again",
+       "type": "button",
+       "x": 34,
+       "y": 52,
+       "w": 32,
+       "h": 13,
+       "text": "이 맵 다시 시작",
+       "action": "restart",
+       "target": "",
+       "image": "",
+       "color": "#f0f7ff",
+       "background": "#172b42",
+       "opacity": 85,
+       "fontSize": 16,
+       "align": "center",
+       "visible": true,
+       "radius": 8,
+       "borderWidth": 1,
+       "borderColor": "#52728a",
+       "pressedColor": "#35666e",
+       "imageFit": "contain",
+       "showFlag": "",
+       "showValue": true,
+       "enableFlag": "",
+       "enableValue": true,
+       "steps": []
+      }
+     ],
+     "purpose": "전투 종료 후 다시 시작할 수 있는 화면",
+     "pauseGame": true,
+     "shade": 70,
+     "tint": "#0b1725",
+     "skin": "",
+     "rules": [
+      {
+       "id": "result",
+       "event": "defeat",
+       "mapId": "",
+       "actorId": "",
+       "key": "",
+       "flag": "",
+       "flagState": true,
+       "threshold": 30,
+       "seconds": 3,
+       "once": "always",
+       "priority": -100
+      }
+     ]
+    },
+    {
+     "id": "front-title",
+     "name": "시작 화면",
+     "kind": "custom",
+     "elements": [
+      {
+       "id": "heading",
+       "type": "text",
+       "x": 8,
+       "y": 12,
+       "w": 84,
+       "h": 18,
+       "text": "Dreamwalker",
+       "action": "attack",
+       "target": "",
+       "image": "",
+       "color": "#f0f7ff",
+       "background": "#172b42",
+       "opacity": 0,
+       "fontSize": 32,
+       "align": "center",
+       "visible": true,
+       "radius": 8,
+       "borderWidth": 1,
+       "borderColor": "#52728a",
+       "pressedColor": "#35666e",
+       "imageFit": "contain",
+       "showFlag": "",
+       "showValue": true,
+       "enableFlag": "",
+       "enableValue": true,
+       "steps": []
+      },
+      {
+       "id": "start",
+       "type": "button",
+       "x": 32,
+       "y": 64,
+       "w": 36,
+       "h": 14,
+       "text": "게임 시작",
+       "action": "beginGame",
+       "target": "",
+       "image": "",
+       "color": "#f0f7ff",
+       "background": "#172b42",
+       "opacity": 85,
+       "fontSize": 16,
+       "align": "center",
+       "visible": true,
+       "radius": 8,
+       "borderWidth": 1,
+       "borderColor": "#52728a",
+       "pressedColor": "#35666e",
+       "imageFit": "contain",
+       "showFlag": "",
+       "showValue": true,
+       "enableFlag": "",
+       "enableValue": true,
+       "steps": [],
+       "shape": "pill"
+      }
+     ],
+     "purpose": "",
+     "pauseGame": true,
+     "shade": 94,
+     "tint": "#0b1725",
+     "skin": "",
+     "rules": []
+    },
+    {
+     "id": "front-loading",
+     "name": "로딩 화면",
+     "kind": "custom",
+     "elements": [
+      {
+       "id": "heading",
+       "type": "text",
+       "x": 8,
+       "y": 12,
+       "w": 84,
+       "h": 18,
+       "text": "불러오는 중",
+       "action": "attack",
+       "target": "",
+       "image": "",
+       "color": "#f0f7ff",
+       "background": "#172b42",
+       "opacity": 0,
+       "fontSize": 32,
+       "align": "center",
+       "visible": true,
+       "radius": 8,
+       "borderWidth": 1,
+       "borderColor": "#52728a",
+       "pressedColor": "#35666e",
+       "imageFit": "contain",
+       "showFlag": "",
+       "showValue": true,
+       "enableFlag": "",
+       "enableValue": true,
+       "steps": []
+      },
+      {
+       "id": "progress",
+       "type": "loading",
+       "x": 20,
+       "y": 60,
+       "w": 60,
+       "h": 10,
+       "text": "",
+       "action": "attack",
+       "target": "",
+       "image": "",
+       "color": "#f0f7ff",
+       "background": "#172b42",
+       "opacity": 85,
+       "fontSize": 16,
+       "align": "center",
+       "visible": true,
+       "radius": 8,
+       "borderWidth": 1,
+       "borderColor": "#52728a",
+       "pressedColor": "#35666e",
+       "imageFit": "contain",
+       "showFlag": "",
+       "showValue": true,
+       "enableFlag": "",
+       "enableValue": true,
+       "steps": []
+      }
+     ],
+     "purpose": "",
+     "pauseGame": true,
+     "shade": 94,
+     "tint": "#0b1725",
+     "skin": "",
+     "rules": []
+    },
+    {
+     "id": "front-roster",
+     "name": "캐릭터 선택 화면",
+     "kind": "custom",
+     "elements": [
+      {
+       "id": "heading",
+       "type": "text",
+       "x": 8,
+       "y": 12,
+       "w": 84,
+       "h": 18,
+       "text": "캐릭터 선택",
+       "action": "attack",
+       "target": "",
+       "image": "",
+       "color": "#f0f7ff",
+       "background": "#172b42",
+       "opacity": 0,
+       "fontSize": 32,
+       "align": "center",
+       "visible": true,
+       "radius": 8,
+       "borderWidth": 1,
+       "borderColor": "#52728a",
+       "pressedColor": "#35666e",
+       "imageFit": "contain",
+       "showFlag": "",
+       "showValue": true,
+       "enableFlag": "",
+       "enableValue": true,
+       "steps": []
+      },
+      {
+       "id": "face",
+       "type": "portrait",
+       "x": 35,
+       "y": 30,
+       "w": 30,
+       "h": 30,
+       "text": "",
+       "action": "attack",
+       "target": "",
+       "image": "",
+       "color": "#f0f7ff",
+       "background": "#172b42",
+       "opacity": 0,
+       "fontSize": 16,
+       "align": "center",
+       "visible": true,
+       "radius": 8,
+       "borderWidth": 1,
+       "borderColor": "#52728a",
+       "pressedColor": "#35666e",
+       "imageFit": "contain",
+       "showFlag": "",
+       "showValue": true,
+       "enableFlag": "",
+       "enableValue": true,
+       "steps": []
+      },
+      {
+       "id": "name",
+       "type": "character",
+       "x": 28,
+       "y": 60,
+       "w": 44,
+       "h": 10,
+       "text": "",
+       "action": "attack",
+       "target": "",
+       "image": "",
+       "color": "#f0f7ff",
+       "background": "#172b42",
+       "opacity": 0,
+       "fontSize": 16,
+       "align": "center",
+       "visible": true,
+       "radius": 8,
+       "borderWidth": 1,
+       "borderColor": "#52728a",
+       "pressedColor": "#35666e",
+       "imageFit": "contain",
+       "showFlag": "",
+       "showValue": true,
+       "enableFlag": "",
+       "enableValue": true,
+       "steps": []
+      },
+      {
+       "id": "prev",
+       "type": "button",
+       "x": 8,
+       "y": 43,
+       "w": 18,
+       "h": 14,
+       "text": "이전",
+       "action": "previousActor",
+       "target": "",
+       "image": "",
+       "color": "#f0f7ff",
+       "background": "#172b42",
+       "opacity": 85,
+       "fontSize": 16,
+       "align": "center",
+       "visible": true,
+       "radius": 8,
+       "borderWidth": 1,
+       "borderColor": "#52728a",
+       "pressedColor": "#35666e",
+       "imageFit": "contain",
+       "showFlag": "",
+       "showValue": true,
+       "enableFlag": "",
+       "enableValue": true,
+       "steps": [],
+       "shape": "pill"
+      },
+      {
+       "id": "next-actor",
+       "type": "button",
+       "x": 74,
+       "y": 43,
+       "w": 18,
+       "h": 14,
+       "text": "다음",
+       "action": "switch",
+       "target": "",
+       "image": "",
+       "color": "#f0f7ff",
+       "background": "#172b42",
+       "opacity": 85,
+       "fontSize": 16,
+       "align": "center",
+       "visible": true,
+       "radius": 8,
+       "borderWidth": 1,
+       "borderColor": "#52728a",
+       "pressedColor": "#35666e",
+       "imageFit": "contain",
+       "showFlag": "",
+       "showValue": true,
+       "enableFlag": "",
+       "enableValue": true,
+       "steps": [],
+       "shape": "pill"
+      },
+      {
+       "id": "confirm",
+       "type": "button",
+       "x": 29,
+       "y": 77,
+       "w": 42,
+       "h": 14,
+       "text": "이 캐릭터로 시작",
+       "action": "confirmActor",
+       "target": "",
+       "image": "",
+       "color": "#f0f7ff",
+       "background": "#172b42",
+       "opacity": 85,
+       "fontSize": 16,
+       "align": "center",
+       "visible": true,
+       "radius": 8,
+       "borderWidth": 1,
+       "borderColor": "#52728a",
+       "pressedColor": "#35666e",
+       "imageFit": "contain",
+       "showFlag": "",
+       "showValue": true,
+       "enableFlag": "",
+       "enableValue": true,
+       "steps": [],
+       "shape": "pill"
+      }
+     ],
+     "purpose": "",
+     "pauseGame": true,
+     "shade": 94,
+     "tint": "#0b1725",
+     "skin": "",
+     "rules": []
+    },
+    {
+     "id": "home",
+     "name": "홈",
+     "kind": "custom",
+     "elements": [
+      {
+       "id": "heading",
+       "type": "text",
+       "x": 8,
+       "y": 12,
+       "w": 84,
+       "h": 18,
+       "text": "Dreamwalker",
+       "action": "attack",
+       "target": "",
+       "image": "",
+       "color": "#f0f7ff",
+       "background": "#172b42",
+       "opacity": 0,
+       "fontSize": 32,
+       "align": "center",
+       "visible": true,
+       "radius": 8,
+       "borderWidth": 1,
+       "borderColor": "#52728a",
+       "pressedColor": "#35666e",
+       "imageFit": "contain",
+       "showFlag": "",
+       "showValue": true,
+       "enableFlag": "",
+       "enableValue": true,
+       "steps": []
+      },
+      {
+       "id": "start",
+       "type": "button",
+       "x": 32,
+       "y": 64,
+       "w": 36,
+       "h": 14,
+       "text": "게임 시작",
+       "action": "beginGame",
+       "target": "",
+       "image": "",
+       "color": "#f0f7ff",
+       "background": "#172b42",
+       "opacity": 85,
+       "fontSize": 16,
+       "align": "center",
+       "visible": true,
+       "radius": 8,
+       "borderWidth": 1,
+       "borderColor": "#52728a",
+       "pressedColor": "#35666e",
+       "imageFit": "contain",
+       "showFlag": "",
+       "showValue": true,
+       "enableFlag": "",
+       "enableValue": true,
+       "steps": [],
+       "shape": "pill"
+      }
+     ],
+     "purpose": "",
+     "pauseGame": true,
+     "shade": 94,
+     "tint": "#0b1725",
+     "skin": "",
+     "rules": []
+    },
+    {
+     "id": "standby",
+     "name": "대기 화면",
+     "kind": "custom",
+     "elements": [
+      {
+       "id": "face",
+       "type": "portrait",
+       "x": 18,
+       "y": 2,
+       "w": 64,
+       "h": 88,
+       "text": "",
+       "action": "attack",
+       "target": "",
+       "image": "",
+       "color": "#f0f7ff",
+       "background": "#172b42",
+       "opacity": 0,
+       "fontSize": 16,
+       "align": "center",
+       "visible": true,
+       "radius": 8,
+       "borderWidth": 1,
+       "borderColor": "#52728a",
+       "pressedColor": "#35666e",
+       "imageFit": "contain",
+       "showFlag": "",
+       "showValue": true,
+       "enableFlag": "",
+       "enableValue": true,
+       "steps": []
+      },
+      {
+       "id": "hint",
+       "type": "text",
+       "x": 20,
+       "y": 90,
+       "w": 60,
+       "h": 8,
+       "text": "화면을 누르면 돌아가요",
+       "action": "attack",
+       "target": "",
+       "image": "",
+       "color": "#f0f7ff",
+       "background": "#172b42",
+       "opacity": 0,
+       "fontSize": 15,
+       "align": "center",
+       "visible": true,
+       "radius": 8,
+       "borderWidth": 1,
+       "borderColor": "#52728a",
+       "pressedColor": "#35666e",
+       "imageFit": "contain",
+       "showFlag": "",
+       "showValue": true,
+       "enableFlag": "",
+       "enableValue": true,
+       "steps": []
+      },
+      {
+       "id": "wake",
+       "type": "button",
+       "x": 0,
+       "y": 0,
+       "w": 100,
+       "h": 100,
+       "text": "대기 화면 닫기",
+       "action": "back",
+       "target": "",
+       "image": "",
+       "color": "#f0f7ff",
+       "background": "#172b42",
+       "opacity": 0,
+       "fontSize": 16,
+       "align": "center",
+       "visible": true,
+       "radius": 8,
+       "borderWidth": 1,
+       "borderColor": "#52728a",
+       "pressedColor": "#35666e",
+       "imageFit": "contain",
+       "showFlag": "",
+       "showValue": true,
+       "enableFlag": "",
+       "enableValue": true,
+       "steps": [],
+       "hotspot": true
+      }
+     ],
+     "purpose": "입력이 없을 때 캐릭터를 크게 보여 주는 화면",
+     "pauseGame": true,
+     "shade": 100,
+     "tint": "#0b1725",
+     "skin": "",
+     "rules": [
+      {
+       "id": "idle",
+       "event": "idle",
+       "mapId": "",
+       "actorId": "",
+       "key": "home",
+       "flag": "",
+       "flagState": true,
+       "threshold": 30,
+       "seconds": 20,
+       "once": "always",
+       "priority": 0
+      }
+     ]
+    },
+    {
+     "id": "afk",
+     "name": "대기 화면",
+     "kind": "custom",
+     "elements": [
+      {
+       "id": "face",
+       "type": "portrait",
+       "x": 18,
+       "y": 2,
+       "w": 64,
+       "h": 88,
+       "text": "",
+       "action": "attack",
+       "target": "",
+       "image": "",
+       "color": "#f0f7ff",
+       "background": "#172b42",
+       "opacity": 0,
+       "fontSize": 16,
+       "align": "center",
+       "visible": true,
+       "radius": 8,
+       "borderWidth": 1,
+       "borderColor": "#52728a",
+       "pressedColor": "#35666e",
+       "imageFit": "contain",
+       "showFlag": "",
+       "showValue": true,
+       "enableFlag": "",
+       "enableValue": true,
+       "steps": []
+      },
+      {
+       "id": "hint",
+       "type": "text",
+       "x": 20,
+       "y": 90,
+       "w": 60,
+       "h": 8,
+       "text": "화면을 누르면 돌아가요",
+       "action": "attack",
+       "target": "",
+       "image": "",
+       "color": "#f0f7ff",
+       "background": "#172b42",
+       "opacity": 0,
+       "fontSize": 15,
+       "align": "center",
+       "visible": true,
+       "radius": 8,
+       "borderWidth": 1,
+       "borderColor": "#52728a",
+       "pressedColor": "#35666e",
+       "imageFit": "contain",
+       "showFlag": "",
+       "showValue": true,
+       "enableFlag": "",
+       "enableValue": true,
+       "steps": []
+      },
+      {
+       "id": "wake",
+       "type": "button",
+       "x": 0,
+       "y": 0,
+       "w": 100,
+       "h": 100,
+       "text": "대기 화면 닫기",
+       "action": "back",
+       "target": "",
+       "image": "",
+       "color": "#f0f7ff",
+       "background": "#172b42",
+       "opacity": 0,
+       "fontSize": 16,
+       "align": "center",
+       "visible": true,
+       "radius": 8,
+       "borderWidth": 1,
+       "borderColor": "#52728a",
+       "pressedColor": "#35666e",
+       "imageFit": "contain",
+       "showFlag": "",
+       "showValue": true,
+       "enableFlag": "",
+       "enableValue": true,
+       "steps": [],
+       "hotspot": true
+      }
+     ],
+     "purpose": "입력이 없을 때 캐릭터를 크게 보여 주는 화면",
+     "pauseGame": true,
+     "shade": 100,
+     "tint": "#0b1725",
+     "skin": "",
+     "rules": [
+      {
+       "id": "idle",
+       "event": "idle",
+       "mapId": "",
+       "actorId": "",
+       "key": "",
+       "flag": "",
+       "flagState": true,
+       "threshold": 30,
+       "seconds": 45,
+       "once": "always",
+       "priority": -1
+      }
+     ]
+    },
+    {
+     "id": "once",
+     "name": "대기 화면",
+     "kind": "custom",
+     "elements": [
+      {
+       "id": "face",
+       "type": "portrait",
+       "x": 18,
+       "y": 2,
+       "w": 64,
+       "h": 88,
+       "text": "",
+       "action": "attack",
+       "target": "",
+       "image": "",
+       "color": "#f0f7ff",
+       "background": "#172b42",
+       "opacity": 0,
+       "fontSize": 16,
+       "align": "center",
+       "visible": true,
+       "radius": 8,
+       "borderWidth": 1,
+       "borderColor": "#52728a",
+       "pressedColor": "#35666e",
+       "imageFit": "contain",
+       "showFlag": "",
+       "showValue": true,
+       "enableFlag": "",
+       "enableValue": true,
+       "steps": []
+      },
+      {
+       "id": "hint",
+       "type": "text",
+       "x": 20,
+       "y": 90,
+       "w": 60,
+       "h": 8,
+       "text": "화면을 누르면 돌아가요",
+       "action": "attack",
+       "target": "",
+       "image": "",
+       "color": "#f0f7ff",
+       "background": "#172b42",
+       "opacity": 0,
+       "fontSize": 15,
+       "align": "center",
+       "visible": true,
+       "radius": 8,
+       "borderWidth": 1,
+       "borderColor": "#52728a",
+       "pressedColor": "#35666e",
+       "imageFit": "contain",
+       "showFlag": "",
+       "showValue": true,
+       "enableFlag": "",
+       "enableValue": true,
+       "steps": []
+      },
+      {
+       "id": "wake",
+       "type": "button",
+       "x": 0,
+       "y": 0,
+       "w": 100,
+       "h": 100,
+       "text": "대기 화면 닫기",
+       "action": "back",
+       "target": "",
+       "image": "",
+       "color": "#f0f7ff",
+       "background": "#172b42",
+       "opacity": 0,
+       "fontSize": 16,
+       "align": "center",
+       "visible": true,
+       "radius": 8,
+       "borderWidth": 1,
+       "borderColor": "#52728a",
+       "pressedColor": "#35666e",
+       "imageFit": "contain",
+       "showFlag": "",
+       "showValue": true,
+       "enableFlag": "",
+       "enableValue": true,
+       "steps": [],
+       "hotspot": true
+      }
+     ],
+     "purpose": "입력이 없을 때 캐릭터를 크게 보여 주는 화면",
+     "pauseGame": true,
+     "shade": 100,
+     "tint": "#0b1725",
+     "skin": "",
+     "rules": [
+      {
+       "id": "idle",
+       "event": "idle",
+       "mapId": "",
+       "actorId": "",
+       "key": "home",
+       "flag": "",
+       "flagState": true,
+       "threshold": 30,
+       "seconds": 5,
+       "once": "map",
+       "priority": 0
+      }
+     ]
+    }
+   ],
+   "frontScreens": {
+    "title": "front-title",
+    "roster": "front-roster",
+    "loading": "front-loading",
+    "seconds": 0.8,
+    "home": "home"
+   }
+  },
+  "map": "mine",
+  "actor": "baekseol",
+  "calls": [
+   [
+    "home",
+    0,
+    4.9,
+    ""
+   ],
+   [
+    "home",
+    4.9,
+    5,
+    "once"
+   ],
+   [
+    "home",
+    5,
+    6,
+    ""
+   ],
+   [
+    "home",
+    0,
+    5,
+    ""
+   ],
+   [
+    "home",
+    19,
+    20,
+    "standby"
+   ],
+   [
+    "home",
+    20,
+    21,
+    ""
+   ],
+   [
+    "home",
+    0,
+    20,
+    "standby"
+   ],
+   [
+    "front-title",
+    0,
+    30,
+    ""
+   ],
+   [
+    "front-title",
+    44.9,
+    45,
+    "afk"
+   ],
+   [
+    "home",
+    44.9,
+    45,
+    "afk"
+   ],
+   [
+    "home",
+    0,
+    0.1,
+    ""
+   ]
+  ]
+ }
+}

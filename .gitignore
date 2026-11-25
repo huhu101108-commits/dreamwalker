@@ -25,4 +25,8 @@
 .DS_Store
 Thumbs.db
 # Unity generated meta for ignored roots
-/[Aa]ssets/[Aa]sset[Ss]tore[Tt]ools* 
+/[Aa]ssets/[Aa]sset[Ss]tore[Tt]ools*
+
+# Handwritten portable contract test project.
+!Studio/scripts/native-check/StudioContract.csproj
+Studio/scripts/native-check/[Bb]in/

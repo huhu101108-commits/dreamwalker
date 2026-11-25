@@ -36,8 +36,64 @@ namespace Dreamwalker.Combat
         private bool bufferedAttack;
         private bool requestAttack;
 
+        public event System.Action<CombatTarget> TargetHit;
+        public System.Func<string,bool> StudioHardwareGate { get; set; }
+        public System.Action<float, float> StudioSweep { get; set; }
+        public int StudioSequence { get; private set; }
+        public Dreamwalker.Demo.StudioStrike StudioStrike { get; set; }
+        public int StudioTick=>studioTick;
+        private int bufferUntil=-1;
+        private int studioTick, startupTicks, activeTicks, recoveryTicks;
+        public void SetStudioTiming(int startup, int activeFrames, int recoveryFrames)
+        {
+            startupTicks = startup > 0 ? startup : 6;
+            activeTicks = activeFrames > 0 ? activeFrames : 7;
+            recoveryTicks = recoveryFrames > 0 ? recoveryFrames : 13;
+            ResetStudioAttack();
+        }
+        public void ResetStudioAttack()
+        {
+            studioTick = 0;
+            bufferUntil=-1;
+            attacking = bufferedAttack = requestAttack = false;
+            if (vfx != null) vfx.Hide();
+        }
+        public void AdvanceStudioAttack()
+        {
+            if (!attacking) return;
+            studioTick++;
+            int frame = studioTick - startupTicks;
+            if (frame <= 0)
+            {
+                SetBladeAngle(Mathf.Lerp(-78f, -arcHalfAngle, (float)studioTick / startupTicks));
+                if (vfx != null) vfx.ShowAnticipation(centerOffset, reach, arcHalfAngle);
+            }
+            else if (frame <= activeTicks)
+            {
+                float from = Dreamwalker.Demo.StudioCombatClock.Angle(frame - 1, activeTicks);
+                float to = Dreamwalker.Demo.StudioCombatClock.Angle(frame, activeTicks);
+                SetBladeAngle(to);
+                StudioSweep?.Invoke(from, to);
+                if (vfx != null) vfx.ShowStrike(centerOffset, reach, arcHalfAngle, to);
+            }
+            else if (frame < activeTicks + recoveryTicks)
+            {
+                float t = (float)(frame - activeTicks) / recoveryTicks;
+                SetBladeAngle(Mathf.Lerp(arcHalfAngle, -70f, t));
+                if (vfx != null) vfx.ShowRecovery(t);
+            }
+            else
+            {
+                bool repeat = StudioStrike!=null?bufferUntil>=studioTick:bufferedAttack;
+                ResetStudioAttack();
+                SetBladeAngle(-70f);
+                if (repeat) RequestAttack();
+            }
+        }
+
         public bool IsAttacking => attacking;
         public Vector2 Offset => centerOffset;
+        public int Damage => damage;
         public float Reach => reach;
         public float HalfAngle => arcHalfAngle;
 
@@ -49,10 +105,27 @@ namespace Dreamwalker.Combat
             vfx = effect;
         }
 
-        public void RequestAttack() => requestAttack = true;
+        public void ApplyStudioAttack(int power, float distance)
+        {
+            damage = power;
+            reach = distance;
+        }
+
+        public void RequestAttack()
+        {
+            if (StudioSweep == null) { requestAttack = true; return; }
+            if (!attacking) { StudioSequence++; studioTick = 0; StartSlash(); }
+            else if(StudioStrike!=null){if(StudioStrike.Combo(studioTick)&&StudioStrike.buffer>0)bufferUntil=studioTick+StudioStrike.buffer;}
+            else if (studioTick >= startupTicks + activeTicks) bufferedAttack = true;
+        }
 
         private void Update()
         {
+            if (StudioSweep != null)
+            {
+                if (DreamwalkerInput.AttackPressed() && (StudioHardwareGate==null||StudioHardwareGate("attack"))) RequestAttack();
+                return;
+            }
             bool pressed = DreamwalkerInput.AttackPressed() || requestAttack;
             requestAttack = false;
             if (pressed)
@@ -142,6 +215,7 @@ namespace Dreamwalker.Combat
                 if (target.TakeDamage(damage, CombatFaction.Player, push))
                 {
                     damaged.Add(id);
+                    TargetHit?.Invoke(target);
                     if (vfx != null) vfx.SpawnImpact(point);
                 }
             }

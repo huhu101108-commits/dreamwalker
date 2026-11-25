@@ -1,0 +1,73 @@
+import assert from 'node:assert/strict';
+import {readFile,mkdtemp,rm} from 'node:fs/promises';
+import {join} from 'node:path';
+import {tmpdir} from 'node:os';
+
+export async function testInspectionWorkflow(host,origin){
+  assert.equal(new URL(origin).hostname,'127.0.0.1');
+  const ctx=await host.context().browser().newContext({viewport:{width:1280,height:800},hasTouch:true});
+  const dir=await mkdtemp(join(tmpdir(),'dreamwalker-checkpoint-'));
+  try{
+    const p=await ctx.newPage(),errors=[],writes=[];
+    p.on('pageerror',e=>errors.push(e.message));
+    p.on('request',r=>{if(r.method()==='POST'&&['/api/save','/api/assets','/api/review'].includes(new URL(r.url()).pathname))writes.push(r.url());});
+    const panel=p.locator('[data-persist="inspection-workspace"]');
+    const expand=async d=>{if(!await d.evaluate(n=>n.open))await d.locator(':scope > summary').click();};
+    await p.goto(origin+'/?tool=quality');await p.locator('#editor').waitFor();
+    const shared=await p.evaluate(async()=>JSON.stringify(await api('project')));
+    await expand(panel);await panel.getByLabel('검수 사본 이름',{exact:true}).fill('저장 복구 기능 검수');
+    await panel.getByLabel('사본으로 만들 버전').selectOption(String(JSON.parse(shared).rev));
+    await panel.getByRole('button',{name:'검수 사본 만들고 열기'}).click();
+    await p.waitForURL(/qa=/);await p.getByRole('button',{name:'검수 사본 저장'}).waitFor();
+    await p.locator('#tabs [data-tab=scene]').click();
+    await p.getByRole('button',{name:'＋ 새 맵',exact:true}).click();
+    const mapName=p.getByLabel('맵 이름',{exact:true});
+    await mapName.fill('복구 검수 구간');const id=await p.evaluate(()=>activeMap().id);
+    await p.locator('#save').click();await p.waitForFunction(()=>!dirty && record.project.scenes.some(s=>s.name==='복구 검수 구간'));
+    const normalKey=await p.evaluate(()=>{const k='dreamwalker-progress-v1:preview:'+(project.saveId||project.startMap);localStorage.setItem(k,'original-player-marker');return k;});
+    await mapName.fill('저장 전 복구 구간');for(const end=Date.now()+30000;!await p.evaluate(async()=>(await readDeviceDraft())?.project.scenes.some(s=>s.name==='저장 전 복구 구간'));await p.waitForTimeout(100))if(Date.now()>end)throw Error('the device draft was not written');
+    await p.reload();await p.locator('#editor').waitFor();
+    assert.equal(await mapName.inputValue(),'저장 전 복구 구간');assert.equal(await p.evaluate(()=>activeMap().id),id);
+    await p.locator('#undo').click();assert.equal(await mapName.inputValue(),'복구 검수 구간');
+    await p.locator('#redo').click();assert.equal(await mapName.inputValue(),'저장 전 복구 구간');
+    await p.locator('#save').click();await p.waitForFunction(()=>!dirty && record.project.scenes.some(s=>s.name==='저장 전 복구 구간'));
+    await p.locator('#tabs [data-tab=quality]').click();await expand(panel);
+    await panel.getByLabel('검수 시작 맵').selectOption(id);await expand(panel);
+    await panel.getByLabel('플레이 검수 슬롯 이름').fill('독립 진행 A');
+    await panel.getByRole('button',{name:'지정한 위치에서 새 검수 플레이'}).click();
+    const game=p.locator('dialog.source-player[open]');
+    await game.frameLocator('iframe').locator('#game[open]').waitFor();
+    await p.waitForFunction(()=>document.querySelector('dialog.source-player')?.inspectionSample?.ticks>=31);
+    const field=game.frameLocator('iframe');
+    await field.locator('#arena').click({position:{x:8,y:8}});
+    await p.keyboard.down('ArrowRight');
+    await p.waitForFunction(()=>document.querySelector('dialog.source-player')?.inspectionSample?.ticks>=61);
+    await p.keyboard.up('ArrowRight');await game.getByRole('button',{name:'편집기로',exact:true}).click();await game.waitFor({state:'detached'});
+    const saved=await p.evaluate(()=>JSON.parse(localStorage.getItem(inspectionSlot(project,'독립 진행 A'))));assert.equal(saved.map,id);
+    assert.equal(await p.evaluate(k=>localStorage.getItem(k),normalKey),'original-player-marker');
+    await p.reload();await p.locator('#editor').waitFor();await expand(panel);
+    assert.equal(await panel.getByLabel('플레이 검수 슬롯 이름').inputValue(),'독립 진행 A');
+    await panel.getByRole('button',{name:'이 슬롯의 저장 호환성 검사'}).click();await panel.getByText(/통과 · 저장 전 복구 구간/).waitFor();
+    await panel.getByRole('button',{name:'같은 검수 슬롯 이어하기'}).click();
+    await game.frameLocator('iframe').locator('#game[open]').waitFor();
+    const actual=await game.locator('iframe').elementHandle();const child=await actual.contentFrame();
+    assert.equal(await child.evaluate(()=>JSON.parse(GAME_DATA.checkpoint).x),saved.x);
+    await game.getByRole('button',{name:'편집기로',exact:true}).click();await game.waitFor({state:'detached'});
+    const metric=panel.locator('[data-persist="inspection-metrics"]');await expand(metric);await metric.getByText(/95백분위/).first().waitFor();
+    const runtime=await p.evaluate(async()=>({rev:record.rev,digest:await contentDigest(record.project)}));
+    const dl=p.waitForEvent('download');await panel.getByRole('button',{name:'저장본 → 오프라인 게임 HTML'}).click();
+    const path=join(dir,'play.html');await(await dl).saveAs(path);const html=await readFile(path,'utf8');
+    const offline=await ctx.newPage(),requests=[];offline.on('request',r=>{if(/^https?:/.test(r.url()))requests.push(r.url());});
+    await offline.setContent(html);await offline.locator('#game[open]').waitFor();
+    const pin=await offline.evaluate(()=>({revision:GAME_DATA.revision,digest:GAME_DATA.contentDigest,inspection:GAME_DATA.inspection,work:!!GAME_DATA.project.work}));
+    assert.deepEqual(pin,{revision:runtime.rev,digest:runtime.digest,inspection:false,work:false});assert.deepEqual(requests,[]);await offline.close();
+    const cas=await p.evaluate(async()=>{
+      const r=await inspectionRecord();const save=s=>saveInspectionRevision(inspectionId,{rev:r.rev,project:s,merge:true});
+      const a=structuredClone(r.project),b=structuredClone(r.project);a.title='동시 수정 A';b.title='동시 수정 B';
+      const outcomes=await Promise.allSettled([save(a),save(b)]);return outcomes.map(o=>o.status).sort();
+    });assert.deepEqual(cas,['fulfilled','rejected']);
+    assert.equal(await p.evaluate(async()=>JSON.stringify(await(await fetch('/api/project')).json())),shared);
+    assert.deepEqual(writes,[]);assert.deepEqual(errors,[]);
+    console.log('PASS Chrome verification copy from saved revision, selected map/draft and undo-redo after reload, real game checkpoint and isolated resume, frame measures, offline revision digest, atomic conflicts and zero team writes');
+  }finally{await ctx.close();await rm(dir,{recursive:true,force:true});}
+}

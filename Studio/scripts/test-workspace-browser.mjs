@@ -1,0 +1,74 @@
+import assert from 'node:assert/strict';
+
+export async function testWorkConvenience(host,origin){
+  assert.equal(new URL(origin).hostname,'127.0.0.1');
+  const ctx=await host.context().browser().newContext({hasTouch:true,viewport:{width:820,height:1180}});
+  const p=await ctx.newPage(),errors=[];
+  p.on('pageerror',e=>errors.push(e.message));
+  const button=(page,name)=>page.getByRole('button',{name,exact:true});
+  try{
+    await p.goto(origin+'/');await p.locator('#editor').waitFor();
+    // A device that has not opened a tool yet starts at 시작하기; this flow then works in the map editor.
+    assert.equal(await p.evaluate(()=>tab),'home');
+    await p.locator('[data-quick="scene"]').click();assert.equal(await p.evaluate(()=>tab),'scene');
+    await button(p,'Unity로 보내기').click();
+    const transfer=p.getByRole('dialog',{name:'Unity로 보내기'});await transfer.getByText('Unity 처음 연결').click();
+    await button(transfer,'연결 코드 만들기').click();await transfer.getByText(/10분 이내 한 번 사용/).waitFor();
+    const code=(await transfer.getByText(/10분 이내 한 번 사용/).textContent()).split(' · ')[0];
+    await button(transfer,'현재 저장본 보내기').click();await transfer.getByText(/전달 완료/).waitFor();
+    const pair=await ctx.request.post(origin+'/api/unity-sync/pair',{data:{code}});
+    assert.equal(pair.status(),200);
+    const response=await ctx.request.get(origin+'/api/unity-sync/content',{headers:{Authorization:'Bearer '+(await pair.json()).token}});
+    assert.equal(response.status(),200);assert.equal(response.headers()['x-dw-map'],await p.evaluate(()=>activeMap().id));
+    const bytes=await response.body();assert(bytes.includes(Buffer.from('Dreamwalker-Pack.json')));
+    assert(!bytes.includes(Buffer.from(code.replaceAll('-',''))));
+    await button(transfer,'닫기').click();
+
+    const quick=id=>p.locator('[data-quick="'+id+'"]').click();
+    await button(p,'찾기').click();await p.getByLabel('작업 검색어').fill('검수·빌드');
+    await p.getByLabel('작업 검색어').press('Enter');
+    const panel=p.locator('[data-persist=inspection-workspace]');await panel.locator('summary').first().click();
+    await panel.getByLabel('검수 사본 이름').fill('태블릿 작업 동선');
+    await button(panel,'검수 사본 만들고 열기').click();await p.waitForURL(/qa=/);await p.locator('#editor').waitFor();
+    const qa=new URL(p.url()).searchParams.get('qa');assert(qa);
+    const writes=[];p.on('request',r=>{if(r.method()==='POST'&&new URL(r.url()).pathname==='/api/save')writes.push(r.url());});
+    await quick('scene');
+    const pos=await p.evaluate(()=>{const m=activeMap(),o=m.objects.find(x=>x.type==='enemy');return {map:m.id,id:o.id,x:o.x};});
+    await p.locator('.scene-scroll [data-object-id="'+pos.id+'"]').tap();
+    await button(p,'선택 개체 오른쪽 이동').tap();await p.waitForFunction(o=>activeMap().objects.find(x=>x.id===o.id).x===o.x+1,pos);
+    await p.locator('#undo').tap();await p.waitForFunction(o=>activeMap().objects.find(x=>x.id===o.id).x===o.x,pos);
+    const playerKey=await p.evaluate(()=>{const key='dreamwalker-progress-v1:game:'+(project.saveId||project.startMap);localStorage.setItem(key,'existing-player-save');return key;});
+    const modal=p.locator('dialog.source-player[open]'),frame=modal.frameLocator('iframe');
+    await p.locator('#play').tap();await frame.locator('#game[open]').waitFor();
+    const iframe=await modal.locator('iframe').elementHandle(),child=await iframe.contentFrame();
+    assert.equal(await child.evaluate(()=>GAME_DATA.inspection.objectId),pos.id);
+    await frame.locator('#assist').click();await button(frame.locator('#controls'),'베기').click();
+    // The attack starts on the player's input, at any point in the running field.
+    await frame.locator('#actors .effects').filter({hasText:/^−\d+$/}).first().waitFor();
+    await button(modal,'편집기로').click();await modal.waitFor({state:'detached'});
+    await p.locator('#repeat-work').waitFor();
+    assert.equal(await p.evaluate(()=>mapObject),pos.id);assert.equal(await p.evaluate(k=>localStorage.getItem(k),playerKey),'existing-player-save');
+    assert((await p.evaluate(()=>lastWorkTake().tape.outcome.hits))>0);
+    await p.locator('#repeat-work').click();await frame.locator('#game[open]').waitFor();
+    await frame.getByText(/^재생 완료/).waitFor();await button(modal,'편집기로').click();
+    await p.getByText(/^결과 일치/).waitFor();
+    await button(p,'찾기').click();await p.getByLabel('작업 검색어').fill('전투 수치');await p.getByLabel('작업 검색어').press('Enter');
+    const damage=await p.evaluate(()=>({label:FIELDS.damage[0],value:project.tuning.damage}));
+    await p.getByLabel(damage.label,{exact:true}).fill(String(damage.value+5));
+    await p.locator('#repeat-work').click();await frame.getByText(/^재생 완료/).waitFor();await button(modal,'편집기로').click();
+    await p.getByText(/^결과 변화.*피해/).waitFor();
+    await p.locator('#save').click();await p.waitForFunction(()=>!dirty);
+    await p.goto(origin+'/?qa='+qa);await p.locator('#editor').waitFor();assert.equal(await p.evaluate(()=>tab),'balance');
+    await quick('interface');await p.locator('#play').click();await frame.locator('#game[open]').waitFor();
+    assert.equal(await(await(await modal.locator('iframe').elementHandle()).contentFrame()).evaluate(()=>GAME_DATA.inspection.screenId),await p.evaluate(()=>layoutId));
+    await button(modal,'편집기로').click();
+    await quick('stories');await button(p,'＋ 새 스토리').first().click();
+    await p.locator('#play').click();await frame.locator('#game[open]').waitFor();
+    assert.equal(await(await(await modal.locator('iframe').elementHandle()).contentFrame()).evaluate(()=>GAME_DATA.inspection.lineId),await p.evaluate(()=>lineId));
+    await button(modal,'편집기로').click();
+    await p.setViewportSize({width:1180,height:820});
+    assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+    assert.deepEqual(writes,[]);assert.deepEqual(errors,[]);
+    console.log('PASS tablet quick tools and search, scene position edit with undo, contextual screen and line, identical and changed real combat input, selection and resume with isolated saves, versioned Unity handoff ZIP and download-only pairing');
+  }finally{await ctx.close();}
+}

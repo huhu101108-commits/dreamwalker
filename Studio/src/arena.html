@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>설산 친선전 · 드림워커</title><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/arena.css"></head>
+<body><header><div class="word"><b>✧</b> DREAMWALKER <span>ARENA</span></div><a id="home" href="/">제작 스튜디오</a></header>
+<main id="duel"><section class="panel lobby"><div><h1>설산 친선전</h1><p id="rules">규칙을 불러오고 있어요.</p></div>
+<button id="enter">이 기기 게스트로 입장</button>
+<div id="lobby" hidden><div class="row"><label><span data-caption>캐릭터</span><select id="actor"></select></label><button id="create">방 만들기</button></div>
+<div class="row"><label><span data-caption>방 코드</span><input id="code" maxlength="8" autocomplete="off" autocapitalize="characters" placeholder="8자리"></label><button id="join">참가</button></div></div>
+<a id="marketView" href="#market" hidden>거래소 열기</a><output id="notice" role="status"></output></section>
+<section id="match" class="panel" hidden><div class="bar"><strong id="roomTitle"></strong><span id="clock"></span><button id="leave">방 나가기</button></div>
+<div id="field"><div id="bars"></div><div class="fighter one"></div><div class="fighter two"></div><strong id="banner"></strong></div>
+<div id="pad"><button id="left" data-axis="-1" aria-label="왼쪽">◀</button><button id="right" data-axis="1" aria-label="오른쪽">▶</button>
+<button id="jump" data-press="2">점프</button><button id="dodge" data-press="4">회피</button><button id="attack" data-press="1">공격</button></div>
+<small>방향키 이동 · Space 점프 · Shift 회피 · Z 공격</small></section>
+<section id="market" class="panel" hidden><div class="bar"><h2>휘장 거래소</h2><button id="refresh">새로고침</button></div>
+<p id="wallet"></p><p>상대의 체력을 0으로 만든 승리자는 광산 휘장 1개와 10크레딧을 받아요.</p>
+<div class="row"><label><span data-caption>휘장 1개 판매가</span><input id="price" type="number" min="1" max="9999" value="5"></label><button id="sell">판매 등록</button></div>
+<ul id="listings"></ul><a id="lobbyView" href="#duel">로비로 돌아가기</a></section></main><script src="/arena-design.js"></script><script src="/arena-client.js"></script></body></html>

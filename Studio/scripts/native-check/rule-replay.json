@@ -1,0 +1,462 @@
+{
+ "rules": [
+  {
+   "id": "permit",
+   "name": "permit",
+   "enabled": true,
+   "event": "signal",
+   "key": "permit",
+   "actor": "",
+   "map": "",
+   "priority": 0,
+   "scope": "save",
+   "repeat": "always",
+   "duplicate": "each",
+   "every": 1,
+   "cooldown": 0,
+   "conditions": [],
+   "actions": [
+    {
+     "kind": "flagOn",
+     "key": "ready",
+     "value": 0
+    }
+   ]
+  },
+  {
+   "id": "arm",
+   "name": "arm",
+   "enabled": true,
+   "event": "input",
+   "key": "attack",
+   "actor": "",
+   "map": "",
+   "priority": 10,
+   "scope": "save",
+   "repeat": "always",
+   "duplicate": "tick",
+   "every": 1,
+   "cooldown": 0,
+   "conditions": [
+    {
+     "kind": "flag",
+     "key": "ready",
+     "op": "eq",
+     "value": 1
+    }
+   ],
+   "actions": [
+    {
+     "kind": "add",
+     "key": "charge",
+     "value": 2
+    },
+    {
+     "kind": "emit",
+     "key": "next",
+     "value": 0
+    },
+    {
+     "kind": "timer",
+     "key": "pulse",
+     "value": 2
+    }
+   ]
+  },
+  {
+   "id": "chained",
+   "name": "chained",
+   "enabled": true,
+   "event": "signal",
+   "key": "next",
+   "actor": "",
+   "map": "",
+   "priority": 0,
+   "scope": "save",
+   "repeat": "once",
+   "duplicate": "each",
+   "every": 1,
+   "cooldown": 0,
+   "conditions": [],
+   "actions": [
+    {
+     "kind": "heal",
+     "key": "",
+     "value": 3
+    },
+    {
+     "kind": "flagOn",
+     "key": "hasRun",
+     "value": 0
+    }
+   ]
+  },
+  {
+   "id": "gate",
+   "name": "gate",
+   "enabled": true,
+   "event": "input",
+   "key": "attack",
+   "actor": "",
+   "map": "",
+   "priority": -4,
+   "scope": "save",
+   "repeat": "always",
+   "duplicate": "each",
+   "every": 1,
+   "cooldown": 0,
+   "conditions": [
+    {
+     "kind": "variable",
+     "key": "charge",
+     "op": "ge",
+     "value": 4
+    }
+   ],
+   "actions": [
+    {
+     "kind": "consume",
+     "key": "",
+     "value": 0
+    }
+   ]
+  },
+  {
+   "id": "due",
+   "name": "due",
+   "enabled": true,
+   "event": "timer",
+   "key": "pulse",
+   "actor": "",
+   "map": "",
+   "priority": 0,
+   "scope": "save",
+   "repeat": "always",
+   "duplicate": "each",
+   "every": 1,
+   "cooldown": 0,
+   "conditions": [],
+   "actions": [
+    {
+     "kind": "add",
+     "key": "charge",
+     "value": 1
+    },
+    {
+     "kind": "shield",
+     "key": "",
+     "value": 2
+    }
+   ]
+  },
+  {
+   "id": "cancel",
+   "name": "cancel",
+   "enabled": true,
+   "event": "signal",
+   "key": "stop",
+   "actor": "",
+   "map": "",
+   "priority": 0,
+   "scope": "save",
+   "repeat": "always",
+   "duplicate": "each",
+   "every": 1,
+   "cooldown": 0,
+   "conditions": [],
+   "actions": [
+    {
+     "kind": "cancel",
+     "key": "arm",
+     "value": 0
+    }
+   ]
+  },
+  {
+   "id": "reset",
+   "name": "reset",
+   "enabled": true,
+   "event": "signal",
+   "key": "reset",
+   "actor": "",
+   "map": "",
+   "priority": 0,
+   "scope": "save",
+   "repeat": "always",
+   "duplicate": "each",
+   "every": 1,
+   "cooldown": 0,
+   "conditions": [],
+   "actions": [
+    {
+     "kind": "reset",
+     "key": "arm",
+     "value": 0
+    }
+   ]
+  },
+  {
+   "id": "strike",
+   "name": "strike",
+   "enabled": true,
+   "event": "hit",
+   "key": "tag",
+   "actor": "",
+   "map": "",
+   "priority": 0,
+   "scope": "save",
+   "repeat": "always",
+   "duplicate": "each",
+   "every": 1,
+   "cooldown": 0,
+   "conditions": [
+    {
+     "kind": "variable",
+     "key": "charge",
+     "op": "ge",
+     "value": 5
+    }
+   ],
+   "actions": [
+    {
+     "kind": "damage",
+     "key": "",
+     "value": 7
+    }
+   ]
+  },
+  {
+   "id": "step",
+   "name": "step",
+   "enabled": true,
+   "event": "signal",
+   "key": "transient",
+   "actor": "",
+   "map": "",
+   "priority": 0,
+   "scope": "session",
+   "repeat": "always",
+   "duplicate": "each",
+   "every": 1,
+   "cooldown": 0,
+   "conditions": [],
+   "actions": [
+    {
+     "kind": "set",
+     "key": "temp",
+     "value": 9
+    }
+   ]
+  }
+ ],
+ "spec": {
+  "actor": "actor",
+  "map": "map",
+  "hp": 5,
+  "maximum": 20,
+  "flags": [],
+  "events": [
+   {
+    "tick": 1,
+    "event": "input",
+    "key": "attack"
+   },
+   {
+    "tick": 2,
+    "event": "signal",
+    "key": "permit"
+   },
+   {
+    "tick": 3,
+    "event": "input",
+    "key": "attack"
+   },
+   {
+    "tick": 3,
+    "event": "input",
+    "key": "attack"
+   },
+   {
+    "tick": 4,
+    "event": "input",
+    "key": "attack"
+   },
+   {
+    "tick": 5,
+    "event": "signal",
+    "key": "stop"
+   },
+   {
+    "tick": 5,
+    "event": "input",
+    "key": "attack"
+   },
+   {
+    "tick": 6,
+    "event": "signal",
+    "key": "reset"
+   },
+   {
+    "tick": 6,
+    "event": "input",
+    "key": "attack"
+   },
+   {
+    "tick": 9,
+    "event": "signal",
+    "key": "transient"
+   },
+   {
+    "tick": 10,
+    "event": "hit",
+    "key": "tag"
+   }
+  ]
+ },
+ "expect": {
+  "hp": 8,
+  "shield": 2,
+  "damage": 7,
+  "flags": [
+   "hasRun",
+   "ready"
+  ],
+  "charge": 7,
+  "consumed": [
+   false,
+   false,
+   false,
+   false,
+   true,
+   false,
+   true,
+   false,
+   true,
+   false,
+   false
+  ],
+  "trace": [
+   "1/input/attack/arm/condition/0",
+   "1/input/attack/gate/condition/0",
+   "2/signal/permit/permit/run/-1",
+   "2/signal/permit/permit/action/0",
+   "3/input/attack/arm/run/-1",
+   "3/input/attack/arm/action/0",
+   "3/input/attack/arm/action/1",
+   "3/input/attack/arm/action/2",
+   "3/input/attack/gate/condition/0",
+   "3/signal/next/chained/run/-1",
+   "3/signal/next/chained/action/0",
+   "3/signal/next/chained/action/1",
+   "3/input/attack/arm/duplicate/-1",
+   "3/input/attack/gate/condition/0",
+   "4/input/attack/arm/run/-1",
+   "4/input/attack/arm/action/0",
+   "4/input/attack/arm/action/1",
+   "4/input/attack/arm/action/2",
+   "4/input/attack/gate/run/-1",
+   "4/input/attack/gate/action/0",
+   "4/signal/next/chained/once/-1",
+   "5/signal/stop/cancel/run/-1",
+   "5/signal/stop/cancel/action/0",
+   "5/input/attack/arm/cancelled/-1",
+   "5/input/attack/gate/run/-1",
+   "5/input/attack/gate/action/0",
+   "6/signal/reset/reset/run/-1",
+   "6/signal/reset/reset/action/0",
+   "6/input/attack/arm/run/-1",
+   "6/input/attack/arm/action/0",
+   "6/input/attack/arm/action/1",
+   "6/input/attack/arm/action/2",
+   "6/input/attack/gate/run/-1",
+   "6/input/attack/gate/action/0",
+   "6/signal/next/chained/once/-1",
+   "8/timer/pulse/due/run/-1",
+   "8/timer/pulse/due/action/0",
+   "8/timer/pulse/due/action/1",
+   "9/signal/transient/step/run/-1",
+   "9/signal/transient/step/action/0",
+   "10/hit/tag/strike/run/-1",
+   "10/hit/tag/strike/action/0"
+  ]
+ },
+ "portable": {
+  "hp": 8,
+  "shield": 2,
+  "damage": 7,
+  "flags": [
+   "hasRun",
+   "ready"
+  ],
+  "steps": [
+   "1/input/attack/5/0/0/0",
+   "2/signal/permit/5/0/0/0",
+   "3/input/attack/8/0/0/0",
+   "3/input/attack/8/0/0/0",
+   "4/input/attack/8/0/0/1",
+   "5/signal/stop/8/0/0/0",
+   "5/input/attack/8/0/0/1",
+   "6/signal/reset/8/0/0/0",
+   "6/input/attack/8/0/0/1",
+   "9/signal/transient/8/2/0/0",
+   "10/hit/tag/8/2/7/0"
+  ],
+  "trace": [
+   "1/input/attack/arm/condition/0",
+   "1/input/attack/gate/condition/0",
+   "2/signal/permit/permit/run/-1",
+   "2/signal/permit/permit/action/0",
+   "3/input/attack/arm/run/-1",
+   "3/input/attack/arm/action/0",
+   "3/input/attack/arm/action/1",
+   "3/input/attack/arm/action/2",
+   "3/input/attack/gate/condition/0",
+   "3/signal/next/chained/run/-1",
+   "3/signal/next/chained/action/0",
+   "3/signal/next/chained/action/1",
+   "3/input/attack/arm/duplicate/-1",
+   "3/input/attack/gate/condition/0",
+   "4/input/attack/arm/run/-1",
+   "4/input/attack/arm/action/0",
+   "4/input/attack/arm/action/1",
+   "4/input/attack/arm/action/2",
+   "4/input/attack/gate/run/-1",
+   "4/input/attack/gate/action/0",
+   "4/signal/next/chained/once/-1",
+   "5/signal/stop/cancel/run/-1",
+   "5/signal/stop/cancel/action/0",
+   "5/input/attack/arm/cancelled/-1",
+   "5/input/attack/gate/run/-1",
+   "5/input/attack/gate/action/0",
+   "6/signal/reset/reset/run/-1",
+   "6/signal/reset/reset/action/0",
+   "6/input/attack/arm/run/-1",
+   "6/input/attack/arm/action/0",
+   "6/input/attack/arm/action/1",
+   "6/input/attack/arm/action/2",
+   "6/input/attack/gate/run/-1",
+   "6/input/attack/gate/action/0",
+   "6/signal/next/chained/once/-1",
+   "8/timer/pulse/due/run/-1",
+   "8/timer/pulse/due/action/0",
+   "8/timer/pulse/due/action/1",
+   "9/signal/transient/step/run/-1",
+   "9/signal/transient/step/action/0",
+   "10/hit/tag/strike/run/-1",
+   "10/hit/tag/strike/action/0"
+  ],
+  "state": [
+   "save/c/arm/0/6/6/1/0",
+   "save/c/cancel/0/5/5/1/0",
+   "save/c/chained/0/3/3/1/0",
+   "save/c/due/0/8/8/1/0",
+   "save/c/gate/0/6/6/1/0",
+   "save/c/permit/0/2/2/1/0",
+   "save/c/reset/0/6/6/1/0",
+   "save/c/strike/0/10/10/1/0",
+   "save/v/charge/7",
+   "session/c/step/0/9/9/1/0",
+   "session/v/temp/9"
+  ]
+ }
+}

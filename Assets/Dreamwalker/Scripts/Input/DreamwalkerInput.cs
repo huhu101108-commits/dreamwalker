@@ -11,6 +11,8 @@ namespace Dreamwalker.Input
     /// </summary>
     public static class DreamwalkerInput
     {
+        public static System.Func<string,bool> MaskKey;
+        private static bool Free(string code) => MaskKey == null || !MaskKey(code);
         public static float Horizontal
         {
             get
@@ -18,11 +20,11 @@ namespace Dreamwalker.Input
 #if ENABLE_INPUT_SYSTEM
                 Keyboard k = Keyboard.current;
                 if (k == null) return 0f;
-                bool left = k.aKey.isPressed || k.leftArrowKey.isPressed;
-                bool right = k.dKey.isPressed || k.rightArrowKey.isPressed;
+                bool left = (k.aKey.isPressed && Free("KeyA")) || (k.leftArrowKey.isPressed && Free("ArrowLeft"));
+                bool right = (k.dKey.isPressed && Free("KeyD")) || (k.rightArrowKey.isPressed && Free("ArrowRight"));
 #else
-                bool left = UnityEngine.Input.GetKey(KeyCode.A) || UnityEngine.Input.GetKey(KeyCode.LeftArrow);
-                bool right = UnityEngine.Input.GetKey(KeyCode.D) || UnityEngine.Input.GetKey(KeyCode.RightArrow);
+                bool left = (UnityEngine.Input.GetKey(KeyCode.A) && Free("KeyA")) || (UnityEngine.Input.GetKey(KeyCode.LeftArrow) && Free("ArrowLeft"));
+                bool right = (UnityEngine.Input.GetKey(KeyCode.D) && Free("KeyD")) || (UnityEngine.Input.GetKey(KeyCode.RightArrow) && Free("ArrowRight"));
 #endif
                 return (right ? 1f : 0f) - (left ? 1f : 0f);
             }
@@ -32,9 +34,9 @@ namespace Dreamwalker.Input
         {
 #if ENABLE_INPUT_SYSTEM
             Keyboard k = Keyboard.current;
-            return k != null && k.spaceKey.wasPressedThisFrame;
+            return k != null && k.spaceKey.wasPressedThisFrame && Free("Space");
 #else
-            return UnityEngine.Input.GetKeyDown(KeyCode.Space);
+            return UnityEngine.Input.GetKeyDown(KeyCode.Space) && Free("Space");
 #endif
         }
 
@@ -42,9 +44,9 @@ namespace Dreamwalker.Input
         {
 #if ENABLE_INPUT_SYSTEM
             Keyboard k = Keyboard.current;
-            return k != null && (k.leftShiftKey.wasPressedThisFrame || k.rightShiftKey.wasPressedThisFrame);
+            return k != null && Free("Shift") && (k.leftShiftKey.wasPressedThisFrame || k.rightShiftKey.wasPressedThisFrame);
 #else
-            return UnityEngine.Input.GetKeyDown(KeyCode.LeftShift) || UnityEngine.Input.GetKeyDown(KeyCode.RightShift);
+            return Free("Shift") && (UnityEngine.Input.GetKeyDown(KeyCode.LeftShift) || UnityEngine.Input.GetKeyDown(KeyCode.RightShift));
 #endif
         }
 
@@ -52,9 +54,9 @@ namespace Dreamwalker.Input
         {
 #if ENABLE_INPUT_SYSTEM
             Keyboard k = Keyboard.current;
-            return k != null && (k.jKey.wasPressedThisFrame || k.zKey.wasPressedThisFrame);
+            return k != null && ((k.jKey.wasPressedThisFrame && Free("KeyJ")) || (k.zKey.wasPressedThisFrame && Free("KeyZ")));
 #else
-            return UnityEngine.Input.GetKeyDown(KeyCode.J) || UnityEngine.Input.GetKeyDown(KeyCode.Z);
+            return (UnityEngine.Input.GetKeyDown(KeyCode.J) && Free("KeyJ")) || (UnityEngine.Input.GetKeyDown(KeyCode.Z) && Free("KeyZ"));
 #endif
         }
     }

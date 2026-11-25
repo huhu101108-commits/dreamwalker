@@ -25,7 +25,11 @@ namespace Dreamwalker.Player
         private float previousX;
         private int facing = 1;
         private bool requestJump, requestDash;
+        public System.Func<string,bool> StudioHardwareGate { get; set; }
+        private int lastKeyboardDirection;
+        private bool keyboardAllowed=true;
 
+        public Vector4 MovementTuning => new Vector4(runSpeed, jumpSpeed, dashSpeed, dashDuration);
         public int Facing => facing;
         public bool IsDashing => dashRemaining > 0;
         public Rigidbody2D Body => body;
@@ -40,6 +44,14 @@ namespace Dreamwalker.Player
             previousX = transform.position.x;
         }
 
+        public void ApplyStudioMovement(float run, float jump, float dash, float duration)
+        {
+            runSpeed = run;
+            jumpSpeed = jump;
+            dashSpeed = dash;
+            dashDuration = duration;
+        }
+
         public void SetVisualRoot(Transform value) => visualRoot = value;
         public void SetVirtualHorizontal(float x) => virtualHorizontal = Mathf.Clamp(x, -1f, 1f);
         public void RequestJump() => requestJump = true;
@@ -48,10 +60,13 @@ namespace Dreamwalker.Player
         private void Update()
         {
             float keyboard = DreamwalkerInput.Horizontal;
+            int direction=(int)keyboard;
+            if(direction!=lastKeyboardDirection){lastKeyboardDirection=direction;keyboardAllowed=direction==0||StudioHardwareGate==null||StudioHardwareGate(direction<0?"left":"right");}
+            if(!keyboardAllowed)keyboard=0;
             horizontal = Mathf.Abs(virtualHorizontal) > .05f ? virtualHorizontal : keyboard;
 
-            if (DreamwalkerInput.JumpPressed() || requestJump) jumpBufferRemaining = .12f;
-            if (DreamwalkerInput.DashPressed() || requestDash)
+            if ((DreamwalkerInput.JumpPressed() && (StudioHardwareGate==null||StudioHardwareGate("jump"))) || requestJump) jumpBufferRemaining = .12f;
+            if ((DreamwalkerInput.DashPressed() && (StudioHardwareGate==null||StudioHardwareGate("dodge"))) || requestDash)
             {
                 if (dashCooldownRemaining <= 0f && dashRemaining <= 0f)
                 {

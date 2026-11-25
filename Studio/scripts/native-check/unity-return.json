@@ -1,0 +1,141 @@
+{
+ "texts": [
+  {
+   "text": "﻿백설\r\n서리 단검\r마지막 줄",
+   "normal": "백설\n서리 단검\n마지막 줄",
+   "sha256": "4e6dd054c5f4cf8d6cb65f5d6b13b5240a0964cd091f48328936ebf579541f29"
+  },
+  {
+   "text": "using UnityEngine;\nclass A {}\n",
+   "normal": "using UnityEngine;\nclass A {}\n",
+   "sha256": "a054904d4acbd3cbb73b178765ae3f93a798e72cfc843163b9314783c1e5721f"
+  },
+  {
+   "text": "",
+   "normal": "",
+   "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+   "text": "﻿",
+   "normal": "",
+   "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+   "text": "a\r\r\nb",
+   "normal": "a\n\nb",
+   "sha256": "38022fd2b8dbc5cb3d2cee74e083edbf59e3d4e13d067ebcb5db633d4cff4d8c"
+  },
+  {
+   "text": "😀 이모지 🧊\r\n",
+   "normal": "😀 이모지 🧊\n",
+   "sha256": "15b880c8db360a85b898e7d1b63fe285c23940830aef89eac692480da9e6c80f"
+  }
+ ],
+ "paths": [
+  {
+   "path": "Assets/Scripts/NewSkill.cs",
+   "source": true,
+   "media": null
+  },
+  {
+   "path": "Assets/Scripts/NewSkill.cs.meta",
+   "source": true,
+   "media": null
+  },
+  {
+   "path": "Assets/Scenes/설원.unity",
+   "source": true,
+   "media": null
+  },
+  {
+   "path": "Assets/Art/hero.png",
+   "source": false,
+   "media": "image"
+  },
+  {
+   "path": "Assets/Art/hero.png.meta",
+   "source": true,
+   "media": null
+  },
+  {
+   "path": "Assets/Audio/hit.WAV",
+   "source": false,
+   "media": "audio"
+  },
+  {
+   "path": "Assets/Audio/theme.ogg",
+   "source": false,
+   "media": "audio"
+  },
+  {
+   "path": "Assets/Models/thing.fbx",
+   "source": false,
+   "media": null
+  },
+  {
+   "path": "Assets/Bad.Folder/x.cs",
+   "source": false,
+   "media": null
+  },
+  {
+   "path": "Assets/Resources/DreamwalkerStudio/release.json",
+   "source": false,
+   "media": null
+  },
+  {
+   "path": "Assets/Resources/DreamwalkerStudio.meta",
+   "source": false,
+   "media": null
+  },
+  {
+   "path": "ProjectSettings/ProjectSettings.asset",
+   "source": true,
+   "media": null
+  },
+  {
+   "path": "ProjectSettings/DreamwalkerStudioImport.json",
+   "source": false,
+   "media": null
+  },
+  {
+   "path": "Packages/manifest.json",
+   "source": true,
+   "media": null
+  },
+  {
+   "path": "Web/game.js",
+   "source": false,
+   "media": null
+  },
+  {
+   "path": "Assets/Scripts/trailing.cs.",
+   "source": false,
+   "media": null
+  },
+  {
+   "path": "Assets/ space/x.cs",
+   "source": false,
+   "media": null
+  },
+  {
+   "path": "Assets/Art/sprite sheet.jpeg",
+   "source": false,
+   "media": "image"
+  },
+  {
+   "path": "Assets/Art/hero.jpg.meta",
+   "source": true,
+   "media": null
+  },
+  {
+   "path": "Library/x.cs",
+   "source": false,
+   "media": null
+  },
+  {
+   "path": "Assets/Dreamwalker/Plugins/WebGL/StudioWebBridge.jslib",
+   "source": true,
+   "media": null
+  }
+ ]
+}

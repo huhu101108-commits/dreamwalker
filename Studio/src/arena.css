@@ -1,0 +1,18 @@
+#duel{max-width:980px;display:grid;gap:15px}#duel .panel{padding:clamp(14px,3vw,26px);border-radius:15px}
+#duel [hidden]{display:none!important}#duel h1,#duel h2,#duel p{margin:0 0 8px}#duel label{display:grid;gap:3px}
+#duel .row{align-items:end;margin:8px 0}#duel a,header a{color:#a8e8eb}#notice{display:block;color:#a6dce9;min-height:1.5em}
+#field{position:relative;overflow:hidden;aspect-ratio:2.55;background:linear-gradient(0deg,#0c2838bf,transparent 40%),url('/stage.webp') center/cover;border-radius:10px;margin:12px 0}
+#bars{position:absolute;top:5px;left:2%;right:2%;display:flex;justify-content:space-between;gap:5%;z-index:2}
+#bars span{padding:2px 6px;background:#102034d9;font-size:clamp(10px,2.2vw,16px);border-bottom:3px solid #8fedef}
+#banner{position:absolute;top:44%;left:50%;transform:translate(-50%,-50%);background:#102034d9;padding:4px 10px;white-space:nowrap}
+#banner:empty{display:none}.fighter{position:absolute;left:50%;bottom:8%;width:8%;height:30%;background:url('/player.webp') center bottom/contain no-repeat;transform-origin:50% 100%;transition:left .09s linear,bottom .09s linear;filter:drop-shadow(0 2px 3px #03121c)}
+.fighter.two{filter:hue-rotate(135deg) drop-shadow(0 2px 3px #03121c)}.fighter.swing:after{content:'';position:absolute;left:60%;top:32%;width:90%;height:37%;border-right:5px solid #a7fbff;border-radius:50%;transform:rotate(-14deg)}
+#pad{display:flex;gap:6px;margin:8px 0}#pad button{touch-action:none;user-select:none;flex:1;min-width:0;padding:10px 2px}#pad button:last-child{background:#226c79}
+#listings{padding:0;list-style:none}#listings li{display:flex;justify-content:space-between;align-items:center;margin:5px 0;gap:8px}
+@media(max-width:520px){#duel{padding:9px}#field{aspect-ratio:1.8}.bar{gap:5px}}
+
+#pad.arena-pad-grid{position:relative;display:block;height:clamp(96px,18vw,160px)}
+#duel .row:has(.arena-custom){flex-wrap:wrap}
+#duel .row:has(.arena-custom)>*{flex-grow:0;max-width:100%}
+#duel a.arena-custom,header a.arena-custom{color:var(--arena-ink)}
+#marketView,#lobbyView{display:inline-block;margin-block:6px}

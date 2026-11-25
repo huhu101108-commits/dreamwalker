@@ -1,0 +1,103 @@
+import assert from 'node:assert/strict';
+export async function testScreenWorkflow(browserPage,origin){
+  assert.equal(new URL(origin).hostname,'127.0.0.1');
+  const context=await browserPage.context().browser().newContext({viewport:{width:1300,height:900},hasTouch:true});
+  try{
+    await context.addInitScript(()=>{
+      const pad={index:0,mapping:'standard',buttons:Array.from({length:16},()=>({pressed:false}))};
+      Object.defineProperty(navigator,'getGamepads',{configurable:true,value:()=>[pad]});
+      window.testPadPressed=(id,value)=>{pad.buttons[id].pressed=value;};
+    });
+    const p=await context.newPage(),writes=[];
+    p.on('request',r=>{if(r.method()==='POST'&&new URL(r.url()).pathname==='/api/save')writes.push(r.url());});
+    await p.goto(origin+'/?tool=quality');await p.locator('#editor').waitFor();
+    const shared=await p.evaluate(async()=>JSON.stringify(await api('project')));
+    const regularSaves=()=>p.evaluate(()=>Object.fromEntries(Object.entries(localStorage).filter(([key])=>key.startsWith('dreamwalker-progress-v1:'))));
+    const before=await regularSaves();
+    const btn=(r,n)=>r.getByRole('button',{name:n,exact:true}),editor=p.locator('#editor'),field=n=>editor.getByLabel(n,{exact:true});
+    const inspect=editor.locator('details[data-persist="inspection-workspace"]');
+    const expand=async d=>{if(!await d.evaluate(n=>n.open))await d.locator(':scope > summary').click();};
+    await expand(inspect);
+    await inspect.getByLabel('사본으로 만들 버전',{exact:true}).selectOption(String(JSON.parse(shared).rev));
+    await inspect.getByLabel('검수 사본 이름',{exact:true}).fill('화면과 입력 브라우저 검수');
+    await btn(inspect,'검수 사본 만들고 열기').click();await p.waitForURL(/qa=[a-f0-9-]{36}/);
+    const qaId=new URL(p.url()).searchParams.get('qa'),save=btn(editor,'검수 사본 저장');
+    await save.waitFor();await editor.locator('#tabs [data-tab=scene]').click();
+    await btn(editor,'빈 맵 만들기').click();
+    const map=await p.evaluate(()=>{const m=activeMap();return {id:m.id,spawn:m.objects.find(o=>o.type==='spawn').id};});
+    await editor.locator('#tabs [data-tab=interface]').click();
+    const open=async title=>{const summary=editor.getByText(title,{exact:true});if(!await summary.evaluate(n=>n.parentElement.open))await summary.click();};
+    await btn(p,'빈 화면 만들기').click();await field('화면 이름').fill('입력 경로 사본');const id=await field('작업 화면').inputValue();
+    await btn(p,'＋ 버튼 추가').click();await field('표시 문구').fill('조작 확정');
+    await field('버튼 동작').selectOption('flagOn');await field('변경할 상태 이름').fill('검수상태');await field('버튼 단축키').selectOption('KeyF');
+    await open('그룹 · 앵커 · 상태 디자인');await field('가로 앵커').selectOption('right');await field('가로 앵커 여백').fill('16');
+    await field('터치·키·패드 입력 방식 지정').check();await field('동작을 실행할 입력').selectOption('release');await field('연결할 게임패드 버튼').selectOption('2');
+    await field('선택·비활성 모양 직접 지정').check();await field('선택 상태와 연결할 값').fill('검수상태');
+    await field('미리 볼 버튼 상태').selectOption('selected');assert.match(await p.locator('.ui-preview.selected').textContent(),/✓ 조작 확정/);
+    await field('미리 볼 버튼 상태').selectOption('normal');
+    await field('미리 볼 화면 비율').selectOption('portrait');
+    const canvas=p.locator('.ui-canvas'),portrait=await canvas.boundingBox();assert(portrait.height>portrait.width);
+    await field('미리 볼 화면 비율').selectOption('landscape');
+    await btn(editor,'＋ 버튼 추가').click();await field('표시 문구').fill('맵으로 복귀');await field('버튼 동작').selectOption('back');
+    await open('화면 흐름과 경로 시험');await field('첫 실행 화면').selectOption(id);await field('지정한 키보드 조작만 사용').check();
+    await field('뒤로 · 취소 목적지').selectOption('$field');
+    await save.click();await p.waitForFunction(()=>!dirty);
+    const stored=await p.evaluate(async id=>{
+      const data=(await inspectionRecord()).project,w=data.layouts.find(l=>l.id===id).elements.find(w=>w.shortcut==='KeyF');
+      return [data.frontScreens.entry,w.gesture.phase,w.gesture.pad,w.anchor.dx];
+    },id);
+    assert.deepEqual(stored,[id,'release',2,16]);
+    await p.reload();await save.waitFor();await field('작업 화면').selectOption(id);
+    await open('화면 흐름과 경로 시험');
+    await btn(p,'첫 화면부터 경로 시험').click();
+    await p.locator('.screen-route-test').getByText('현재 시험 화면 · 입력 경로 사본',{exact:true}).waitFor();
+    await open('입력 조합 · 멀티터치 시험');
+    const lab=p.locator('details[data-persist="touch-combination"]'),count=lab.locator('output');
+    await btn(lab,'두 조작 함께 누르기').click();assert.equal(await count.getAttribute('data-touch-count'),'2');
+    await btn(lab,'첫 조작 놓기').click();assert.equal(await count.getAttribute('data-touch-count'),'1');
+    await btn(lab,'둘째 조작 놓기').click();assert.equal(await count.getAttribute('data-touch-count'),'0');
+    await btn(lab,'조합 시험 초기화').click();
+    const cdp=await context.newCDPSession(p);await cdp.send('Emulation.setTouchEmulationEnabled',{enabled:true,maxTouchPoints:5});
+    const slots=lab.locator('[data-touch-slot]');await slots.first().scrollIntoViewIfNeeded();
+    const one=await slots.nth(0).boundingBox(),two=await slots.nth(1).boundingBox();
+    const at=(rect,id)=>({x:rect.x+rect.width*.5,y:rect.y+rect.height*.5,id});
+    await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[at(one,1)]});
+    await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[at(one,1),at(two,2)]});
+    await p.waitForFunction(()=>document.querySelector('[data-touch-count="2"]'));
+    await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await p.waitForFunction(()=>document.querySelector('[data-touch-count="0"]'));
+    await cdp.send('Emulation.setTouchEmulationEnabled',{enabled:false});await cdp.detach();
+    async function play(start){
+      await start.click();
+      const modal=p.locator('dialog.source-player[open]'),game=modal.frameLocator('iframe').locator('#game[open]');
+      await game.waitFor();
+      return {area:game.locator('#overlay'),close:async()=>{await btn(modal,'편집기로').click();await modal.waitFor({state:'detached'});}};
+    }
+    let run=await play(btn(editor,'▶ 이 화면 테스트')),control=btn(run.area,'조작 확정');await control.waitFor();
+    await control.focus();await p.keyboard.press('Escape');assert(await control.isVisible());
+    const bounds=await control.boundingBox();await p.mouse.move(bounds.x+bounds.width/2,bounds.y+bounds.height/2);await p.mouse.down();
+    assert.equal(await btn(run.area,'✓ 조작 확정').count(),0);
+    await p.mouse.move(bounds.x-8,bounds.y-8);await p.mouse.up();assert.equal(await btn(run.area,'✓ 조작 확정').count(),0);
+    await control.focus();await p.keyboard.down('f');assert.equal(await btn(run.area,'✓ 조작 확정').count(),0);
+    await p.keyboard.up('f');await btn(run.area,'✓ 조작 확정').waitFor();await run.close();
+    await editor.locator('#tabs [data-tab=quality]').click();await expand(inspect);
+    await inspect.getByLabel('검수 시작 맵',{exact:true}).selectOption(map.id);
+    await inspect.getByLabel('검수 지점 또는 전투',{exact:true}).selectOption(map.spawn);
+    await inspect.getByLabel('검수 시작 화면',{exact:true}).selectOption(id);
+    const slot='화면·입력 전용';await inspect.getByLabel('플레이 검수 슬롯 이름',{exact:true}).fill(slot);
+    run=await play(btn(inspect,'지정한 위치에서 새 검수 플레이'));control=btn(run.area,'조작 확정');await control.waitFor();
+    await control.evaluate(n=>n.ownerDocument.defaultView.testPadPressed(2,true));
+    await control.evaluate(n=>new Promise(resolve=>n.ownerDocument.defaultView.requestAnimationFrame(()=>n.ownerDocument.defaultView.requestAnimationFrame(resolve))));
+    assert.equal(await btn(run.area,'✓ 조작 확정').count(),0);
+    await control.evaluate(n=>n.ownerDocument.defaultView.testPadPressed(2,false));await btn(run.area,'✓ 조작 확정').waitFor();
+    await btn(run.area,'맵으로 복귀').click();await control.waitFor({state:'hidden'});await run.close();
+    await p.waitForFunction(({slot,mapId})=>{
+      const state=JSON.parse(localStorage.getItem(inspectionSlot(project,slot)));
+      return state?.map===mapId&&state.flags.includes('검수상태');
+    },{slot,mapId:map.id});
+    assert.equal(await p.evaluate(()=>inspectionId),qaId);
+    assert.deepEqual(await regularSaves(),before);
+    await p.goto(origin+'/?tool=quality');await editor.waitFor();
+    assert.equal(await p.evaluate(async()=>JSON.stringify(await api('project'))),shared);assert.deepEqual(writes,[]);
+    console.log('PASS Chrome QA copy: saved/reopened authored entry, independent multitouch, portrait, outside cancellation, keyboard + emulated pad release, flagged checkpoint in dedicated slot, shared project and player saves preserved');
+  }finally{await context.close();}
+}
