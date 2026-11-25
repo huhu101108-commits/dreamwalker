@@ -931,6 +931,28 @@ button.episode-card.detached {
   border: 0;
   background: #162535;
 }
+.unity-player > p {
+  margin: 0.4rem 0;
+  overflow-wrap: anywhere;
+}
+.unity-player .bar small {
+  margin-inline-end: auto;
+  color: #9fb9c4;
+  overflow-wrap: anywhere;
+}
+.unity-log {
+  max-height: 30dvh;
+  margin: 0.4rem 0 0;
+  padding: 0.5rem;
+  overflow: auto;
+  border: 1px solid #3d575e;
+  border-radius: 0.4rem;
+  background: #0b1118;
+  color: #d5e4ea;
+  font: 12px/1.5 ui-monospace, monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
 .road-board .episode-card small {
   color: #356774;
 }

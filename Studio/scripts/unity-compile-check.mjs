@@ -5,6 +5,7 @@
 // Assemblies are formed as Unity forms them: each .asmdef owns its folder (the nearest one wins), the remaining scripts
 // go to Assembly-CSharp, or Assembly-CSharp-Editor below a folder named Editor. Packages the manifest lists are compiled
 // from source when a project assembly needs them: built-in ones from the editor, registry ones downloaded once.
+// Three configurations are compiled: the editor, the Android player and the web player.
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -167,11 +168,13 @@ function compile(label, name, files, references, defines, unsafe) {
   return out;
 }
 
-// One configuration (editor or player): compiles what the project needs, references first.
-function build(label, editor) {
+// One configuration (editor or a player platform): compiles what the project needs, references first.
+function build(label, editor, player = 'Android') {
   const built = new Map(), building = new Set();
   const base = [...(editor ? [...engine, ...editorDlls] : engine), ...shims];
-  const platform = editor ? 'Editor' : 'Android';
+  const platform = editor ? 'Editor' : player;
+  // The web player's own defines replace Android's (the editor configuration keeps Android as its build target).
+  const playerDefines = player === 'WebGL' ? [...common.filter((d) => !d.includes('ANDROID')), 'UNITY_WEBGL', 'PLATFORM_WEBGL'] : common;
   const wanted = (a) => a.files.length > 0 && (editor || !editorOnly(a) && !isTest(a)) && (a.predefined || forPlatform(a, platform));
   function compileAssembly(a) {
     if (built.has(a.name)) return built.get(a.name);
@@ -206,7 +209,7 @@ function build(label, editor) {
     if (!def.overrideReferences) refs.push(...autoPrecompiled);
     building.delete(a.name);
     if (!ok) { console.log('SKIP Unity ' + version + ' ' + label + ' ' + a.name + ': a reference did not compile'); built.set(a.name, null); return null; }
-    const defines = [...(editor ? editorDefines : common), ...versionDefines(def), ...(isTest(a) ? ['UNITY_INCLUDE_TESTS'] : [])];
+    const defines = [...(editor ? editorDefines : playerDefines), ...versionDefines(def), ...(isTest(a) ? ['UNITY_INCLUDE_TESTS'] : [])];
     const constraints = (def.defineConstraints || []).filter((c) => c !== 'UNITY_INCLUDE_TESTS');
     if (!constraints.every((c) => c.startsWith('!') ? !defines.includes(c.slice(1)) : defines.includes(c))) {
       console.log('SKIP Unity ' + version + ' ' + label + ' ' + a.name + ': define constraints ' + constraints.join(', ') + ' are not met');
@@ -230,6 +233,7 @@ function installedName(ref) {
 try {
   build('editor', true);
   build('Android player', false);
+  build('Web player', false, 'WebGL');
 } finally {
   rmSync(work, { recursive: true, force: true });
 }

@@ -183,7 +183,8 @@ public sealed partial class StudioWorld : MonoBehaviour
             // Drawing keeps pace with the 60-tick simulation (mobile players default to 30), and the screen stays on while playing.
             previousFrameRate = Application.targetFrameRate;
             previousSleep = Screen.sleepTimeout;
-            Application.targetFrameRate = 60;
+            // A web player draws with the browser's own frame callback, which a fixed rate would replace with a timer.
+            if (Application.platform != RuntimePlatform.WebGLPlayer) Application.targetFrameRate = 60;
             Screen.sleepTimeout = SleepTimeout.NeverSleep;
             Running = true;
         }

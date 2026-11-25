@@ -4,9 +4,12 @@ const runnerAudience = 'https://dreamwalker-snowfield-studio.congenialcockatoo.c
 const actionsRepo = 'huhu101108-commits/dreamwalker';
 const actionsRef = 'refs/heads/feature/tablet-production-studio';
 const actionsWorkflow = actionsRepo + '/.github/workflows/tablet-studio.yml@' + actionsRef;
+// The Unity workflow uploads the web player it built (unity-web-service.js).
+const unityWebAudience = 'https://dreamwalker-snowfield-studio.congenialcockatoo.chatgpt.site/api/unity-web/begin';
+const unityWebWorkflow = actionsRepo + '/.github/workflows/unity-editor.yml@' + actionsRef;
 let actionsKeys, actionsKeysUntil = 0;
 
-async function githubRunnerIdentity(token) {
+async function githubRunnerIdentity(token, audience = runnerAudience, workflow = actionsWorkflow) {
   const deny = () => err(403, '등록된 GitHub 실행기만 연결할 수 있어요.');
   if (token.length > 16000 || !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(token)) deny();
   const [head, body, signature] = token.split('.');
@@ -21,9 +24,9 @@ async function githubRunnerIdentity(token) {
   const subjects = [actionsRepo, 'huhu101108-commits@287436667/dreamwalker@1463897147']
     .map(repo => 'repo:' + repo + ':ref:' + actionsRef);
   if (!h || !c || h.alg !== 'RS256' || typeof h.kid !== 'string' || h.crit ||
-      c.iss !== actionsIssuer || c.aud !== runnerAudience || !subjects.includes(c.sub) ||
+      c.iss !== actionsIssuer || c.aud !== audience || !subjects.includes(c.sub) ||
       c.repository !== actionsRepo || c.repository_id !== '1463897147' || c.repository_owner_id !== '287436667' ||
-      c.ref !== actionsRef || c.workflow_ref !== actionsWorkflow || (c.job_workflow_ref && c.job_workflow_ref !== actionsWorkflow) ||
+      c.ref !== actionsRef || c.workflow_ref !== workflow || (c.job_workflow_ref && c.job_workflow_ref !== workflow) ||
       !['push', 'workflow_dispatch'].includes(c.event_name) ||
       !['github-hosted', 'self-hosted'].includes(c.runner_environment) ||
       !/^[a-f0-9]{40}$/.test(c.sha) || !/^\d{1,18}$/.test(c.run_id) ||

@@ -7,7 +7,7 @@ function collect(folder) {
   for (const f of readdirSync(folder, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
     const path = join(folder, f.name);
     if (f.isDirectory()) collect(path);
-    else if (/\.(cs|txt|json|meta|asset|prefab|unity|asmdef|shader|mat|inputactions)$/.test(f.name))
+    else if (/\.(cs|txt|json|meta|asset|prefab|unity|asmdef|shader|mat|inputactions|jslib)$/.test(f.name))
       files[relative(root, path).replaceAll('\\', '/')] = readFileSync(path, 'utf8');
   }
 }

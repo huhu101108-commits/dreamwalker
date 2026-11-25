@@ -1,5 +1,11 @@
 // Team sessions select and download releases. The separately paired build runner can only read
 // a claimed release and upload its APK. The access generation invalidates old runner pairings.
+// The key the owner issued for a build machine («실행기 연결»), valid until the team password changes.
+async function pairedRunner(b, auth, token, pairing) {
+  pairing ??= await get(b, 'android/pairing');
+  return !!(auth && pairing && pairing.data.gen === auth.data.gen && /^[a-f0-9]{48}$/.test(token) &&
+    equal(await hash(token), pairing.data.digest));
+}
 async function androidJob(req, env, path, ctx) {
   const { b, ok, owner, auth, session } = ctx,
     post = req.method === 'POST';
@@ -8,13 +14,7 @@ async function androidJob(req, env, path, ctx) {
   const token = (req.headers.get('authorization') || '').replace(/^Bearer /, '');
   if (path === 'ci-connect' && post) return connectGithubRunner(req, b, auth, token);
   const pairing = await get(b, 'android/pairing');
-  const runner = !!(
-    auth &&
-    pairing &&
-    pairing.data.gen === auth.data.gen &&
-    /^[a-f0-9]{48}$/.test(token) &&
-    equal(await hash(token), pairing.data.digest)
-  );
+  const runner = await pairedRunner(b, auth, token, pairing);
   const latest = await get(b, 'android/latest'),
     job = latest?.data;
   const team = ok && session.data.scope === 'edit';

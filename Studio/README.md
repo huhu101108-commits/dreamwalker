@@ -26,6 +26,7 @@
 | 오류 보고 | `drizzle/0002_error_reports.sql`, `src/report-service.js`, `StudioErrorReports.cs` | 동의한 플레이어의 오류 묶음과 플레이 수, 편집 팀원의 확인·정리 |
 | 상점 · 뽑기 | `src/model.js`(`shopProblem`·`gachaOdds`·`gachaPull`·`gachaGrant`), `src/shop-service.js`, `StudioGacha.cs`, `StudioShopPlay.cs` | 재화·상품·뽑기 검증, 확률 공개 표와 공개 페이지, 같은 뽑기 규칙, 지갑·천장·가진 캐릭터 저장 |
 | 서버 지갑 · 결제 확인 | `drizzle/0003_server_wallet.sql`, `src/wallet-service.js`, `StudioShopServer.cs`, `Purchasing/StudioUnityPurchasing.cs` | 기기 게스트의 게임별 지갑, 서버 뽑기·구매·의뢰 재화, 스토어 영수증 확인과 한 번 지급 |
+| Unity 웹 플레이 · 클라우드 빌드 | `src/unity-web-service.js`, `src/unity-play.js`, `StudioWebBridge.cs`, `StudioCloudBuild.cs`, `scripts/unity-cloud-upload.sh` | 클라우드에서 만든 Unity 웹 빌드·개발용 APK 보관, 격리된 창에서 초안을 Unity로 플레이 |
 | 온라인 클라이언트 | `StudioOnlineArena.cs`, `src/arena-client.js` | 기기 입력 전송과 서버가 확정한 화면 표시 |
 
 친선전은 이동·기본 공격·점프·회피를 지원한다. 서버가 입력을 받거나 방 상태를 조회할 때 경과한 틱을 계산한다. 클라이언트는 통신이 끝난 뒤 다음 입력을 보낸다. 네트워크 검사에서 제작자가 고른 스킬·자원·재사용 대기를 같은 버전으로 재생하며, 두 좌석의 입력 예측과 서버 승인 후 상태 보정을 대조한다. 상용 경쟁전에는 실시간 다단 충돌·모션 동기화, 실제 단말·회선과 서버 부하 검수가 남아 있다. 거래소 화폐는 대전에서 얻는 게임 내 크레딧이다.
@@ -125,7 +126,7 @@
 
 - **시작하기**(프로젝트 → 시작하기): 이 기기에서 처음 스튜디오를 열면 여기서 시작한다(그다음부터는 마지막에 쓴 도구가 열린다). 오른쪽 **게임 설정**에서 게임 이름, 플레이 저장 식별자(진행 저장·클라우드 저장·언어 기억을 묶는 이름, 출시 뒤에는 바꾸지 않는다), 시작 맵, 기본 키보드 조작 끄기를 바꾸고, 게임 시작 순서·언어·소리 설정으로 바로 간다.
 - **제작 순서**: 게임 이름·저장 식별자 → 캐릭터 → 모션 → 맵 → 대사 → 시작 화면·HUD·메뉴 → 홈 화면·설정 화면 → 아이템·의뢰 → 상점·뽑기 → 번역 → 운영 버튼 → 출시 점검 → 빌드의 13단계를 프로젝트 내용으로 바로 계산해 완료·할 일·선택으로 보여 주고, **열기**로 그 일을 하는 곳을 연다.
-- **기능 지도**: 모든 도구와 주요 기능 72가지를 한 화면에 보여 준다. 누르면 그 도구가 열리고 해당 부분이 펼쳐져 깜박인다. 같은 목록(`src/studio-guide.js`의 `STUDIO_GUIDE`)으로 **작업 찾기**(Ctrl+K)에서 «천장», «언어 추가», «APK»처럼 하려는 일로 찾고, 도구마다 **도움말**(위쪽 버튼, 빠른 도구의 «도움말», F1)이 그 도구에서 할 수 있는 일을 보여 준다. 브라우저 검사가 목록의 모든 기능이 실제 도구에 있는지 확인한다.
+- **기능 지도**: 모든 도구와 주요 기능 73가지를 한 화면에 보여 준다. 누르면 그 도구가 열리고 해당 부분이 펼쳐져 깜박인다. 같은 목록(`src/studio-guide.js`의 `STUDIO_GUIDE`)으로 **작업 찾기**(Ctrl+K)에서 «천장», «언어 추가», «APK»처럼 하려는 일로 찾고, 도구마다 **도움말**(위쪽 버튼, 빠른 도구의 «도움말», F1)이 그 도구에서 할 수 있는 일을 보여 준다. 브라우저 검사가 목록의 모든 기능이 실제 도구에 있는지 확인한다.
 - **게임 소스**: 파일 목록 필터와 상관없이 «웹 게임 실행»과 «Unity 프로젝트» 내보내기가 함께 보인다.
 
 ## 출시 점검과 대본 도구
@@ -170,14 +171,33 @@ Unity 런타임의 게임 화면(시작·캐릭터 선택·로딩 화면, HUD, �
 - Unity 에디터에서 **Tools → Dreamwalker → 이전 IMGUI 화면으로 비교**를 켜면 다음 Play부터 이전 IMGUI 화면으로 그려 같은 콘텐츠를 비교할 수 있다. 플레이어 빌드는 항상 uGUI다.
 - 런타임과 에디터 스크립트는 어셈블리 정의(`Dreamwalker.Runtime`, `Dreamwalker.Editor`)로 나뉘고, Unity Test Framework 테스트가 `Assets/Dreamwalker/Tests`에 있다. 에디터 테스트는 uGUI 그리기(오브젝트 재사용·그리는 순서·클릭·스크롤·입력·도형 메시)를, 플레이 테스트는 스튜디오 기본 프로젝트로 시작 화면부터 HUD·메뉴까지 화면에 나온 글자를 확인한다.
 
+## Unity 클라우드 빌드와 웹 플레이
+
+Unity 편집기는 태블릿에서 돌지 않는다. 그래서 클라우드에서 Unity가 이 저장소를 빌드하고, 스튜디오가 그 결과를 받아 쓴다. 이 저장소의 검사는 스튜디오·서버·올리기 스크립트와 Unity 스크립트 컴파일까지 확인했고, 실제 Unity 빌드는 만들지 못했다(Unity 계정이나 라이선스가 필요하다). 첫 실제 빌드에서 Unity 쪽 문제가 나올 수 있다.
+
+- **Unity로 테스트 플레이**: Unity 웹 빌드가 올라와 있으면 위쪽에 **Unity ▶** 버튼이 생기고, **버전 · 백업 → Unity 연동 · 웹 빌드로 테스트 플레이**에 빌드 시각·Unity 버전·커밋이 보인다. 누르면 편집 중인 초안(저장 전 내용 포함)과 그 그림·소리를 Unity 웹 빌드에 넘겨 실제 Unity 런타임으로 플레이한다. 맵 편집에서 누르면 편집 중인 맵에서 시작한다. 맵·수치·대사·화면은 다시 빌드하지 않아도 반영되고, Unity C#을 바꾸면 다시 빌드한다. **기록**에서 Unity의 로그와 오류를 보고 **기록 복사**로 복사한다.
+- **분리된 창**: 올라온 빌드는 스튜디오 페이지와 분리된 창에서만 실행한다(편집한 웹 게임을 실행하는 창과 같은 방식). 그 창은 네트워크·브라우저 저장소·스튜디오 페이지에 접근할 수 없고, 스튜디오가 빌드 파일 네 개와 초안의 그림·소리를 직접 넘긴다. 그래서 Unity 플레이에서는 클라우드 저장·서버 지갑·친선전·오류 보고 같은 서버 기능이 동작하지 않고 진행도 남지 않는다(매번 처음부터 시작).
+- **글꼴**: 웹 플레이어에는 기기 글꼴이 없어서 프로젝트에 넣은 Pretendard(SIL Open Font License, `Assets/Dreamwalker/Fonts`)로 모든 글자를 그린다. 한글·가나·라틴 글자가 있고 한자는 없다. Android 등 다른 플랫폼은 이전처럼 기기 글꼴을 쓴다.
+- **빌드 방법 1 · Unity Build Automation** (PC 없이 Unity 대시보드에서 설정):
+  1. 스튜디오 **버전 · 백업 → Android APK 빌드 · 실기기 성능 → 실행기 연결**에서 연결 키를 받는다.
+  2. Unity 대시보드 **DevOps → Build automation → Configurations**에서 이 GitHub 저장소를 연결하고(저장소 읽기 권한 토큰), 브랜치 `feature/tablet-production-studio`, **Auto detect Unity version**으로 WebGL 대상을 만든다.
+  3. 대상의 **Advanced settings → Script hooks**에 Pre-Export Method `DreamwalkerCloudBuild.PreExport`, Post-Build Script `Studio/scripts/unity-cloud-upload.sh`를 넣고, **Environment variables**에 `DREAMWALKER_RUNNER_KEY`(1의 키)를 넣는다. 키는 저장소·프로젝트 데이터에 넣지 않는다.
+  4. 빌드를 실행한다. 끝나면 스크립트가 웹 빌드를 스튜디오에 올린다.
+  5. Android 대상에도 같은 값을 넣으면 APK가 스튜디오에 올라온다. **Development build**를 켜야 앱에 스튜디오 연결 패널이 나온다.
+- **빌드 방법 2 · GitHub Actions**: 아래 라이선스 시크릿을 넣으면 `unity-editor.yml`이 웹 빌드와 개발용 APK를 만들어 스튜디오에 올린다. 스튜디오는 GitHub가 서명한 실행 정보(이 저장소, 제작 브랜치, 이 워크플로)를 확인하므로 키가 필요 없다.
+- **개발용 APK**: **Unity 연동**의 **Unity 개발용 APK 받기**로 내려받아 설치한다. APK에는 프로젝트 내용이 없고, 앱의 **Dreamwalker Studio** 패널에서 팀 암호로 연결해 저장한 팀 버전을 불러온다.
+- **순서**: 스튜디오를 이 버전으로 먼저 배포한다. 그 전의 스튜디오에는 올리기 경로가 없어서, 빌드는 실패하지 않고 «아직 Unity 빌드를 받지 않는다»는 안내만 남긴다.
+- **서버**: 올리기는 `POST /api/unity-web/begin`(실행기 키 또는 GitHub 실행 정보) → `upload/<loader·framework·data·code·apk>` → `publish`(APK는 `publish-apk`)이고, 읽기는 팀 세션의 `GET /api/unity-web/status`와 `file/<빌드 ID>/<파일>`이다. 파일 하나는 90MB까지이고, 새 빌드가 올라오면 이전 빌드를 지운다. 웹 빌드는 Unity 압축을 끄고 만들며(`StudioCloudBuild.Prepare`), 올릴 때 gzip으로 줄이고 브라우저가 푼다.
+- **알아 둘 것**: Build Automation을 Personal 요금제에서 쓸 수 있는지, 6000.0.23f1 패치를 제공하는지는 Unity 문서에 명시가 없다. 한 달 무료 빌드 시간(2026년 기준 Windows 200분, Mac 100분)을 넘으면 과금된다. 웹 플레이어와 APK는 성능과 소리 지연이 다르므로 최종 확인은 APK로 한다. 스튜디오의 «저장본 → 전체 Unity 프로젝트» ZIP에는 글꼴 파일이 들어가지 않으므로, 그 ZIP으로 웹 빌드를 만들 때는 저장소의 `Assets/Dreamwalker/Fonts`를 함께 넣는다.
+
 ## Unity 에디터 테스트와 APK 빌드 (GitHub Actions)
 
-`unity-editor.yml` 워크플로는 실제 Unity 6000.0.23f1 에디터(GameCI 컨테이너)에서 위 테스트를 실행하고, 제작 브랜치에 반영되거나 수동으로 실행하면 개발용 APK를 만들어 `dreamwalker-development-apk` 아티팩트로 올린다. Unity 라이선스가 필요하므로 저장소의 **Settings → Secrets and variables → Actions**에 다음을 추가해야 동작한다. 없으면 작업을 건너뛰고 그 사실을 알린다.
+`unity-editor.yml` 워크플로는 실제 Unity 6000.0.23f1 에디터(GameCI 컨테이너)에서 위 테스트를 실행하고, 제작 브랜치에 반영되거나 수동으로 실행하면 개발용 APK(`dreamwalker-development-apk` 아티팩트)와 웹 빌드(`dreamwalker-unity-web` 아티팩트)를 만들어 스튜디오에도 올린다. 웹 빌드는 테스트를 기다리지 않는다. Unity 라이선스가 필요하므로 저장소의 **Settings → Secrets and variables → Actions**에 다음을 추가해야 동작한다. 없으면 작업을 건너뛰고 그 사실을 알린다.
 
 - `UNITY_LICENSE`: Unity Hub로 이 계정의 라이선스를 활성화한 컴퓨터의 `Unity_lic.ulf` 파일 내용 전체. Windows는 `C:\ProgramData\Unity\Unity_lic.ulf`, macOS는 `/Library/Application Support/Unity/Unity_lic.ulf`, Linux는 `~/.local/share/unity3d/Unity/Unity_lic.ulf`에 있다.
 - `UNITY_EMAIL`, `UNITY_PASSWORD`: 같은 Unity 계정의 이메일과 암호.
 
-라이선스 없이도 `node scripts/unity-compile-check.mjs`가 어셈블리 정의대로 런타임·에디터·테스트 어셈블리와 uGUI(에디터 내장 소스)·Test Framework(패키지 레지스트리)를 컴파일해 확인한다.
+라이선스 없이도 `node scripts/unity-compile-check.mjs`가 어셈블리 정의대로 런타임·에디터·테스트 어셈블리와 uGUI(에디터 내장 소스)·Test Framework(패키지 레지스트리)를 편집기·Android 플레이어·웹 플레이어 세 구성으로 컴파일해 확인한다.
 
 ## Unity에서 만든 작업을 스튜디오로
 
@@ -195,7 +215,7 @@ Studio 폴더에서 Node 22 이상과 bash, unzip이 있는 환경으로 npm tes
 
 웹과 Unity가 같은 규칙을 쓰는 부분은 스튜디오에서 만든 표로 .NET 검사(`scripts/native-check`)가 비교한다: 번역(`unity-locale.mjs`), 뽑기(`unity-gacha.mjs`), 링크·기기 설정·대사 속도·자동 진행·대기 화면(`unity-menus.mjs`). 표는 각 스크립트로 다시 만들고 `--check`로 최신인지 확인한다.
 
-Unity 스크립트 컴파일은 라이선스 없이 `node scripts/unity-compile-check.mjs --fetch <캐시 폴더>`로 확인한다. `ProjectVersion.txt`의 Unity 버전에 맞는 공식 Linux 에디터 압축에서 관리 어셈블리만 내려받고, .NET 8 C# 컴파일러로 에디터 런타임·에디터 전용(Editor 폴더)·Android 플레이어 세 구성을 컴파일한다. 설치된 Unity가 있으면 `<Unity>/Editor/Data` 경로를 직접 넘긴다. 플레이 모드 실행과 화면 확인은 Unity 에디터에서 한다.
+Unity 스크립트 컴파일은 라이선스 없이 `node scripts/unity-compile-check.mjs --fetch <캐시 폴더>`로 확인한다. `ProjectVersion.txt`의 Unity 버전에 맞는 공식 Linux 에디터 압축에서 관리 어셈블리만 내려받고, .NET 8 C# 컴파일러로 에디터(런타임과 Editor 폴더)·Android 플레이어·웹 플레이어 구성을 컴파일한다. 설치된 Unity가 있으면 `<Unity>/Editor/Data` 경로를 직접 넘긴다. 플레이 모드 실행과 화면 확인은 Unity 에디터에서 한다.
 
 **프로젝트 규모와 버전 저장**: 한 게임에 캐릭터 120명, 맵 200개(맵당 개체 400개), 대화 400개(대화당 줄 300개), 화면 120개(화면당 위젯 96개), 표정 48개·프로필 항목 32개까지 담는다. 저장 한 번은 8MB까지 받는다. 서버의 `project` 기록에는 현재 프로젝트와 최근 30개 버전의 번호·시각만 두고, 이전 버전은 각각 `project/rev/<번호>`로 따로 보관해 필요할 때 `/api/revision?rev=<번호>`로 읽는다. 30개를 넘은 버전은 저장할 때 지운다. 이전 형식(버전 프로젝트를 기록 안에 함께 둔 형식)은 그대로 읽고 다음 저장 때 옮긴다. 저장 전 초안은 기기의 IndexedDB에 두며, 페이지를 닫을 때는 크기가 맞으면 localStorage에도 바로 남긴다. 캐릭터 100명·맵 160개(맵당 개체 62개)·대화 380개(대화당 40줄)인 3.7MB 프로젝트로 저장·불러오기를 검사한다.
 

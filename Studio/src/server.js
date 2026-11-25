@@ -123,6 +123,8 @@ async function api(req, env, path) {
     return fileRelay(req, path.slice('/api/file-relay/'.length), b, ok && session.data.scope === 'edit' ? sk : '', auth?.data.gen);
   if (path.startsWith('/api/android/'))
     return androidJob(req, env, path.slice(13), { b, ok, owner, auth, session });
+  if (path.startsWith('/api/unity-web/'))
+    return unityWeb(req, env, path.slice(15), { b, ok, auth });
   if (req.method === 'GET' && path === '/api/status')
     return json({
       owner, signedIn: !!(email || req.headers.get('oai-authenticated-user-id')),

@@ -44,7 +44,7 @@ const enemyDefaults = () => ({ health: 0, damage: 8, speed: 3.3, sight: 28, reac
 const editablePath = (path) =>
   typeof path === 'string' &&
   path.length <= 180 &&
-  /^(Web|Assets|Packages|ProjectSettings)\/(?:[a-zA-Z0-9_가-힣 -]+\/)*[a-zA-Z0-9_가-힣 -][a-zA-Z0-9_.가-힣 -]*\.(?:html|css|js|json|cs|txt|shader|hlsl|asmdef|asmref|uxml|uss|asset|prefab|unity|meta|anim|controller|mat|cginc|compute|inputactions|xml|yaml|md)$/i.test(
+  /^(Web|Assets|Packages|ProjectSettings)\/(?:[a-zA-Z0-9_가-힣 -]+\/)*[a-zA-Z0-9_가-힣 -][a-zA-Z0-9_.가-힣 -]*\.(?:html|css|js|json|cs|txt|shader|hlsl|asmdef|asmref|uxml|uss|asset|prefab|unity|meta|anim|controller|mat|cginc|compute|inputactions|xml|yaml|md|jslib)$/i.test(
     path,
   ) &&
   /^(Web|Assets|Packages|ProjectSettings)\//.test(path) &&

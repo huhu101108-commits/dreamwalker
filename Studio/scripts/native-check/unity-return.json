@@ -131,6 +131,11 @@
    "path": "Library/x.cs",
    "source": false,
    "media": null
+  },
+  {
+   "path": "Assets/Dreamwalker/Plugins/WebGL/StudioWebBridge.jslib",
+   "source": true,
+   "media": null
   }
  ]
 }

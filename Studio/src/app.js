@@ -425,6 +425,7 @@ function drawVersions() {
     }),
   );
   addBuildPanel(b);
+  addUnityPanel(b);
   const draftActions = box('device-draft-actions');
   b.append(draftActions);
   readDeviceDraft().then((local) => {
@@ -601,6 +602,8 @@ async function openEditor() {
     $('#gate').hidden = true;
     $('#editor').hidden = false;
     if(location.pathname!=='/play')restoreEditorPosition(new URLSearchParams(location.search));
+    // The Unity play button appears once a Unity web build has been uploaded.
+    if(location.pathname!=='/play')unityBuild();
     if (location.pathname !== '/play' && new URLSearchParams(location.search).get('tool') === 'claude') await openClaudePanel();
     if (location.pathname === '/play') {
       document.body.classList.add('game-only');
@@ -697,6 +700,7 @@ $('#play').onclick = async () => {
     note(e.message);
   }
 };
+$('#play-unity').onclick = () => playUnityFromWork().catch((e) => note(e.message));
 window.addEventListener('beforeunload', (e) => {
   if (dirty) e.preventDefault();
 });

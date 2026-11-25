@@ -21,7 +21,8 @@ public sealed class StudioUnityPurchasing : IDetailedStoreListener
 
     private static void Start(StudioProject project)
     {
-        if (instance != null) return;
+        // A web player has no store: the game says so (or takes a test purchase in a development build).
+        if (instance != null || Application.platform == RuntimePlatform.WebGLPlayer) return;
         var builder = ConfigurationBuilder.Instance(StandardPurchasingModule.Instance());
         int products = 0;
         foreach (var p in project.shop?.products ?? Array.Empty<StudioProduct>())

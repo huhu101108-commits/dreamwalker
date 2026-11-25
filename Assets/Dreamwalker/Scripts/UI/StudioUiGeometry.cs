@@ -7,7 +7,10 @@ namespace Dreamwalker.UI
     {
         // Device pixels per CSS pixel. Browsers on dense tablets lay the studio preview out in CSS pixels;
         // Unity works in device pixels, so text and fixed sizes are multiplied by this to look the same.
-        public static float Density(float dpi) => dpi > 160 ? dpi / 160f : 1f;
+        // Device pixels per CSS pixel. A web player's page gives its own ratio (StudioWebBridge); elsewhere the
+        // screen's density decides, as Android's density-independent pixels do.
+        public static float HostDensity;
+        public static float Density(float dpi) => HostDensity > 0 ? HostDensity : dpi > 160 ? dpi / 160f : 1f;
 
         // The web game's clamp(8px, n/8 cqw, 1.4n px): n × min(width/800, 1.4) CSS pixels, at least 8, here capped
         // like the previous Unity screens, then converted to device pixels.

@@ -37,6 +37,8 @@ public sealed class StudioConnection : MonoBehaviour
     private readonly Dictionary<string, Texture2D> textures = new Dictionary<string, Texture2D>();
     private readonly HashSet<string> loading = new HashSet<string>();
     private readonly Dictionary<string, float> retryAfter = new Dictionary<string, float>();
+    // Content a host page handed over (StudioWebBridge): where each picture and sound is, and its media type.
+    private readonly Dictionary<string, StudioWebBridge.HostAsset> hostAssets = new Dictionary<string, StudioWebBridge.HostAsset>();
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void Attach()
@@ -46,8 +48,9 @@ public sealed class StudioConnection : MonoBehaviour
             player.gameObject.AddComponent<StudioConnection>();
     }
 
-    // The studio panel is a development tool: players of a release build only see the game.
-    private static bool DeveloperPanel => Application.isEditor || Debug.isDebugBuild;
+    // The studio panel is a development tool: players of a release build only see the game. A web player gets its
+    // content from the page it runs in, so it has no panel either.
+    private static bool DeveloperPanel => (Application.isEditor || Debug.isDebugBuild) && Application.platform != RuntimePlatform.WebGLPlayer;
     private StudioPainter ui;
     private void LateUpdate() => ui?.Frame(Paint);
 
@@ -74,6 +77,24 @@ public sealed class StudioConnection : MonoBehaviour
     private static bool Supported(StudioRelease release) =>
         release?.project != null && release.project.combatContract <= 1 &&
         (release.project.schema == 3 || release.project.schema == 4);
+
+    // Plays content from a host page, loading its files from the addresses the page gave. False for an unsupported format.
+    internal bool PlayHosted(StudioRelease release, StudioWebBridge.HostAsset[] assets)
+    {
+        if (!Supported(release)) return false;
+        CloseWorld();
+        StopAllCoroutines();
+        loading.Clear();
+        retryAfter.Clear();
+        foreach (var tex in textures.Values) Destroy(tex);
+        textures.Clear();
+        ClearRemoteSounds();
+        hostAssets.Clear();
+        foreach (var asset in assets)
+            if (asset != null && !string.IsNullOrEmpty(asset.id) && !string.IsNullOrEmpty(asset.url)) hostAssets[asset.id] = asset;
+        PlayContent(release);
+        return true;
+    }
 
     private void PlayContent(StudioRelease release)
     {
@@ -260,6 +281,12 @@ public sealed class StudioConnection : MonoBehaviour
             return null;
         if (textures.TryGetValue(reference, out var texture))
             return texture;
+        if (hostAssets.TryGetValue(reference, out var hosted))
+        {
+            if (!(retryAfter.TryGetValue(reference, out float wait) && Time.unscaledTime < wait) && loading.Add(reference))
+                StartCoroutine(LoadTexture(reference, hosted.url, false));
+            return null;
+        }
         string path;
         if (reference == "builtin-player")
             path = "/player.png";
@@ -291,7 +318,7 @@ public sealed class StudioConnection : MonoBehaviour
         if (retryAfter.TryGetValue(reference, out float retry) && Time.unscaledTime < retry)
             return null;
         if (loading.Add(reference))
-            StartCoroutine(LoadTexture(reference, path));
+            StartCoroutine(LoadTexture(reference, Origin + path, path.StartsWith("/api/")));
         return null;
     }
 
@@ -300,6 +327,12 @@ public sealed class StudioConnection : MonoBehaviour
         if (string.IsNullOrEmpty(reference) || reference.Length != 70 ||
             !reference.StartsWith("asset:", StringComparison.Ordinal)) return null;
         if (remoteSounds.TryGetValue(reference, out var cached)) return cached;
+        if (hostAssets.TryGetValue(reference, out var hosted))
+        {
+            if (!(retrySound.TryGetValue(reference, out float wait) && wait > Time.unscaledTime) && fetchingSound.Add(reference))
+                StartCoroutine(LoadSound(reference, hosted.url, Codec(hosted.type), false));
+            return null;
+        }
         string id = reference.Substring(6);
         if (bundled != null)
         {
@@ -313,31 +346,36 @@ public sealed class StudioConnection : MonoBehaviour
         if (token == null || (retrySound.TryGetValue(reference, out float retry) && retry > Time.unscaledTime))
             return null;
         for (int i = 0; i < id.Length; i++) if (!Uri.IsHexDigit(id[i])) return null;
-        if (fetchingSound.Add(reference)) StartCoroutine(LoadSound(reference, Origin + "/api/assets/" + id));
+        if (fetchingSound.Add(reference)) StartCoroutine(LoadSound(reference, Origin + "/api/assets/" + id, AudioType.UNKNOWN, true));
         return null;
     }
-    private IEnumerator LoadSound(string reference, string url)
+    private static AudioType Codec(string mediaType)
+    {
+        switch (mediaType)
+        {
+            case "audio/wav": return AudioType.WAV;
+            case "audio/ogg": return AudioType.OGGVORBIS;
+            case "audio/mpeg": return AudioType.MPEG;
+            default: return AudioType.UNKNOWN;
+        }
+    }
+    // The studio server names a sound's format in a header; a host page gives it with the address.
+    private IEnumerator LoadSound(string reference, string url, AudioType codec, bool authorize)
     {
         string session = token;
-        AudioType codec = AudioType.UNKNOWN;
-        using (var meta = UnityWebRequest.Head(url))
-        {
-            meta.SetRequestHeader("Authorization", "Bearer " + session);
-            meta.timeout = 10;
-            yield return meta.SendWebRequest();
-            if (meta.result == UnityWebRequest.Result.Success)
-                switch (meta.GetResponseHeader("Content-Type"))
-                {
-                    case "audio/wav": codec = AudioType.WAV; break;
-                    case "audio/ogg": codec = AudioType.OGGVORBIS; break;
-                    case "audio/mpeg": codec = AudioType.MPEG; break;
-                }
-        }
+        if (codec == AudioType.UNKNOWN && authorize)
+            using (var meta = UnityWebRequest.Head(url))
+            {
+                meta.SetRequestHeader("Authorization", "Bearer " + session);
+                meta.timeout = 10;
+                yield return meta.SendWebRequest();
+                if (meta.result == UnityWebRequest.Result.Success) codec = Codec(meta.GetResponseHeader("Content-Type"));
+            }
         if (session == token && codec != AudioType.UNKNOWN)
         {
             using (var request = UnityWebRequestMultimedia.GetAudioClip(url, codec))
             {
-                request.SetRequestHeader("Authorization", "Bearer " + session);
+                if (authorize) request.SetRequestHeader("Authorization", "Bearer " + session);
                 request.timeout = 20;
                 yield return request.SendWebRequest();
                 if (session == token && request.result == UnityWebRequest.Result.Success)
@@ -351,12 +389,12 @@ public sealed class StudioConnection : MonoBehaviour
         }
     }
 
-    private IEnumerator LoadTexture(string reference, string path)
+    private IEnumerator LoadTexture(string reference, string url, bool authorize)
     {
         string session = token;
-        using (var request = UnityWebRequestTexture.GetTexture(Origin + path))
+        using (var request = UnityWebRequestTexture.GetTexture(url))
         {
-            if (path.StartsWith("/api/"))
+            if (authorize)
                 request.SetRequestHeader("Authorization", "Bearer " + session);
             request.timeout = 15;
             yield return request.SendWebRequest();
