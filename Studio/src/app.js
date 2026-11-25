@@ -232,6 +232,7 @@ function draw() {
     section.dataset.key = key;
     if (expandedSections.has(key)) section.open = expandedSections.get(key);
   }
+  applyStudioLevel();
 }
 function loadRecord(r) {
   const data = migrateProject(r.project),
@@ -574,7 +575,7 @@ async function openEditor() {
   }
   if (access.ok) {
     const r = await api('project');
-    const prefs=readStudioLayout();applyStudioLayout(prefs);
+    const prefs=readStudioLayout();applyStudioLayout(prefs);adoptStudioLevel();
     const section = new URLSearchParams(location.search).get('tool') || (prefs.first && prefs.first!=='recent' ? prefs.first : lastWorkTool());
     if ([...$('#tabs').querySelectorAll('[data-tab]')].some((n) => n.dataset.tab === section)) tab = section;
     const requestedScreen=new URLSearchParams(location.search).get('screen');
@@ -640,6 +641,7 @@ $('#login').onsubmit = async (e) => {
 };
 initWorkNavigation();
 $('#studio-layout').onclick=editStudioLayout;
+$('#studio-level').onclick=()=>setStudioLevel(studioEasy()?'full':'easy');
 $('#gpt-work-toggle').onclick=toggleGptDock;
 $('#open-claude').onclick=openClaudePanel;
 $('#project-import').append(integratedDevicePicker());

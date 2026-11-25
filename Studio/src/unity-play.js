@@ -236,10 +236,15 @@ function addUnityPanel(host) {
   const panel = el('details'), status = el('p'), output = box('row');
   panel.append(el('summary', 'Unity 연동 · 웹 빌드로 테스트 플레이'), status, output);
   const guide = el('details');
+  guide.className = 'unity-guide';
   guide.append(el('summary', 'Unity 웹 빌드 준비 방법'),
     el('p', '클라우드에서 Unity가 이 저장소를 빌드해 웹 빌드를 올리면, 편집 중인 초안을 실제 Unity 엔진으로 이 화면에서 플레이할 수 있어요. 맵·수치·대사는 올린 빌드에 바로 반영되고, Unity C# 코드를 바꾸면 다시 빌드해요.'),
     el('p', '방법 1 · Unity Build Automation (PC 없이): Unity 대시보드에서 이 GitHub 저장소를 연결하고 WebGL 대상을 만든 뒤, 고급 설정의 Pre-Export 메서드에 «DreamwalkerCloudBuild.PreExport», Post-Build 스크립트에 «Studio/scripts/unity-cloud-upload.sh», 환경 변수 DREAMWALKER_RUNNER_KEY에 아래 «실행기 연결» 키를 넣어요.'),
+    box('copy-values', el('small', 'Unity 대시보드에 그대로 붙여 넣는 값'), copyValue('Pre-Export 메서드', 'DreamwalkerCloudBuild.PreExport'),
+      copyValue('Post-Build 스크립트', 'Studio/scripts/unity-cloud-upload.sh'), copyValue('환경 변수 이름', 'DREAMWALKER_RUNNER_KEY')),
     el('p', '방법 2 · GitHub Actions: 저장소 시크릿 UNITY_LICENSE·UNITY_EMAIL·UNITY_PASSWORD를 넣으면 제작 브랜치의 Unity 코드가 바뀔 때마다 웹 빌드와 개발용 APK를 만들어 올려요.'),
+    box('copy-values', el('small', 'GitHub 저장소 시크릿의 이름 (값은 GitHub에만 넣어요)'), copyValue('라이선스 파일 내용', 'UNITY_LICENSE'),
+      copyValue('Unity 계정 이메일', 'UNITY_EMAIL'), copyValue('Unity 계정 암호', 'UNITY_PASSWORD')),
     el('p', 'Android 대상도 같은 Post-Build 스크립트를 쓰면 개발용 APK가 여기에 올라와요. Build Automation의 Android 대상은 «Development build»를 켜야 앱에 스튜디오 연결 패널이 나와요.'),
     el('p', '자세한 순서는 저장소의 Studio/README.md «Unity 클라우드 빌드와 웹 플레이»에 있어요. Unity 플레이에서는 클라우드 저장·서버 지갑·친선전 같은 서버 기능이 동작하지 않고 진행도 남지 않아요.'));
   panel.append(guide);

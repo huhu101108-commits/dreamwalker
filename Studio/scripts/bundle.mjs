@@ -30,7 +30,7 @@ for (const name of [
   'interface','preset-editor','screen-tools','design-plan','personal-gpt','studio-gpt','gpt-dock','studio-layout','device-open','target-files','device-workspace','device-standalone',
   'flows',
   'export',
-  'roadmap','locales','error-reports','shop-editor','release-check','script-tools','studio-guide',
+  'roadmap','locales','error-reports','shop-editor','release-check','script-tools','easy-mode','studio-guide',
   'source','unity-return','unity-play',
 ]) {
   files['/' + name + '.js'] = ['text/javascript', read('src/' + name + '.js')];
