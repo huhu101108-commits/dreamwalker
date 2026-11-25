@@ -1,9 +1,11 @@
 // 시작하기: game-wide settings, the production checklist and a map of every tool. One list (STUDIO_GUIDE) feeds the
 // feature map, the work finder and each tool's help; a browser check opens every entry, so it stays true to the editor.
-// Anchors: 'h:' heading, 's:' section title (prefix), 'b:' button, 'l:' field label (prefix).
+// Anchors: 'h:' heading, 's:' section title (prefix), 'b:' button, 'l:' field label (prefix). A prefix is long enough to
+// name its section alone: the verification table of 검수·빌드 has rows that begin with the names of other sections.
 const STUDIO_GUIDE = [
   { tab: 'home', name: '시작하기', for: '게임 이름·저장 식별자·시작 맵 같은 게임 설정, 만드는 순서, 모든 도구의 지도', features: [
     ['게임 설정 바꾸기', 'h:게임 설정', '이름 제목 저장 식별자 시작 맵 키보드'], ['만드는 순서 보기', 'h:제작 순서', '체크리스트 순서 안내'],
+    ['스튜디오와 Unity가 하는 일', 'h:스튜디오와 Unity', '유니티 프로그래밍 코드 개발 담당 구분 쉬운 모드 전체 기능'],
     ['모든 도구 보기', 'h:기능 지도', '도구 목록 지도']] },
   { tab: 'desk', name: '제작 보드', for: '기획서, 작업 카드와 완료 기준, 플레이 검수 기록, 출시 기준·운영 기록', features: [
     ['작업 카드 만들기', 'b:작업 카드 추가', '할일 일정 기획'], ['보드 보기', 'h:제작 보드', '칸반 기획서']] },
@@ -48,14 +50,15 @@ const STUDIO_GUIDE = [
     ['웹 게임 실행·내보내기', 'h:웹 게임 실행', 'HTML 오프라인 웹 빌드'], ['Unity 프로젝트 내보내기', 'h:Unity 프로젝트', 'ZIP Unity 팩'],
     ['Unity 변경 반영', 's:Unity에서 보낸 변경', 'Unity 가져오기 반영']] },
   { tab: 'quality', name: '검수·빌드', for: '출시 점검, 검수 사본, 대사 분기 비교, 오류 보고, 실제 프레임 측정, 검증 현황', features: [
-    ['출시 점검', 's:출시 점검', '문제 목록 점검 경고'], ['검수 사본', 's:프로젝트 검수 사본 · 별도 저장 슬롯', '검수 슬롯 테스트'],
-    ['플레이어 오류 보고', 's:플레이어 오류 보고', '크래시 오류 로그'], ['대사 분기 비교', 's:대사 분기·저장 웹/Unity 비교', '분기 비교'],
+    ['출시 점검', 's:출시 점검 · 오류', '문제 목록 점검 경고'], ['검수 사본', 's:프로젝트 검수 사본 · 별도 저장 슬롯', '검수 슬롯 테스트'],
+    ['플레이어 오류 보고', 's:플레이어 오류 보고 · 동의한 플레이 수', '크래시 오류 로그'], ['대사 분기 비교', 's:대사 분기·저장 웹/Unity 비교', '분기 비교'],
     ['검증 현황', 's:기능별 검증 현황과 직접 시험할 방법', '검증 현황'], ['프레임 측정', 's:맵·버전별 실제 프레임 측정', '성능 FPS']] },
   { tab: 'network', name: '네트워크 검사', for: '두 기기 연결, 친선전 재접속, 경쟁전 스킬 예측 검증', features: [
     ['두 기기 연결 검사', 'h:두 기기 연결 검사', 'RTT 지연 연결'], ['친선전 재접속', 's:친선전 두 좌석 재접속 검사', '재접속'], ['경쟁전 검증', 's:경쟁전 스킬 예측 검증', '경쟁전 예측']] },
   { tab: 'versions', name: '버전 · 백업', for: '저장 버전 복원, 백업 내보내기·가져오기, 편집 전후 비교, 프로젝트 관리', features: [
     ['버전 기록', 'h:버전 기록', '복원 되돌리기 30개'], ['프로젝트 관리', 'h:프로젝트 관리', '백업 내보내기 가져오기'],
-    ['백업 붙여넣기', 's:백업 내용 붙여넣기', '백업 복원'], ['편집 전후 비교', 's:편집값 변경 비교', '차이 비교']] },
+    ['백업 붙여넣기', 's:백업 내용 붙여넣기', '백업 복원'], ['편집 전후 비교', 's:편집값 변경 비교', '차이 비교'],
+    ['Unity로 테스트 플레이', 's:Unity 연동 · 웹 빌드로 테스트 플레이', 'Unity 웹 빌드 클라우드 빌드 APK 엔진']] },
 ];
 const guideOf = (tab) => STUDIO_GUIDE.find((g) => g.tab === tab);
 function featureElement(anchor, root = $('#content')) {
@@ -82,6 +85,7 @@ async function openFeature(tab, anchor) {
   await new Promise((r) => setTimeout(r, 50));
   if (target && !target.isConnected) target = await findFeature(anchor);
   if (!target) { note('이 기능은 항목을 고른 뒤 나타나요.'); return false; }
+  revealEasy(target);
   for (let d = target.closest('details'); d; d = d.parentElement?.closest('details')) d.open = true;
   if (target.tagName === 'SUMMARY') target.parentElement.open = true;
   target.scrollIntoView({ block: 'center', behavior: 'smooth' });
@@ -94,9 +98,23 @@ function openToolHelp() {
   const g = guideOf(tab) || guideOf('home'), modal = el('dialog'), form = box('finder-panel');
   modal.className = 'tool-help';
   modal.setAttribute('aria-label', g.name + ' 도움말');
-  const list = box('guide-features');
-  for (const [label, anchor] of g.features) list.append(action(label, () => { modal.close(); openFeature(g.tab, anchor); }));
-  form.append(row(heading(g.name + ' 도움말'), action('닫기', () => modal.close())), el('p', g.for), el('strong', '이 도구에서 할 수 있는 일'), list,
+  const list = box('guide-features'), easy = studioEasy();
+  const away = g.features.filter(([, anchor]) => easy && easyFeatureHidden(g.tab, anchor));
+  for (const [label, anchor] of g.features)
+    if (!away.some((f) => f[1] === anchor)) list.append(action(label, () => { modal.close(); openFeature(g.tab, anchor); }));
+  form.append(row(heading(g.name + ' 도움말'), action('닫기', () => modal.close())), el('p', g.for), el('strong', '이 도구에서 할 수 있는 일'), list);
+  if (away.length)
+    form.append(box('guide-note', el('p', '쉬운 모드에서 넣어 둔 기능 ' + away.length + '개: ' + away.map((f) => f[0]).join(', ')),
+      action('전체 기능 보기', () => { modal.close(); setStudioLevel('full'); }, 'quiet')));
+  // The words on this screen in plain terms.
+  const terms = studioTermsOnScreen([g.name, g.for, ...g.features.filter((f) => !away.includes(f)).map((f) => f[0])].join(' '));
+  if (terms.length) {
+    const words = el('dl');
+    words.className = 'term-list';
+    for (const [term, means] of terms) words.append(el('dt', term), el('dd', means));
+    form.append(el('strong', '이 화면에 나오는 말'), words);
+  }
+  form.append(
     el('p', '다른 도구는 «시작하기 → 기능 지도»에서, 이름을 알면 «작업 찾기»(Ctrl+K)에서 바로 열 수 있어요.'),
     row(action('시작하기 열기', () => { modal.close(); goTool('home'); }), action('작업 찾기', () => { modal.close(); openWorkFinder(); })));
   modal.append(form);
@@ -105,7 +123,7 @@ function openToolHelp() {
   modal.showModal();
 }
 // The steps of making a game, each with its state from the project and the place to do it.
-function productionSteps(doc) {
+function productionSteps(doc, easy = false) {
   const issues = releaseCheck(doc), has = (area) => issues.some((i) => i.area === area && i.level !== 'info');
   const actions = placedActions(doc), uses = (a) => actions.some((x) => x.action === a);
   const art = doc.characters.filter((c) => c.sprite || c.portrait || (c.expressions || []).some((x) => x.image)).length;
@@ -127,14 +145,17 @@ function productionSteps(doc) {
     { name: '상점 · 뽑기', done: !!doc.shop?.banners.length && !has('상점 · 뽑기'), optional: true, detail: doc.shop ? doc.shop.banners.length + '개 뽑기 · ' + doc.shop.products.length + '개 상품' : '팔거나 뽑을 것이 있을 때', tab: 'shop', anchor: 'h:뽑기 · 확률 공개' },
     { name: '번역', done: translated && !has('번역'), optional: true, detail: translated ? doc.locales.languages.map((l) => l.name).join(', ') : '다른 언어로 낼 때', tab: 'locales', anchor: 'b:＋ 번역 언어 추가' },
     { name: '운영 버튼 (클라우드 저장·오류 보고)', done: (uses('cloudSave') || uses('transferIssue')) && uses('reports'), optional: true, detail: '설정 화면에 버튼으로 두세요.', tab: 'interface', anchor: 'b:＋ 버튼 추가' },
-    { name: '출시 점검', done: !issues.some((i) => i.level !== 'info'), detail: '오류 ' + issues.filter((i) => i.level === 'error').length + ' · 경고 ' + issues.filter((i) => i.level === 'warn').length, tab: 'quality', anchor: 's:출시 점검' },
-    { name: '빌드 · 내보내기', done: false, detail: '웹 게임, Unity 프로젝트, Android APK', tab: 'source', anchor: 'h:웹 게임 실행' },
+    { name: '출시 점검', done: !issues.some((i) => i.level !== 'info'), detail: '오류 ' + issues.filter((i) => i.level === 'error').length + ' · 경고 ' + issues.filter((i) => i.level === 'warn').length, tab: 'quality', anchor: 's:출시 점검 · 오류' },
+    // Without programming the game leaves the studio as one file that plays in a browser; apps are a developer's build.
+    easy
+      ? { name: '게임 파일로 받기', done: false, detail: '브라우저에서 열리는 파일 하나로 내보내요. 앱(APK)과 스토어용 빌드는 개발 담당자가 만들어요.', tab: 'quality', anchor: 'b:오프라인 HTML 내보내기' }
+      : { name: '빌드 · 내보내기', done: false, detail: '웹 게임, Unity 프로젝트, Android APK', tab: 'source', anchor: 'h:웹 게임 실행' },
   ];
 }
 function drawHome() {
-  const [main, side] = panels();
-  const steps = productionSteps(project), done = steps.filter((s) => s.done).length;
-  main.append(heading('제작 순서', '위에서부터 채우면 플레이할 수 있는 게임이 돼요. «선택»은 필요할 때만 하면 돼요. 상태는 프로젝트 내용으로 바로 계산해요.'));
+  const [main, side] = panels(), easy = studioEasy();
+  const steps = productionSteps(project, easy), done = steps.filter((s) => s.done).length;
+  main.append(studioLevelCard(), heading('제작 순서', '위에서부터 채우면 플레이할 수 있는 게임이 돼요. «선택»은 필요할 때만 하면 돼요. 상태는 프로젝트 내용으로 바로 계산해요.'));
   main.append(el('p', steps.length + '단계 중 ' + done + '단계 완료'));
   const list = box('guide-steps');
   steps.forEach((s, i) => {
@@ -143,18 +164,26 @@ function drawHome() {
       action('열기', () => (s.tab === 'home' ? featureElement(s.anchor)?.scrollIntoView({ block: 'center' }) : openFeature(s.tab, s.anchor)), 'quiet'));
     list.append(item);
   });
-  main.append(list, heading('기능 지도', '모든 도구와 주요 기능이에요. 누르면 그 도구가 열리고 해당 기능을 가리켜요.'));
+  main.append(list, heading('스튜디오와 Unity', '프로그래밍 없이 이 스튜디오에서 만드는 것과, 게임 코드를 고쳐야 해서 Unity 개발이 필요한 것이에요.'), studioAndUnity(),
+    heading('기능 지도', easy ? '쉬운 모드에서 쓰는 도구와 주요 기능이에요. 누르면 그 도구가 열리고 해당 기능을 가리켜요.' : '모든 도구와 주요 기능이에요. 누르면 그 도구가 열리고 해당 기능을 가리켜요.'));
   const map = box('guide-map');
+  let away = 0;
   for (const g of STUDIO_GUIDE) {
     if (g.tab === 'home') continue;
+    const features = g.features.filter(([, anchor]) => !(easy && easyFeatureHidden(g.tab, anchor)));
+    away += g.features.length - features.length;
+    if (!features.length) continue;
     const card = box('guide-card');
     card.append(el('strong', g.name), el('p', g.for));
     const chips = box('guide-features');
-    for (const [label, anchor] of g.features) chips.append(action(label, () => openFeature(g.tab, anchor), 'quiet'));
+    for (const [label, anchor] of features) chips.append(action(label, () => openFeature(g.tab, anchor), 'quiet'));
     card.append(chips);
     map.append(card);
   }
   main.append(map);
+  if (away)
+    main.append(box('guide-note', el('p', '개발·검수용 기능 ' + away + '개는 넣어 두었어요: ' + EASY_HIDDEN.tools.map((t) => guideOf(t).name).join(', ') + ' 도구와 검수·빌드·비교 구역. «작업 찾기»에서는 이름으로 찾을 수 있어요.'),
+      action('전체 기능 보기', () => setStudioLevel('full'), 'quiet')));
   drawGameSettings(side);
 }
 function drawGameSettings(side) {

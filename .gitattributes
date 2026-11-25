@@ -1,0 +1,2 @@
+# Cloud builders run these with a Unix shell.
+Studio/scripts/*.sh text eol=lf

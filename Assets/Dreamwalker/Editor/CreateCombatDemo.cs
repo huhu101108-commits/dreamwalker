@@ -18,7 +18,7 @@ namespace Dreamwalker.EditorTools
     public static class CreateCombatDemo
     {
         private const string Folder = "Assets/Dreamwalker/Demo/Generated";
-        private const string ScenePath = "Assets/Dreamwalker/Demo/BaekseolCombat.unity";
+        internal const string ScenePath = "Assets/Dreamwalker/Demo/BaekseolCombat.unity";
 
         [MenuItem("Tools/Dreamwalker/Create Combat Demo Scene")]
         public static void Build()

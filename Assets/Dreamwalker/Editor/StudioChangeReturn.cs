@@ -38,7 +38,7 @@ namespace Dreamwalker.EditorTools
         public const int MaxText = 200000, MaxFiles = 400;
         public const long MaxImage = 2000000, MaxAudio = 8000000, MaxTotal = 24L * 1024 * 1024;
         private static readonly Regex Editable = new Regex(
-            @"^(Web|Assets|Packages|ProjectSettings)/(?:[a-zA-Z0-9_가-힣 -]+/)*[a-zA-Z0-9_가-힣 -][a-zA-Z0-9_.가-힣 -]*\.(?:html|css|js|json|cs|txt|shader|hlsl|asmdef|asmref|uxml|uss|asset|prefab|unity|meta|anim|controller|mat|cginc|compute|inputactions|xml|yaml|md)$",
+            @"^(Web|Assets|Packages|ProjectSettings)/(?:[a-zA-Z0-9_가-힣 -]+/)*[a-zA-Z0-9_가-힣 -][a-zA-Z0-9_.가-힣 -]*\.(?:html|css|js|json|cs|txt|shader|hlsl|asmdef|asmref|uxml|uss|asset|prefab|unity|meta|anim|controller|mat|cginc|compute|inputactions|xml|yaml|md|jslib)$",
             RegexOptions.IgnoreCase);
         private static readonly Regex StudioContent = new Regex(@"^Assets/Resources/DreamwalkerStudio(?:/|\.|$)", RegexOptions.IgnoreCase);
         private static readonly Regex MediaPart = new Regex(@"^[a-zA-Z0-9_가-힣 .-]+$");

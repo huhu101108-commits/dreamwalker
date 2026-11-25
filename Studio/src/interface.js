@@ -168,9 +168,12 @@ function drawInterface() {
   const backdrop = box('ui-backdrop');
   styleScreen(backdrop, l);
   canvas.append(backdrop);
+  // Texts show what a new player would see: each currency's starting amount and each input's first value.
+  const firstInputs = controlDefaults(project);
   const sample = { previewState:sampleState,character: c, map: m, hp: Math.round(c.health * 0.72), enemies: 3,
       energy: { now: Math.round((c.energy?.max || 100) * 0.6), max: c.energy?.max || 100 },
-      boss: { id: 'sample', label: '', hp: 72, max: 100, phase: 50 } },
+      boss: { id: 'sample', label: '', hp: 72, max: 100, phase: 50 },
+      wallet: new Map((project.shop?.currencies || []).map((v) => [v.id, v.start])), inputs: firstInputs, inputDefaults: firstInputs },
     nodes = new Map();
   function applyGeometry(node, v) {
     Object.assign(node.style, { left: v.x + '%', top: v.y + '%', width: v.w + '%', height: v.h + '%' });
@@ -397,17 +400,19 @@ function drawInterface() {
   }
   if (!['image', 'panel', 'dialogue','joystick','portrait'].includes(w.type)) {
     const token = {};
-    b.append(
-      textField(
-        '표시 문구',
-        w.text,
-        (v) => {
-          edit(() => (w.text = v), false, token);
-          drawSampleLabel();
-        },
-        160,
-      ),
+    const wording = textField(
+      '표시 문구',
+      w.text,
+      (v) => {
+        edit(() => (w.text = v), false, token);
+        drawSampleLabel();
+      },
+      160,
     );
+    b.append(wording);
+    // Amounts, profile entries and typed values go into the wording from a list instead of by their code.
+    const values = insertableValues(project, w.type);
+    if (values.length) b.append(valueInsertField(wording.querySelector('input'), values));
   }
   function drawSampleLabel() {
     const n = nodes.get(w.id);

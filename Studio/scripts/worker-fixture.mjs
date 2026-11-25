@@ -24,6 +24,8 @@ export const BUCKET = {
       ((cond.etagMatches && cond.etagMatches !== old?.etag) || (cond.etagDoesNotMatch === '*' && old))
     )
       return null;
+    // A stored stream is kept as bytes, so it can be read again like an object in the real bucket.
+    if (body instanceof ReadableStream) body = new Uint8Array(await new Response(body).arrayBuffer());
     const item = { body, etag: String(++revision), httpMetadata: opts.httpMetadata, customMetadata: opts.customMetadata };
     store.set(k, item);
     return item;

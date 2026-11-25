@@ -1,7 +1,8 @@
 name: Unity editor tests and Android build
-# Runs the Unity Test Framework tests (edit mode and play mode) and builds the development APK in the real Unity
-# editor (GameCI containers). It needs a Unity license: the repository secrets UNITY_LICENSE (the contents of a
-# Unity_lic.ulf file), UNITY_EMAIL and UNITY_PASSWORD. Without them the jobs are skipped and say so.
+# Runs the Unity Test Framework tests (edit mode and play mode), builds the development APK and builds the web player
+# the studio's «Unity로 테스트 플레이» runs, all in the real Unity editor (GameCI containers). It needs a Unity license:
+# the repository secrets UNITY_LICENSE (the contents of a Unity_lic.ulf file), UNITY_EMAIL and UNITY_PASSWORD. Without
+# them the jobs are skipped and say so.
 on:
   workflow_dispatch:
     inputs:
@@ -11,7 +12,7 @@ on:
         default: true
   push:
     branches: [feature/tablet-production-studio]
-    paths: ['Assets/**', 'Packages/**', 'ProjectSettings/**', '.github/workflows/unity-editor.yml']
+    paths: ['Assets/**', 'Packages/**', 'ProjectSettings/**', 'Studio/scripts/unity-cloud-upload.sh', '.github/workflows/unity-editor.yml']
   pull_request:
     paths: ['Assets/**', 'Packages/**', 'ProjectSettings/**', '.github/workflows/unity-editor.yml']
 
@@ -39,7 +40,7 @@ jobs:
             echo "ready=true" >> "$GITHUB_OUTPUT"
           else
             echo "ready=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::UNITY_LICENSE, UNITY_EMAIL and UNITY_PASSWORD are not all set, so the Unity editor tests and the APK build were skipped."
+            echo "::notice::UNITY_LICENSE, UNITY_EMAIL and UNITY_PASSWORD are not all set, so the Unity editor tests, the APK build and the web build were skipped."
           fi
 
   tests:
@@ -75,6 +76,9 @@ jobs:
     if: needs.license.outputs.ready == 'true' && github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.android)
     runs-on: ubuntu-latest
     timeout-minutes: 90
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/cache@v4
@@ -96,3 +100,47 @@ jobs:
           name: dreamwalker-development-apk
           path: Build/Dreamwalker.apk
           if-no-files-found: error
+      # The team downloads it from the studio's «Unity 연동» panel (the studio checks the job's identity).
+      - name: Send the development APK to the studio
+        if: github.ref == 'refs/heads/feature/tablet-production-studio'
+        env:
+          DREAMWALKER_UNITY: 6000.0.23f1
+        run: bash Studio/scripts/unity-cloud-upload.sh Build/Dreamwalker.apk
+
+  # The web player for the studio. It does not wait for the tests, so a first build can be looked at while a test is
+  # being fixed. Only this workflow on the production branch may publish to the studio, which checks the job's identity.
+  web:
+    name: Unity web build for the studio
+    needs: license
+    if: needs.license.outputs.ready == 'true' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: Library
+          key: unity-library-web-${{ hashFiles('Packages/manifest.json', 'ProjectSettings/ProjectVersion.txt') }}
+      - uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          unityVersion: 6000.0.23f1
+          targetPlatform: WebGL
+          versioning: None
+          buildMethod: Dreamwalker.EditorTools.StudioCloudBuild.BuildWeb
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dreamwalker-unity-web
+          path: Build/Web
+          if-no-files-found: error
+      - name: Send the web build to the studio
+        if: github.ref == 'refs/heads/feature/tablet-production-studio'
+        env:
+          DREAMWALKER_UNITY: 6000.0.23f1
+        run: bash Studio/scripts/unity-cloud-upload.sh Build/Web

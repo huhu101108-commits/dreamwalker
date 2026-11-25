@@ -35,6 +35,8 @@ import { testStudioGuide } from './test-guide-browser.mjs';
 import { testGameMenus } from './test-game-menus-browser.mjs';
 import { testCreatorPass } from './test-creator-pass-browser.mjs';
 import { testServerWallet } from './test-server-wallet-browser.mjs';
+import { testUnityPlay } from './test-unity-play-browser.mjs';
+import { testEasyMode } from './test-easy-mode-browser.mjs';
 const { chromium } = createRequire(import.meta.url)('playwright-core');
 
 const duelStore=arenaFixture();
@@ -125,7 +127,7 @@ try {
     [testSceneMediaBrowser,host,origin],[testScreenWorkflow,host,origin],[testRuleAuthoring,host,origin],[testStoryProbeBrowser,host,origin],
     [testTouchAuthoring,host],[testDeskBrowser,host],[testDialogueBrowser,host],[testDeviceDesigner,host],
     [testPersonalGptBrowser,host,guest,origin,peerOrigin],[testGptWorkbenchBrowser,host,origin,guest.context().browser()],
-    [testPresetDesigner,host,origin],[testCharacterStage,host,origin],[testUnityReturn,host,origin],[testPortraitMotion,host,origin],[testLocalization,host,origin],[testCloudTransfer,host,origin],[testErrorReports,host,origin],[testShopBrowser,host,origin],[testReleaseTools,host,origin],[testStudioGuide,host,origin],[testGameMenus,host,origin],[testCreatorPass,host,origin],[testServerWallet,host,origin],[testArenaBrowser,host,guest,origin,peerOrigin]
+    [testPresetDesigner,host,origin],[testCharacterStage,host,origin],[testUnityReturn,host,origin],[testPortraitMotion,host,origin],[testLocalization,host,origin],[testCloudTransfer,host,origin],[testErrorReports,host,origin],[testShopBrowser,host,origin],[testReleaseTools,host,origin],[testStudioGuide,host,origin],[testGameMenus,host,origin],[testCreatorPass,host,origin],[testServerWallet,host,origin],[testUnityPlay,host,origin],[testEasyMode,host,origin],[testArenaBrowser,host,guest,origin,peerOrigin]
   ];
   const failures=[];
   for(const [run,...args] of workflows){

@@ -232,6 +232,7 @@ function draw() {
     section.dataset.key = key;
     if (expandedSections.has(key)) section.open = expandedSections.get(key);
   }
+  applyStudioLevel();
 }
 function loadRecord(r) {
   const data = migrateProject(r.project),
@@ -425,6 +426,7 @@ function drawVersions() {
     }),
   );
   addBuildPanel(b);
+  addUnityPanel(b);
   const draftActions = box('device-draft-actions');
   b.append(draftActions);
   readDeviceDraft().then((local) => {
@@ -573,7 +575,7 @@ async function openEditor() {
   }
   if (access.ok) {
     const r = await api('project');
-    const prefs=readStudioLayout();applyStudioLayout(prefs);
+    const prefs=readStudioLayout();applyStudioLayout(prefs);adoptStudioLevel();
     const section = new URLSearchParams(location.search).get('tool') || (prefs.first && prefs.first!=='recent' ? prefs.first : lastWorkTool());
     if ([...$('#tabs').querySelectorAll('[data-tab]')].some((n) => n.dataset.tab === section)) tab = section;
     const requestedScreen=new URLSearchParams(location.search).get('screen');
@@ -601,6 +603,8 @@ async function openEditor() {
     $('#gate').hidden = true;
     $('#editor').hidden = false;
     if(location.pathname!=='/play')restoreEditorPosition(new URLSearchParams(location.search));
+    // The Unity play button appears once a Unity web build has been uploaded.
+    if(location.pathname!=='/play')unityBuild();
     if (location.pathname !== '/play' && new URLSearchParams(location.search).get('tool') === 'claude') await openClaudePanel();
     if (location.pathname === '/play') {
       document.body.classList.add('game-only');
@@ -637,6 +641,7 @@ $('#login').onsubmit = async (e) => {
 };
 initWorkNavigation();
 $('#studio-layout').onclick=editStudioLayout;
+$('#studio-level').onclick=()=>setStudioLevel(studioEasy()?'full':'easy');
 $('#gpt-work-toggle').onclick=toggleGptDock;
 $('#open-claude').onclick=openClaudePanel;
 $('#project-import').append(integratedDevicePicker());
@@ -697,6 +702,7 @@ $('#play').onclick = async () => {
     note(e.message);
   }
 };
+$('#play-unity').onclick = () => playUnityFromWork().catch((e) => note(e.message));
 window.addEventListener('beforeunload', (e) => {
   if (dirty) e.preventDefault();
 });

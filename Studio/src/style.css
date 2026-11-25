@@ -931,6 +931,28 @@ button.episode-card.detached {
   border: 0;
   background: #162535;
 }
+.unity-player > p {
+  margin: 0.4rem 0;
+  overflow-wrap: anywhere;
+}
+.unity-player .bar small {
+  margin-inline-end: auto;
+  color: #9fb9c4;
+  overflow-wrap: anywhere;
+}
+.unity-log {
+  max-height: 30dvh;
+  margin: 0.4rem 0 0;
+  padding: 0.5rem;
+  overflow: auto;
+  border: 1px solid #3d575e;
+  border-radius: 0.4rem;
+  background: #0b1118;
+  color: #d5e4ea;
+  font: 12px/1.5 ui-monospace, monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
 .road-board .episode-card small {
   color: #356774;
 }
@@ -1457,3 +1479,29 @@ body { font-size:16px; }
 .guide-features{display:flex;flex-wrap:wrap;gap:6px}.guide-features button{font-size:.9em;padding:6px 10px}
 .guide-flash{outline:3px solid #ffcf8a;outline-offset:3px;border-radius:6px;transition:outline-color .4s}
 .guide-note{display:grid;gap:6px;margin:4px 0 10px}.guide-note p{margin:0;color:var(--muted);font-size:.9em}
+/* 쉬운 모드 · 스튜디오와 Unity · 용어 */
+#tabs #studio-level{border:1px dashed #47616d;font-size:.9em}
+#tabs #studio-level[aria-pressed=true]{border-style:solid;border-color:#6abbae;background:#1c3b38;color:#defff5}
+.level-choice{display:grid;gap:8px;background:#1c3b38;border:1px solid #6abbae;border-radius:10px;padding:12px 14px;margin:0 0 14px}
+.level-choice p{margin:0;color:#d5e9e5}
+.level-choice.chosen{grid-template-columns:minmax(0,1fr) auto;align-items:center;background:#1d2c40;border-color:#35475c;padding:8px 12px}
+.level-choice.chosen span{color:var(--muted)}
+.easy-notice{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;background:#3a3117;border:1px solid #ffcf8a;border-radius:10px;padding:10px 14px;margin:0 0 12px;grid-column:1/-1}
+.easy-notice span{flex:1 1 16rem}
+.studio-unity{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:12px;margin:10px 0 18px}
+.studio-unity-side{background:#1d2c40;border:1px solid #35475c;border-top:4px solid #a0e7d4;border-radius:10px;padding:10px 12px;display:grid;gap:8px;align-content:start}
+.studio-unity-side+.studio-unity-side{border-top-color:#7fb8d6}
+.studio-unity-side h3{margin:0;font-size:1.05em}.studio-unity-side>p{margin:0;color:var(--muted);font-size:.92em}
+.studio-unity-list{display:grid;gap:6px}
+.studio-unity-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;align-items:center;border-top:1px solid #2d4659;padding-top:6px}
+.studio-unity-row strong{grid-column:1}.studio-unity-row span{grid-column:1;color:var(--muted);font-size:.92em;overflow-wrap:anywhere}
+.studio-unity-row button{grid-column:2;grid-row:1/span 2}
+.unit-hint{color:#a0e7d4;font-variant-numeric:tabular-nums;min-height:1.2em}
+.value-insert small{color:var(--muted)}.value-insert .value-meaning{color:#a0e7d4}.value-insert .value-meaning.warn{color:#ffcf8a}
+.term-list{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 12px;margin:0;max-height:32dvh;overflow:auto}
+.term-list dt{font-weight:650;color:#a0e7d4;white-space:nowrap}.term-list dd{margin:0;color:#d9e6ee}
+.copy-values{display:grid;gap:6px;margin:6px 0 10px}.copy-values>small{color:var(--muted)}
+.copy-value{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 8px;align-items:center}
+.copy-value span{grid-column:1/-1;color:var(--muted);font-size:.9em}
+.copy-value code{overflow-wrap:anywhere;background:#132231;border:1px solid #2d4659;border-radius:6px;padding:6px 8px;user-select:all}
+.unity-guide p{overflow-wrap:anywhere}

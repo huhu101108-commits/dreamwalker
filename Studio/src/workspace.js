@@ -110,8 +110,13 @@ function openWorkFinder(){
   modal.className='work-finder';modal.setAttribute('aria-label','작업 찾기');
   query.type='search';query.placeholder='도구, 맵, 개체, 화면, 대사 또는 캐릭터';query.setAttribute('aria-label','작업 검색어');
   const rows=[];
-  const add=(group,name,open,keywords='')=>rows.push({group,name,open,text:(group+' '+name+' '+keywords).toLocaleLowerCase()});
-  for(const b of document.querySelectorAll('#tabs [data-tab]'))add('도구',b.textContent,()=>goTool(b.dataset.tab));
+  // In easy mode what it has put away is still found, named as part of the full studio and listed after the rest.
+  const easy=studioEasy();
+  const add=(group,name,open,keywords='',away=false)=>{
+    const shown=away&&easy?group+' · 전체 기능':group;
+    rows.push({group:shown,name,open,away:away&&easy,text:(shown+' '+name+' '+keywords).toLocaleLowerCase()});
+  };
+  for(const b of document.querySelectorAll('#tabs [data-tab]'))add('도구',b.textContent,()=>goTool(b.dataset.tab),'',easyToolHidden(b.dataset.tab));
   for(const map of project.scenes){
     add('맵',map.name,()=>goTool('scene',map.id));
     for(const obj of map.objects)add(map.name+' · 개체',obj.editorName||obj.label||OBJECTS[obj.type],()=>{
@@ -132,11 +137,12 @@ function openWorkFinder(){
   for(const p of project.shop?.products||[])add('상품',p.name,()=>goTool('shop'));
   for(const b of project.shop?.banners||[])add('뽑기',b.name,()=>{shopView.banner=b.id;goTool('shop');});
   // Every feature of the feature map, by what it does.
-  for(const g of STUDIO_GUIDE)for(const [label,anchor,words] of g.features)add('기능',g.name+' · '+label,()=>openFeature(g.tab,anchor),words);
-  for(const r of project.combatRules)add('전투 규칙',r.name,()=>goTool('rules',r.id));
+  for(const g of STUDIO_GUIDE)for(const [label,anchor,words] of g.features)add('기능',g.name+' · '+label,()=>openFeature(g.tab,anchor),words,easyFeatureHidden(g.tab,anchor));
+  for(const r of project.combatRules)add('전투 규칙',r.name,()=>goTool('rules',r.id),'',true);
   for(const r of project.eventRules||[])add('이벤트 규칙',r.name,()=>{
     goTool('eventRules',r.id);const editor=document.querySelector('[data-persist="general-rule-editor"]');if(editor)editor.open=true;
-  });
+  },'',true);
+  rows.sort((a,b)=>a.away-b.away);
   function render(){
     const terms=query.value.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
     const found=rows.filter(r=>terms.every(t=>r.text.includes(t)));
@@ -153,8 +159,9 @@ function openWorkFinder(){
 }
 function initWorkNavigation(){
   const nav=$('#quick-tools');
-  for(const [key,label] of [['home','시작'],['scene','맵'],['interface','화면'],['stories','대사'],['rules','전투']]){
-    const b=action(label,()=>goTool(key));b.dataset.quick=key;nav.append(b);
+  // 캐릭터 takes the place of 전투 (the rule tool) in easy mode.
+  for(const [key,label,easyOnly] of [['home','시작'],['scene','맵'],['characters','캐릭터',true],['interface','화면'],['stories','대사'],['rules','전투']]){
+    const b=action(label,()=>goTool(key));b.dataset.quick=key;if(easyOnly){b.dataset.easyOnly='1';b.hidden=true;}nav.append(b);
   }
   nav.append(action('찾기',openWorkFinder),action('도움말',openToolHelp));$('#find-work').onclick=openWorkFinder;$('#tool-help').onclick=openToolHelp;
   window.addEventListener('keydown',e=>{
